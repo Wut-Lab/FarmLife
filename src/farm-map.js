@@ -42,7 +42,9 @@ export function buildFarm(seed = 7) {
     used[at(x, 15 + j)] = 1;
   }
   place(17, 10, [[T(52), T(53), T(54)], [T(64), T(65), T(66)], [T(72), T(73), T(74)]]);
+  const plots = [];
   for (let y = 20; y < 26; y += 2) for (let x = 6; x < 16; x++) {
+    plots.push(`${x},${y}`);
     ground[at(x, y)] = F(x === 6 ? 48 : x === 15 ? 51 : 49 + (x % 2));
   }
   for (let y = 20; y < 26; y++) for (let x = 5; x < 17; x++) used[at(x, y)] = 1;
@@ -58,5 +60,5 @@ export function buildFarm(seed = 7) {
     if (free(x - 1, y - 1, 3, 3)) place(x, y, [[tree ? T(28) : T(29)]], tree ? 1 : 0);
   }
 
-  return { W, H, ground, solid, objects, spawn: { x: 18 * TILE, y: 13 * TILE } };
+  return { W, H, ground, solid, objects, plots, door: '19,12', spawn: { x: 18 * TILE, y: 13 * TILE } };
 }

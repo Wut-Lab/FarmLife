@@ -11,4 +11,5 @@ await Promise.all([
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),
 ]);
+window.game = game; // handy for debugging in the console
 game.start(new Menu());

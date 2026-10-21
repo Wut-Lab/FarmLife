@@ -2,6 +2,7 @@
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY } from './clock.js';
 import { buildFarm } from './farm-map.js';
+import { CROPS, SEEDS, Field } from './crops.js';
 
 const CHARACTERS = [
   { sheet: 'male', label: 'Male' },
@@ -81,6 +82,10 @@ export class World {
     this.player = new Walker(this.sheet);
     Object.assign(this, this.map.spawn);
     this.clock = new Clock();
+    this.field = new Field(this.map.plots);
+    this.seed = 0;
+    this.bag = Object.fromEntries(SEEDS.map(s => [s, 0]));
+    this.clock.on('overnight', () => this.field.overnight());
     this.toast = '';
     this.clock.on('newDay', ({ passedOut }) => this.say(passedOut ? 'You passed out! Half energy today.' : 'Good morning!'));
   }
@@ -99,6 +104,9 @@ export class World {
   update(dt) {
     const inp = this.g.input, d = inp.dir;
     if (inp.hit('Escape')) return this.g.go(new Menu());
+    const b = this.buttons();
+    if (inp.hit('KeyQ', 'Tab') || inp.tapIn(...b.seed)) this.seed = (this.seed + 1) % SEEDS.length;
+    if (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act)) this.act();
     this.clock.update(dt * 1000);
     if (this.toastT > 0) this.toastT -= dt;
     const moving = d.x !== 0 || d.y !== 0;
@@ -109,6 +117,31 @@ export class World {
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
     this.player.update(dt, moving);
+  }
+
+  // The tile in front of the player's feet.
+  facing() {
+    const [dx, dy] = [[0, 1], [-1, 0], [1, 0], [0, -1]][this.player.dir];
+    return `${Math.floor((this.x + 8 + dx * 10) / TILE)},${Math.floor((this.y + 13 + dy * 10) / TILE)}`;
+  }
+
+  act() {
+    const key = this.facing(), seed = SEEDS[this.seed];
+    if (key === this.map.door) return this.clock.sleep();
+    const p = this.field.get(key);
+    const cost = !this.field.has(key) ? 0 : !p ? 1 : this.field.isRipe(p) ? 0 : p.wet ? 0 : 1;
+    if (cost && !this.clock.useEnergy(cost)) return this.say('Too tired. Sleep at your front door.');
+    const r = this.field.act(key, seed);
+    if (!r) return;
+    const name = CROPS[r.crop].name;
+    if (r.did === 'harvest') { this.bag[r.crop]++; this.say(`Harvested a ${name}!`); }
+    else if (r.did === 'plant') this.say(`Planted ${name} seeds. Water them daily.`);
+    else if (r.did === 'none') this.say(`${name}: watered today. Ready in ${CROPS[r.crop].days - p.grown} day(s).`);
+  }
+
+  buttons() {
+    const g = this.g, r = 22;
+    return { act: [g.w - r - 6, g.h - r - 6, r, r], seed: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
   }
 
   draw(c) {
@@ -122,7 +155,16 @@ export class World {
         const [sheet, i] = ground[y * W + x];
         if (sheet === 'farm') g.tile('town', 0, x * TILE - cx, y * TILE - cy);
         g.tile(sheet, i, x * TILE - cx, y * TILE - cy);
+        const p = this.field.get(`${x},${y}`);
+        if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx + 2, y * TILE - cy + 3, 12, 10); }
+        if (p) g.tile('farm', this.field.sprite(p), x * TILE - cx, y * TILE - cy);
       }
+    // Highlight the tile the player is facing.
+    const [fx, fy] = this.facing().split(',').map(Number);
+    if (this.field.has(`${fx},${fy}`) || `${fx},${fy}` === this.map.door) {
+      c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
+      c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
+    }
     // Draw objects and the player back to front by their bottom edge.
     const list = objects.filter(o => o.x - cx < g.w && o.base - cy > 0 && o.x + o.tiles[0].length * TILE - cx > 0 && o.y - cy < g.h);
     list.push({ base: this.y + 16, player: true });
@@ -144,9 +186,20 @@ export class World {
     g.text(k.timeString, x + 4, 16, { size: 7, color: '#fff3a8' });
     g.panel(x + 4, 28, w - 8, 5, '#24361a');
     g.panel(x + 4, 28, (w - 8) * k.energy / MAX_ENERGY, 5, '#86cf5e');
+    // Harvest counts, top left.
+    SEEDS.forEach((s, i) => {
+      g.panel(4 + i * 30, 4, 28, 18);
+      g.tile('farm', CROPS[s].item, 5 + i * 30, 5);
+      g.text(String(this.bag[s]), 21 + i * 30, 9, { size: 7 });
+    });
+    // Seed picker and action button, bottom right.
+    const b = this.buttons(), seed = SEEDS[this.seed];
+    g.panel(...b.seed, '#3f2631dd'); g.tile('farm', CROPS[seed].item, b.seed[0] + 3, b.seed[1] + 1);
+    g.text(CROPS[seed].name, b.seed[0] + 11, b.seed[1] + 15, { size: 5, align: 'center' });
+    g.panel(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
     if (this.toastT > 0) {
-      g.panel(4, g.h - 18, g.w - 8, 14);
-      g.text(this.toast, g.w / 2, g.h - 15, { size: 7, align: 'center' });
+      g.panel(4, g.h - 46, g.w - 8, 14);
+      g.text(this.toast, g.w / 2, g.h - 43, { size: 7, align: 'center' });
     }
     const d = g.input.drag;
     if (d?.moved) {

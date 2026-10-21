@@ -16,6 +16,8 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 ## Controls
 - Move: arrow keys / WASD, or drag anywhere on the screen (virtual joystick)
 - Menus: Enter / tap
+- Use (plant / water / harvest, or sleep at your front door): Space / E, or tap **Use**
+- Change seeds: Q, or tap the seed button
 - Back to menu: Escape
 
 ## Tests
