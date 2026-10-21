@@ -3,7 +3,7 @@ import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY } from './clock.js';
 import { buildFarm } from './farm-map.js';
 import { CROPS, SEEDS, Field } from './crops.js';
-import { Inventory, TOOLS, HOTBAR, LOCKED, BAG } from './inventory.js';
+import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
 const CHARACTERS = [
   { sheet: 'male', label: 'Male' },
@@ -89,9 +89,12 @@ export class World {
     this.gold = 200;
     this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
     this.shop = false;
-    this.shipped = 0; // gold owed for crops in the shipping bin, paid overnight
     this.open = false; this.pick = -1;
-    this.clock.on('overnight', () => { this.field.overnight(); this.paid = this.shipped; this.gold += this.shipped; this.shipped = 0; });
+    this.clock.on('overnight', () => {
+      this.field.overnight();
+      this.paid = this.binValue(this.inv.emptyBin());
+      this.gold += this.paid;
+    });
     this.toast = '';
     this.clock.on('newDay', ({ passedOut }) => this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '')));
   }
@@ -110,13 +113,13 @@ export class World {
   update(dt) {
     const inp = this.g.input, d = inp.dir;
     if (this.shop) return this.shopUpdate(inp, dt);
-    if (inp.hit('Escape')) return this.g.go(new Menu());
+    if (inp.hit('Escape') && !this.open) return this.g.go(new Menu());
     const b = this.buttons(), inv = this.inv;
-    if (inp.hit('KeyI') || inp.tapIn(...b.bag)) { this.open = !this.open; this.pick = -1; }
+    if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag)) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
     for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
     // Tap a slot: select it (tap the seed bag again to change seeds). With the bag open, tap two slots to swap them.
-    const n = this.open ? HOTBAR + BAG : HOTBAR;
+    const n = !this.open ? HOTBAR : HOTBAR + BAG + (this.binOpen ? BIN : 0);
     for (let i = 0; i < n; i++) if (inp.tapIn(...this.slotRect(i))) {
       if (this.open && i >= LOCKED) {
         if (this.pick < 0) this.pick = i; else { inv.swap(this.pick, i); this.pick = -1; }
@@ -150,7 +153,7 @@ export class World {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     if (key === this.map.door) return this.clock.sleep();
     if (key === this.map.shop) { this.shop = true; return; }
-    if (this.map.bin.includes(key)) return this.ship(held);
+    if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
     if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => this.say('Too tired. Sleep at your front door.');
     if (f.isRipe(p)) {
@@ -184,15 +187,8 @@ export class World {
     return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
   }
 
-  // Shipping bin: ships the held crop stack, or every crop in the bag when holding a tool. Paid overnight.
-  ship(held) {
-    const ids = CROPS[held] ? [held] : SEEDS;
-    let n = 0, value = 0;
-    for (const id of ids) { const k = this.inv.take(id); n += k; value += k * CROPS[id].price; }
-    if (!n) return this.say('Nothing to ship. Harvest some crops first.');
-    this.shipped += value;
-    this.say(`Shipped ${n} crop${n > 1 ? 's' : ''} for ${value}g. Paid tomorrow morning.`);
-  }
+  // Shipping bin: 5 slots, filled from the bag; everything in it is sold overnight.
+  binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id]?.price ?? 0) * s.n, 0); }
 
   // Seed shop: buy seeds, sell crops.
   shopRows() {
@@ -235,7 +231,8 @@ export class World {
   // Slots 0-7 are the hotbar (top left); 8+ are the bag grid shown when it's open.
   slotRect(i) {
     if (i < HOTBAR) return [4 + i * 19, 4, 18, 18];
-    const j = i - HOTBAR, x0 = Math.round(this.g.w / 2 - 76), y0 = Math.round(this.g.h / 2 - 16);
+    if (i >= HOTBAR + BAG) return [Math.round(this.g.w / 2 - BIN * 19 / 2) + (i - HOTBAR - BAG) * 19, Math.round(this.g.h / 2 - 46), 18, 18];
+    const j = i - HOTBAR, x0 = Math.round(this.g.w / 2 - 76), y0 = Math.round(this.g.h / 2 - (this.binOpen ? 8 : 16));
     return [x0 + (j % 8) * 19, y0 + Math.floor(j / 8) * 19, 18, 18];
   }
 
@@ -300,8 +297,14 @@ export class World {
     if (this.open) {
       const [bx, by] = this.slotRect(HOTBAR);
       g.panel(bx - 4, by - 14, 8 * 19 + 7, 2 * 19 + 17, '#3f2631ee');
-      g.text(this.pick < 0 ? 'Bag: tap two slots to swap' : 'Now tap where it goes', g.w / 2, by - 11, { size: 6, align: 'center' });
+      const worth = this.binValue(this.inv.slots.slice(HOTBAR + BAG).filter(Boolean));
+      g.text(this.pick >= 0 ? 'Now tap where it goes' : this.binOpen ? `Shipping bin above · ${worth}g tonight` : 'Bag: tap two slots to swap', g.w / 2, by - 11, { size: 6, align: 'center' });
       for (let i = HOTBAR; i < HOTBAR + BAG; i++) this.drawSlot(i);
+      if (this.binOpen) {
+        const [x, y] = this.slotRect(HOTBAR + BAG);
+        g.panel(x - 3, y - 3, BIN * 19 + 5, 24, '#8a5a3aee');
+        for (let i = HOTBAR + BAG; i < HOTBAR + BAG + BIN; i++) this.drawSlot(i);
+      }
     }
     if (this.shop) this.drawShop();
     // Bag and action buttons, bottom right.

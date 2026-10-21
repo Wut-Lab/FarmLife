@@ -17,3 +17,15 @@ test('tool slots cannot be swapped', () => {
   assert.equal(inv.swap(0, HOTBAR), false);
   assert.equal(inv.slots[0].id, 'hoe');
 });
+
+test('shipping bin slots are separate from the bag and empty overnight', () => {
+  const inv = new Inventory();
+  inv.add('carrot', 3);
+  const bin = inv.slots.length - 1;
+  assert.ok(inv.swap(HOTBAR, bin));
+  assert.equal(inv.count('carrot'), 0);
+  inv.add('carrot');
+  assert.equal(inv.slots[HOTBAR].n, 1);
+  assert.deepEqual(inv.emptyBin(), [{ id: 'carrot', n: 3 }]);
+  assert.equal(inv.slots[bin], null);
+});
