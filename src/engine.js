@@ -1,6 +1,7 @@
 // Core engine: screen fitting, game loop, scenes, images, input and drawing helpers.
-export const TILE = 16;
-const TARGET = 180; // logical pixels along the screen's shorter side
+import { A } from './art-index.js';
+export const TILE = 16; // logical units per tile; art is 32x32, drawn at double density
+const TARGET = 300; // art pixels along the screen's shorter side
 
 export class Game {
   constructor(canvas) {
@@ -21,7 +22,8 @@ export class Game {
     this.canvas.height = Math.round(h * dpr);
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
-    this.scale = Math.max(1, Math.floor(Math.min(this.canvas.width, this.canvas.height) / TARGET));
+    // Even scale, so each 32px art tile maps to whole device pixels inside a 16-unit logical tile.
+    this.scale = 2 * Math.max(1, Math.floor(Math.min(this.canvas.width, this.canvas.height) / TARGET));
     this.w = Math.floor(this.canvas.width / this.scale);
     this.h = Math.floor(this.canvas.height / this.scale);
   }
@@ -64,10 +66,11 @@ export class Game {
     this.scene.draw(c);
   }
 
-  // Draw tile i from a 12-column Kenney packed tilemap.
-  tile(sheet, i, x, y) {
-    this.ctx.drawImage(this.images[sheet], (i % 12) * TILE, Math.floor(i / 12) * TILE, TILE, TILE,
-      Math.round(x), Math.round(y), TILE, TILE);
+  // Draw a named 32x32 tile from assets/art/world.png into a 16-unit logical tile.
+  tile(name, x, y) {
+    const i = A[name];
+    this.ctx.drawImage(this.images.art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32,
+      Math.round(x * 2) / 2, Math.round(y * 2) / 2, TILE, TILE);
   }
 
   text(str, x, y, { size = 8, color = '#fff8e8', align = 'left', shadow = '#3f2631' } = {}) {
@@ -155,7 +158,7 @@ export class Walker {
   update(dt, moving) { this.moving = moving; this.t = moving ? this.t + dt : 0; }
   get frame() { return this.moving ? [1, 0, 2, 0][Math.floor(this.t * 8) % 4] : 0; }
   draw(game, x, y, size = TILE) {
-    game.ctx.drawImage(game.images[this.sheet], this.frame * TILE, this.dir * TILE, TILE, TILE,
-      Math.round(x), Math.round(y), size, size);
+    game.ctx.drawImage(game.images[this.sheet], this.frame * 32, this.dir * 32, 32, 32,
+      Math.round(x * 2) / 2, Math.round(y * 2) / 2, size, size);
   }
 }

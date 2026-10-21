@@ -1,8 +1,8 @@
 // Crop data and the state of every planted plot. Growth happens overnight, and only if watered.
 export const CROPS = {
-  carrot:  { name: 'Carrot',  days: 3, price: 35,  seed: 15, stages: [4, 5, 6, 7],     item: 8,  packet: 10 },
-  turnip:  { name: 'Turnip',  days: 4, price: 50,  seed: 20, stages: [16, 17, 18, 19], item: 20, packet: 22 },
-  cabbage: { name: 'Cabbage', days: 6, price: 90,  seed: 40, stages: [52, 53, 54, 55], item: 56, packet: 58 },
+  carrot:  { name: 'Carrot',  days: 3, price: 35,  seed: 15, stages: ['carrot0', 'carrot1', 'carrot2', 'carrot3'],     item: 'carrot_item',  packet: 'carrot_packet' },
+  turnip:  { name: 'Turnip',  days: 4, price: 50,  seed: 20, stages: ['turnip0', 'turnip1', 'turnip2', 'turnip3'], item: 'turnip_item', packet: 'turnip_packet' },
+  cabbage: { name: 'Cabbage', days: 6, price: 90,  seed: 40, stages: ['cabbage0', 'cabbage1', 'cabbage2', 'cabbage3'], item: 'cabbage_item', packet: 'cabbage_packet' },
 };
 export const SEEDS = Object.keys(CROPS);
 
@@ -13,7 +13,7 @@ export class Field {
   get(key) { return this.plots.get(key); }
   isRipe(p) { return !!p && p.grown >= CROPS[p.crop].days; }
 
-  // Tile index (Tiny Farm sheet) for a plot's current look.
+  // Tile name for a plot's current look.
   sprite(p) {
     const c = CROPS[p.crop];
     return c.stages[Math.min(c.stages.length - 1, Math.floor(p.grown / c.days * (c.stages.length - 1)))];

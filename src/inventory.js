@@ -1,7 +1,7 @@
 // Hotbar + bag. Slots 0-2 hold the fixed tools; every other slot holds an item stack {id, n} or null.
 export const TOOLS = {
-  hoe:   { name: 'Hoe',          icon: 87 },
-  can:   { name: 'Watering Can', icon: 84 },
+  hoe:   { name: 'Hoe',          icon: 'hoe' },
+  can:   { name: 'Watering Can', icon: 'can' },
   seeds: { name: 'Seeds' },
 };
 export const HOTBAR = 8, LOCKED = 3, BAG = 16;

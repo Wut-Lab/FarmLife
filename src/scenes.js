@@ -15,7 +15,7 @@ function meadow(g, t) {
   const ox = -Math.floor(t * 6) % TILE;
   for (let y = 0; y < g.h; y += TILE) for (let x = ox; x < g.w; x += TILE) {
     const k = ((x - ox) / TILE * 7 + y / TILE * 13 + Math.floor(t * 6 / TILE) * 7) % 11;
-    g.tile('town', k === 0 ? 2 : k < 3 ? 1 : 0, x, y);
+    g.tile('grass' + (k === 0 ? 2 : k < 3 ? 1 : 0), x, y);
   }
 }
 
@@ -96,7 +96,7 @@ export class World {
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
 
-  // Feet hitbox: 8x5 pixels at the bottom of the 16x16 sprite.
+  // Feet hitbox: 8x5 pixels at the bottom of the 16x16 logical sprite.
   blocked(x, y) {
     const { W, H, solid } = this.map;
     for (const [px, py] of [[x + 4, y + 11], [x + 11, y + 11], [x + 4, y + 15], [x + 11, y + 15]]) {
@@ -211,7 +211,7 @@ export class World {
     SEEDS.forEach((s, i) => {
       const c = CROPS[s], [x, y, w, h] = r.buy[i];
       g.panel(x, y, w, h, '#5d7150cc');
-      g.tile('farm', c.packet, x + 1, y + 1);
+      g.tile(c.packet, x + 1, y + 1);
       g.text(`${i + 1}. ${c.name}`, x + 20, y + 5, { size: 6 });
       g.text(`own ${this.seeds[s]}`, x + 82, y + 5, { size: 5, color: '#dcebc6' });
       g.text(`${c.seed}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
@@ -233,7 +233,7 @@ export class World {
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
     const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? CROPS[s.id].item;
-    g.tile('farm', icon, x + 1, y + 1);
+    g.tile(icon, x + 1, y + 1);
     const n = s.id === 'seeds' ? this.seeds[SEEDS[this.seed]] : s.n;
     if (n !== undefined) g.text(String(n), x + 17, y + 11, { size: 5, align: 'right' });
   }
@@ -246,12 +246,10 @@ export class World {
     const x0 = Math.max(0, Math.floor(cx / TILE)), y0 = Math.max(0, Math.floor(cy / TILE));
     for (let y = y0; y < Math.min(H, y0 + g.h / TILE + 2); y++)
       for (let x = x0; x < Math.min(W, x0 + g.w / TILE + 2); x++) {
-        const [sheet, i] = ground[y * W + x];
-        if (sheet === 'farm') g.tile('town', 0, x * TILE - cx, y * TILE - cy);
-        g.tile(sheet, i, x * TILE - cx, y * TILE - cy);
+        g.tile(ground[y * W + x], x * TILE - cx, y * TILE - cy);
         const p = this.field.get(`${x},${y}`);
-        if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx + 2, y * TILE - cy + 3, 12, 10); }
-        if (p) g.tile('farm', this.field.sprite(p), x * TILE - cx, y * TILE - cy);
+        if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx, y * TILE - cy + 3, 16, 11); }
+        if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
@@ -265,7 +263,7 @@ export class World {
     list.sort((a, b) => a.base - b.base);
     for (const o of list) {
       if (o.player) this.player.draw(g, this.x - cx, this.y - cy);
-      else o.tiles.forEach((row, j) => row.forEach(([s, i], k) => g.tile(s, i, o.x + k * TILE - cx, o.y + j * TILE - cy)));
+      else o.tiles.forEach((row, j) => row.forEach((n, k) => g.tile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
     }
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
@@ -296,7 +294,7 @@ export class World {
     if (this.shop) this.drawShop();
     // Bag and action buttons, bottom right.
     const b = this.buttons();
-    g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('farm', 9, b.bag[0] + 3, b.bag[1] + 1);
+    g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('bag', b.bag[0] + 3, b.bag[1] + 1);
     g.text('Bag', b.bag[0] + 11, b.bag[1] + 15, { size: 5, align: 'center' });
     g.panel(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
     if (this.toastT > 0) {
