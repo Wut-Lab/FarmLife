@@ -21,8 +21,8 @@ BASE = {
     "f": "#e86a9a",  # flower clip
 }
 LOOKS = {
-    "male":   {"h": "#bd6c4a", "H": "#763b36", "t": "#6ba446", "T": "#3e7a3a"},
-    "female": {"h": "#e6a64a", "H": "#b06a2c", "t": "#f28462", "T": "#c34b35"},
+    "male":   {"h": "#bd6c4a", "H": "#763b36", "t": "#6ba446", "T": "#3e7a3a", "c": "#a7d46f"},
+    "female": {"h": "#e6a64a", "H": "#b06a2c", "t": "#f28462", "T": "#c34b35", "c": "#fec99c"},
 }
 
 LEGS_FRONT = ["..oobbbbbbbboo..", "...obbo..obbo...", "...okko..okko...", "...oooo..oooo..."]
@@ -32,26 +32,26 @@ LEGS_STRIDE = ["....obbbbbo.....", "...obo.obo......", "..okko.okko.....", "..oo
 MAPS = {
     "male": {
         "down": [
-            "................", "....oooooooo....", "...ohhhhhhhho...", "..ohhhhhhhhhho..",
-            "..ohHssssssHho..", "..oHsessssesHo..", "..oSssssssssSo..", "...oSSssssSSo...",
-            "....otssssto....", "...otttttttto...", "..otbttttttbto..", "..osbbBbbBbbso..",
+            "......oo.oo.....", "....oohhohhoo...", "...ohhhhhhhho...", "..ohhhhhhhhhho..",
+            "..ohHhsHhsHhho..", "..oHsessssesHo..", "..oHssssssssHo..", "...oHSssssSHo...",
+            "....oTssssTo....", "...ottTssTtto...", "..otbtcttctbto..", "..osbbBbbBbbso..",
         ],
         "up": [
-            "................", "....oooooooo....", "...ohhhhhhhho...", "..ohhhhhhhhhho..",
-            "..ohhhhhhhhhho..", "..oHhhhhhhhhHo..", "..oHHhhhhhhHHo..", "...oHHHHHHHHo...",
-            "....otssssto....", "...otttttttto...", "..otbttttttbto..", "..osbbbbbbbbso..",
+            "......oo.oo.....", "....oohhohhoo...", "...ohhhhhhhho...", "..ohhhhhhhhhho..",
+            "..ohhhhhhhhhho..", "..oHhhhhhhhhHo..", "..oHHhhHhhhHHo..", "...oHhHHhHhHo...",
+            "....otssssto....", "...ottcttcttto..", "..otbtcttctbto..", "..osbbbbbbbbso..",
         ],
         "left": [
-            "................", "....ooooooo.....", "...ohhhhhhho....", "..ohhhhhhhhho...",
-            "..osssshhhHho...", "..oesssshhHHo...", ".osssssSHHHo....", "..oSsssSSHHo....",
-            "....ottttto.....", "....otttttto....", "....otTTtto.....", "....osbbbbo.....",
+            "......oo.oo.....", "....oohhohhoo...", "...ohhhhhhhho...", "..ohhhhhhhhhho..",
+            "..ohshhshhhHho..", "..oesssshhHhho..", ".osssssSHHhHo...", "..oSsssSHhHo....",
+            "....oTtttoHo....", "....otctctto....", "....otTTtto.....", "....osbbbbo.....",
         ],
     },
     "female": {
         "down": [
             "................", "....oooooooo....", "...ohhhhhhhho...", "..ohhhhhhhhhfo..",
             "..ohHssssssHho..", "..ohsessssesho..", "..ohSsssssSSho..", "..ohhSSssSShho..",
-            "..ohhotsstohho..", "..ohhtttttthho..", "..oHtbttttbtHo..", "..osbbBbbBbbso..",
+            "..ohhoTssTohho..", "..ohhtcTTcthho..", "..oHtbtcctbtHo..", "..osbbBbbBbbso..",
         ],
         "up": [
             "................", "....oooooooo....", "...ohhhhhhhho...", "..ofhhhhhhhhho..",
@@ -61,7 +61,7 @@ MAPS = {
         "left": [
             "................", "....ooooooo.....", "...ohhhhhhho....", "..ohhhhhhhhho...",
             "..osssshhhfho...", "..oesssshhhhho..", ".osssssShhhhho..", "..oSsssShhhhho..",
-            "....ottohhhho...", "....otttohhho...", "....otTTtoHo....", "....osbbbbo.....",
+            "....ottohhhho...", "....otctohhho...", "....otTTtoHo....", "....osbbbbo.....",
         ],
     },
 }
