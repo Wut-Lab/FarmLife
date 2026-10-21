@@ -1,7 +1,10 @@
 # FarmLife
 A farming and life sim.
 
-## Run it
+## Play
+Online: https://wut-lab.github.io/FarmLife/
+
+## Run it locally
 The game uses JavaScript modules, so it needs a local web server:
 
 ```
