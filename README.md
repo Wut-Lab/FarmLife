@@ -21,6 +21,7 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Change seeds: Q, or tap the seed bag slot again
 - Bag: I, or tap **Bag**. Tap two slots (bag or hotbar 4–8) to swap them
 - Seed shop: face the shop door (next to the house) and press Use. 1–3 buy seeds, S sells all crops
+- Shipping bin (next to the shop): press Use to ship the crop you hold, or all crops if holding a tool. Paid overnight
 - Back to menu: Escape
 
 ## Tests

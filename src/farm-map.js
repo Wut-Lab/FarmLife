@@ -44,6 +44,7 @@ export function buildFarm(seed = 7) {
   // Seed shop next to the house, with a sign.
   place(21, 10, [['shop_0', 'shop_1', 'shop_2'], ['shop_3', 'shop_4', 'shop_5'], ['shop_6', 'shop_7', 'shop_8']]);
   place(24, 12, [['sign']]);
+  place(25, 12, [['bin_0', 'bin_1']]); // shipping bin
   const plots = [];
   for (let y = 20; y < 26; y += 2) for (let x = 6; x < 16; x++) {
     plots.push(`${x},${y}`);
@@ -62,5 +63,5 @@ export function buildFarm(seed = 7) {
     if (free(x - 1, y - 1, 3, 3)) place(x, y, [[tree ? 'tree' : 'mushrooms']], tree ? 1 : 0);
   }
 
-  return { W, H, ground, solid, objects, plots, door: '18,12', shop: '22,12', spawn: { x: 18 * TILE, y: 13 * TILE } };
+  return { W, H, ground, solid, objects, plots, door: '18,12', shop: '22,12', bin: ['25,12', '26,12'], spawn: { x: 18 * TILE, y: 13 * TILE } };
 }

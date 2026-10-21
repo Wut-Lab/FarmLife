@@ -89,10 +89,11 @@ export class World {
     this.gold = 200;
     this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
     this.shop = false;
+    this.shipped = 0; // gold owed for crops in the shipping bin, paid overnight
     this.open = false; this.pick = -1;
-    this.clock.on('overnight', () => this.field.overnight());
+    this.clock.on('overnight', () => { this.field.overnight(); this.paid = this.shipped; this.gold += this.shipped; this.shipped = 0; });
     this.toast = '';
-    this.clock.on('newDay', ({ passedOut }) => this.say(passedOut ? 'You passed out! Half energy today.' : 'Good morning!'));
+    this.clock.on('newDay', ({ passedOut }) => this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '')));
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
 
@@ -149,6 +150,7 @@ export class World {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     if (key === this.map.door) return this.clock.sleep();
     if (key === this.map.shop) { this.shop = true; return; }
+    if (this.map.bin.includes(key)) return this.ship(held);
     if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => this.say('Too tired. Sleep at your front door.');
     if (f.isRipe(p)) {
@@ -180,6 +182,16 @@ export class World {
   buttons() {
     const g = this.g, r = 22;
     return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
+  }
+
+  // Shipping bin: ships the held crop stack, or every crop in the bag when holding a tool. Paid overnight.
+  ship(held) {
+    const ids = CROPS[held] ? [held] : SEEDS;
+    let n = 0, value = 0;
+    for (const id of ids) { const k = this.inv.take(id); n += k; value += k * CROPS[id].price; }
+    if (!n) return this.say('Nothing to ship. Harvest some crops first.');
+    this.shipped += value;
+    this.say(`Shipped ${n} crop${n > 1 ? 's' : ''} for ${value}g. Paid tomorrow morning.`);
   }
 
   // Seed shop: buy seeds, sell crops.
@@ -253,7 +265,7 @@ export class World {
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if (this.field.has(`${fx},${fy}`) || [this.map.door, this.map.shop].includes(`${fx},${fy}`)) {
+    if (this.field.has(`${fx},${fy}`) || [this.map.door, this.map.shop, ...this.map.bin].includes(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }

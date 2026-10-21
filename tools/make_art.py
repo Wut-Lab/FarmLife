@@ -181,6 +181,16 @@ def fence(part):
     for x in posts + ([16] if part == 1 else []):
         shape(im, lambda d, x=x: d.rectangle([x - 2, 8, x + 2, 29]), '#b07440', '#d0965a', '#83532c', 1)
     return outline(im)
+def bin_():  # 64x32 wooden shipping bin with a lid, sliced into two tiles
+    im = new(2 * S, S)
+    shape(im, lambda d: d.rectangle([4, 12, 59, 30]), '#b07440', '#d0965a', '#83532c')
+    d = ImageDraw.Draw(im)
+    for y in (18, 24): d.line([(5, y), (58, y)], C('#83532c'))
+    for x in (4, 31, 56): shape(im, lambda d, x=x: d.rectangle([x, 12, x + 3, 30]), '#9a6436', '#b07440', '#6f4426', 1)
+    shape(im, lambda d: d.polygon([(2, 12), (6, 4), (57, 4), (61, 12)]), '#c88a50', '#e0a96a', '#9a6436')
+    im.alpha_composite(ITEMS['carrot'].resize((14, 14), Image.BOX), (18, 14))
+    im.alpha_composite(ITEMS['turnip'].resize((14, 14), Image.BOX), (36, 14))
+    return outline(im)
 def sign():
     im = new()
     shape(im, lambda d: d.rectangle([14, 18, 17, 30]), '#9a6436', '#b07440', '#6f4426', 1)
@@ -303,7 +313,7 @@ add('hoe', hoe()); add('can', can()); add('bag', cell(BAGS, 0, 32))
 add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orange', tall_tree(('#e0892f', '#f5ad4f', '#b0601f')))
 add('tree', small_tree()); add('mushrooms', mushrooms())
 for k in range(3): add(f'fence{k}', fence(k))
-add('sign', sign())
+add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
 COLS = 16
