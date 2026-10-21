@@ -25,6 +25,13 @@ export class Inventory {
     return true;
   }
 
+  // Removes every stack of an item; returns how many were removed.
+  take(id) {
+    let n = 0;
+    this.slots.forEach((s, i) => { if (s?.id === id && s.n) { n += s.n; this.slots[i] = null; } });
+    return n;
+  }
+
   // Swap any two non-tool slots (hotbar or bag).
   swap(a, b) {
     if (a < LOCKED || b < LOCKED) return false;

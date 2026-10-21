@@ -42,6 +42,9 @@ export function buildFarm(seed = 7) {
     used[at(x, 15 + j)] = 1;
   }
   place(17, 10, [[T(52), T(53), T(54)], [T(64), T(65), T(66)], [T(72), T(73), T(74)]]);
+  // Seed shop next to the house, with a sign.
+  place(21, 10, [[T(48), T(49), T(50)], [T(60), T(61), T(62)], [T(88), T(89), T(88)]]);
+  place(24, 12, [[T(83)]]);
   const plots = [];
   for (let y = 20; y < 26; y += 2) for (let x = 6; x < 16; x++) {
     plots.push(`${x},${y}`);
@@ -60,5 +63,5 @@ export function buildFarm(seed = 7) {
     if (free(x - 1, y - 1, 3, 3)) place(x, y, [[tree ? T(28) : T(29)]], tree ? 1 : 0);
   }
 
-  return { W, H, ground, solid, objects, plots, door: '19,12', spawn: { x: 18 * TILE, y: 13 * TILE } };
+  return { W, H, ground, solid, objects, plots, door: '19,12', shop: '22,12', spawn: { x: 18 * TILE, y: 13 * TILE } };
 }

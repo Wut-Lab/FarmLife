@@ -86,6 +86,9 @@ export class World {
     this.field = new Field(this.map.plots);
     this.seed = 0;
     this.inv = new Inventory();
+    this.gold = 200;
+    this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
+    this.shop = false;
     this.open = false; this.pick = -1;
     this.clock.on('overnight', () => this.field.overnight());
     this.toast = '';
@@ -105,6 +108,7 @@ export class World {
 
   update(dt) {
     const inp = this.g.input, d = inp.dir;
+    if (this.shop) return this.shopUpdate(inp, dt);
     if (inp.hit('Escape')) return this.g.go(new Menu());
     const b = this.buttons(), inv = this.inv;
     if (inp.hit('KeyI') || inp.tapIn(...b.bag)) { this.open = !this.open; this.pick = -1; }
@@ -144,6 +148,7 @@ export class World {
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     if (key === this.map.door) return this.clock.sleep();
+    if (key === this.map.shop) { this.shop = true; return; }
     if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => this.say('Too tired. Sleep at your front door.');
     if (f.isRipe(p)) {
@@ -152,8 +157,11 @@ export class World {
     }
     if (held === 'seeds') {
       if (p) return this.say(`Something is already growing here.`);
+      const seed = SEEDS[this.seed];
+      if (!this.seeds[seed]) return this.say(`Out of ${CROPS[seed].name} seeds. Buy more at the shop.`);
       if (!this.clock.useEnergy(1)) return tired();
-      const r = f.act(key, SEEDS[this.seed]); return this.say(`Planted ${CROPS[r.crop].name} seeds. Water them daily.`);
+      this.seeds[seed]--;
+      const r = f.act(key, seed); return this.say(`Planted ${CROPS[r.crop].name} seeds. Water them daily.`);
     }
     if (held === 'can') {
       if (!p) return this.say('Nothing to water. Plant some seeds first.');
@@ -174,6 +182,44 @@ export class World {
     return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
   }
 
+  // Seed shop: buy seeds, sell crops.
+  shopRows() {
+    const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 56);
+    return { x, y, buy: SEEDS.map((_, i) => [x + 4, y + 16 + i * 20, 132, 18]), sell: [x + 4, y + 78, 64, 14], close: [x + 72, y + 78, 64, 14] };
+  }
+  shopUpdate(inp, dt) {
+    const r = this.shopRows();
+    this.clock.update(dt * 1000);
+    if (this.toastT > 0) this.toastT -= dt;
+    this.player.update(dt, false);
+    SEEDS.forEach((s, i) => {
+      if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
+      const c = CROPS[s];
+      if (this.gold < c.seed) return this.say(`Not enough gold for ${c.name} seeds.`);
+      this.gold -= c.seed; this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
+    });
+    if (inp.hit('KeyS') || inp.tapIn(...r.sell)) {
+      const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * CROPS[s].price, 0);
+      this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
+    }
+    if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
+  }
+  drawShop() {
+    const g = this.g, r = this.shopRows();
+    g.panel(r.x, r.y, 140, 96, '#3f2631ee');
+    g.text(`Seed Shop · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    SEEDS.forEach((s, i) => {
+      const c = CROPS[s], [x, y, w, h] = r.buy[i];
+      g.panel(x, y, w, h, '#5d7150cc');
+      g.tile('farm', c.packet, x + 1, y + 1);
+      g.text(`${i + 1}. ${c.name}`, x + 20, y + 5, { size: 6 });
+      g.text(`own ${this.seeds[s]}`, x + 82, y + 5, { size: 5, color: '#dcebc6' });
+      g.text(`${c.seed}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
+    });
+    g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' });
+    g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
+  }
+
   // Slots 0-7 are the hotbar (top left); 8+ are the bag grid shown when it's open.
   slotRect(i) {
     if (i < HOTBAR) return [4 + i * 19, 4, 18, 18];
@@ -188,7 +234,8 @@ export class World {
     if (!s) return;
     const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? CROPS[s.id].item;
     g.tile('farm', icon, x + 1, y + 1);
-    if (s.n) g.text(String(s.n), x + 17, y + 11, { size: 5, align: 'right' });
+    const n = s.id === 'seeds' ? this.seeds[SEEDS[this.seed]] : s.n;
+    if (n !== undefined) g.text(String(n), x + 17, y + 11, { size: 5, align: 'right' });
   }
 
   draw(c) {
@@ -208,7 +255,7 @@ export class World {
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if (this.field.has(`${fx},${fy}`) || `${fx},${fy}` === this.map.door) {
+    if (this.field.has(`${fx},${fy}`) || [this.map.door, this.map.shop].includes(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }
@@ -232,6 +279,7 @@ export class World {
     g.panel(x, y, w, 34);
     g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, y + 3, { size: 7 });
     g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
+    g.text(`${this.gold}g`, x + w - 4, y + 12, { size: 7, align: 'right', color: '#fff3a8' });
     g.panel(x + 4, y + 24, w - 8, 5, '#24361a');
     g.panel(x + 4, y + 24, (w - 8) * k.energy / MAX_ENERGY, 5, '#86cf5e');
     // Hotbar, top left, with the held item's name under it.
@@ -245,6 +293,7 @@ export class World {
       g.text(this.pick < 0 ? 'Bag: tap two slots to swap' : 'Now tap where it goes', g.w / 2, by - 11, { size: 6, align: 'center' });
       for (let i = HOTBAR; i < HOTBAR + BAG; i++) this.drawSlot(i);
     }
+    if (this.shop) this.drawShop();
     // Bag and action buttons, bottom right.
     const b = this.buttons();
     g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('farm', 9, b.bag[0] + 3, b.bag[1] + 1);

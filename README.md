@@ -20,6 +20,7 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Hotbar (top left): 1–8 or tap a slot. Slots 1–3 are the hoe, watering can and seed bag; 4–8 are free
 - Change seeds: Q, or tap the seed bag slot again
 - Bag: I, or tap **Bag**. Tap two slots (bag or hotbar 4–8) to swap them
+- Seed shop: face the shop door (next to the house) and press Use. 1–3 buy seeds, S sells all crops
 - Back to menu: Escape
 
 ## Tests
