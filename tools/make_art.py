@@ -213,6 +213,12 @@ def building(roof, roof_l, roof_d, wall, wall_l, wall_d, awning=False):
 
 # ---------- characters ----------
 SKIN, SKIN_L, SKIN_D = '#f5c7a0', '#ffdcc0', '#d99a78'
+def eye(d, p, ex, out):
+    """2x4 eye: lash line on top, white glint, iris, lighter bottom. out = side for the outer lash flick."""
+    d.line([(ex, 9), (ex + 1, 9)], C('#2a1a2a'))
+    if p['long']: d.point((ex + out, 9 - (out > 0) * 0), C('#2a1a2a')); d.point((ex + out, 8), C('#2a1a2a'))
+    d.point((ex, 10), C('#ffffff')); d.point((ex + 1, 10), C(p['eye']))
+    d.line([(ex, 11), (ex + 1, 11)], C(p['eye'])); d.line([(ex, 12), (ex + 1, 12)], C(p['eye_l']))
 def farmer(p):
     sheet = new(3 * S, 4 * S)
     for dir_ in range(4):
@@ -248,12 +254,11 @@ def farmer(p):
             shape(im, lambda d: d.ellipse([8, 2, 24, 17]), SKIN, SKIN_L, SKIN_D, 1)
             d = ImageDraw.Draw(im)
             if dir_ == 0:
-                for ex in (12, 19):
-                    d.rectangle([ex, 10, ex + 1, 12], C('#3a2a3a')); d.point((ex, 10), C('#ffffff'))
+                for ex, out in ((12, -1), (19, 2)): eye(d, p, ex, out)
                 d.point((11, 14), C('#f29a9a')); d.point((21, 14), C('#f29a9a')); d.line([(15, 14), (16, 14)], C('#c06060'))
             elif side:
                 ex = 10 if dir_ == 1 else 20
-                d.rectangle([ex, 10, ex + 1, 12], C('#3a2a3a')); d.point((ex + (0 if dir_ == 1 else 1), 10), C('#ffffff'))
+                eye(d, p, ex, 2 if dir_ == 2 else -1)
                 d.point((ex + (1 if dir_ == 1 else -1), 14), C('#f29a9a'))
             # hair
             H, Hl, Hd = p['hair'], p['hair_l'], p['hair_d']
@@ -272,14 +277,14 @@ def farmer(p):
             sheet.alpha_composite(im, (f * S, dir_ * S))
     return sheet
 
-MALE = dict(hair='#bd6c4a', hair_l='#d98a62', hair_d='#8a4632', shirt='#6ba446', shirt_l='#8cc35f', shirt_d='#3e7a3a', accent='#a7d46f',
+MALE = dict(hair='#bd6c4a', hair_l='#d98a62', hair_d='#8a4632', shirt='#6ba446', shirt_l='#8cc35f', shirt_d='#3e7a3a', accent='#a7d46f', eye='#4a3a2a', eye_l='#8a6a4a',
             pants='#4a5a8a', pants_d='#34406a', long=False,
-            fringe=[(7, 9), (8, 3), (12, 0), (20, 0), (24, 3), (25, 10), (23, 13), (22, 8), (20, 10), (18, 7), (16, 10), (14, 7), (12, 10), (10, 8), (9, 13)],
-            side=[(7, 12), (8, 3), (13, 0), (20, 0), (25, 4), (25, 9), (21, 8), (19, 11), (17, 8), (14, 7), (12, 9), (10, 8), (9, 14)])
-FEMALE = dict(hair='#e6a64a', hair_l='#f6c66a', hair_d='#b06a2c', shirt='#f28462', shirt_l='#f9a888', shirt_d='#c34b35', accent='#fec99c',
+            fringe=[(7, 9), (8, 3), (12, 1), (20, 1), (24, 3), (25, 10), (23, 13), (22, 8), (20, 10), (18, 7), (16, 10), (14, 7), (12, 10), (10, 8), (9, 13)],
+            side=[(7, 12), (8, 3), (13, 1), (20, 1), (25, 4), (25, 9), (21, 8), (19, 11), (17, 8), (14, 7), (12, 9), (10, 8), (9, 14)])
+FEMALE = dict(hair='#e6a64a', hair_l='#f6c66a', hair_d='#b06a2c', shirt='#f28462', shirt_l='#f9a888', shirt_d='#c34b35', accent='#fec99c', eye='#2f4f8a', eye_l='#6f9ad8',
               pants='#7a5a9a', pants_d='#5a3f78', long=True, clip='#e86a9a', apron=True,
-              fringe=[(7, 12), (8, 3), (12, 0), (20, 0), (24, 3), (25, 12), (23, 10), (22, 6), (17, 6), (13, 7), (10, 6), (9, 11)],
-              side=[(7, 15), (8, 3), (13, 0), (20, 0), (25, 4), (24, 8), (19, 7), (14, 7), (12, 10), (10, 18)])
+              fringe=[(7, 12), (8, 3), (12, 1), (20, 1), (24, 3), (25, 12), (23, 10), (22, 6), (17, 6), (13, 7), (10, 6), (9, 11)],
+              side=[(7, 15), (8, 3), (13, 1), (20, 1), (25, 4), (24, 8), (19, 7), (14, 7), (12, 10), (10, 18)])
 
 # ---------- assemble ----------
 cells, names = [], {}
