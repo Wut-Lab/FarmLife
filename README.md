@@ -16,8 +16,10 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 ## Controls
 - Move: arrow keys / WASD, or drag anywhere on the screen (virtual joystick)
 - Menus: Enter / tap
-- Use (plant / water / harvest, or sleep at your front door): Space / E, or tap **Use**
-- Change seeds: Q, or tap the seed button
+- Use the held tool (or pick a ripe crop, or sleep at your front door): Space / E, or tap **Use**
+- Hotbar (top left): 1–8 or tap a slot. Slots 1–3 are the hoe, watering can and seed bag; 4–8 are free
+- Change seeds: Q, or tap the seed bag slot again
+- Bag: I, or tap **Bag**. Tap two slots (bag or hotbar 4–8) to swap them
 - Back to menu: Escape
 
 ## Tests

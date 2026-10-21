@@ -1,8 +1,8 @@
 // Crop data and the state of every planted plot. Growth happens overnight, and only if watered.
 export const CROPS = {
-  carrot:  { name: 'Carrot',  days: 3, price: 35,  stages: [4, 5, 6, 7],     item: 8 },
-  turnip:  { name: 'Turnip',  days: 4, price: 50,  stages: [16, 17, 18, 19], item: 20 },
-  cabbage: { name: 'Cabbage', days: 6, price: 90,  stages: [52, 53, 54, 55], item: 56 },
+  carrot:  { name: 'Carrot',  days: 3, price: 35,  stages: [4, 5, 6, 7],     item: 8,  packet: 10 },
+  turnip:  { name: 'Turnip',  days: 4, price: 50,  stages: [16, 17, 18, 19], item: 20, packet: 22 },
+  cabbage: { name: 'Cabbage', days: 6, price: 90,  stages: [52, 53, 54, 55], item: 56, packet: 58 },
 };
 export const SEEDS = Object.keys(CROPS);
 

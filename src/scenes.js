@@ -3,6 +3,7 @@ import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY } from './clock.js';
 import { buildFarm } from './farm-map.js';
 import { CROPS, SEEDS, Field } from './crops.js';
+import { Inventory, TOOLS, HOTBAR, LOCKED, BAG } from './inventory.js';
 
 const CHARACTERS = [
   { sheet: 'male', label: 'Male' },
@@ -84,7 +85,8 @@ export class World {
     this.clock = new Clock();
     this.field = new Field(this.map.plots);
     this.seed = 0;
-    this.bag = Object.fromEntries(SEEDS.map(s => [s, 0]));
+    this.inv = new Inventory();
+    this.open = false; this.pick = -1;
     this.clock.on('overnight', () => this.field.overnight());
     this.toast = '';
     this.clock.on('newDay', ({ passedOut }) => this.say(passedOut ? 'You passed out! Half energy today.' : 'Good morning!'));
@@ -104,11 +106,24 @@ export class World {
   update(dt) {
     const inp = this.g.input, d = inp.dir;
     if (inp.hit('Escape')) return this.g.go(new Menu());
-    const b = this.buttons();
-    if (inp.hit('KeyQ', 'Tab') || inp.tapIn(...b.seed)) this.seed = (this.seed + 1) % SEEDS.length;
-    if (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act)) this.act();
+    const b = this.buttons(), inv = this.inv;
+    if (inp.hit('KeyI') || inp.tapIn(...b.bag)) { this.open = !this.open; this.pick = -1; }
+    if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
+    for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
+    // Tap a slot: select it (tap the seed bag again to change seeds). With the bag open, tap two slots to swap them.
+    const n = this.open ? HOTBAR + BAG : HOTBAR;
+    for (let i = 0; i < n; i++) if (inp.tapIn(...this.slotRect(i))) {
+      if (this.open && i >= LOCKED) {
+        if (this.pick < 0) this.pick = i; else { inv.swap(this.pick, i); this.pick = -1; }
+      } else if (i < HOTBAR) {
+        if (inv.sel === i && inv.held?.id === 'seeds') this.seed = (this.seed + 1) % SEEDS.length;
+        inv.sel = i;
+      }
+    }
+    if (!this.open && (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act))) this.act();
     this.clock.update(dt * 1000);
     if (this.toastT > 0) this.toastT -= dt;
+    if (this.open) return this.player.update(dt, false);
     const moving = d.x !== 0 || d.y !== 0;
     if (moving) {
       this.player.dir = Math.abs(d.x) > Math.abs(d.y) ? (d.x < 0 ? DIRS.left : DIRS.right) : (d.y < 0 ? DIRS.up : DIRS.down);
@@ -125,23 +140,55 @@ export class World {
     return `${Math.floor((this.x + 8 + dx * 10) / TILE)},${Math.floor((this.y + 13 + dy * 10) / TILE)}`;
   }
 
+  // Ripe crops are picked by hand; otherwise the held tool decides what happens.
   act() {
-    const key = this.facing(), seed = SEEDS[this.seed];
+    const key = this.facing(), f = this.field, held = this.inv.held?.id;
     if (key === this.map.door) return this.clock.sleep();
-    const p = this.field.get(key);
-    const cost = !this.field.has(key) ? 0 : !p ? 1 : this.field.isRipe(p) ? 0 : p.wet ? 0 : 1;
-    if (cost && !this.clock.useEnergy(cost)) return this.say('Too tired. Sleep at your front door.');
-    const r = this.field.act(key, seed);
-    if (!r) return;
-    const name = CROPS[r.crop].name;
-    if (r.did === 'harvest') { this.bag[r.crop]++; this.say(`Harvested a ${name}!`); }
-    else if (r.did === 'plant') this.say(`Planted ${name} seeds. Water them daily.`);
-    else if (r.did === 'none') this.say(`${name}: watered today. Ready in ${CROPS[r.crop].days - p.grown} day(s).`);
+    if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
+    const p = f.get(key), tired = () => this.say('Too tired. Sleep at your front door.');
+    if (f.isRipe(p)) {
+      if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
+      f.act(key); return this.say(`Harvested a ${CROPS[p.crop].name}!`);
+    }
+    if (held === 'seeds') {
+      if (p) return this.say(`Something is already growing here.`);
+      if (!this.clock.useEnergy(1)) return tired();
+      const r = f.act(key, SEEDS[this.seed]); return this.say(`Planted ${CROPS[r.crop].name} seeds. Water them daily.`);
+    }
+    if (held === 'can') {
+      if (!p) return this.say('Nothing to water. Plant some seeds first.');
+      if (p.wet) return this.say(`${CROPS[p.crop].name}: watered today. Ready in ${CROPS[p.crop].days - p.grown} day(s).`);
+      if (!this.clock.useEnergy(1)) return tired();
+      return f.act(key);
+    }
+    if (held === 'hoe') {
+      if (!p) return this.say('The soil is already tilled.');
+      if (!this.clock.useEnergy(2)) return tired();
+      f.plots.set(key, null); return this.say(`Dug up the ${CROPS[p.crop].name}.`);
+    }
+    this.say('Pick a tool from your hotbar (1-3).');
   }
 
   buttons() {
     const g = this.g, r = 22;
-    return { act: [g.w - r - 6, g.h - r - 6, r, r], seed: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
+    return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
+  }
+
+  // Slots 0-7 are the hotbar (top left); 8+ are the bag grid shown when it's open.
+  slotRect(i) {
+    if (i < HOTBAR) return [4 + i * 19, 4, 18, 18];
+    const j = i - HOTBAR, x0 = Math.round(this.g.w / 2 - 76), y0 = Math.round(this.g.h / 2 - 16);
+    return [x0 + (j % 8) * 19, y0 + Math.floor(j / 8) * 19, 18, 18];
+  }
+
+  drawSlot(i) {
+    const g = this.g, s = this.inv.slots[i], [x, y] = this.slotRect(i);
+    g.panel(x, y, 18, 18, i === this.pick ? '#e86a9add' : undefined);
+    if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
+    if (!s) return;
+    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? CROPS[s.id].item;
+    g.tile('farm', icon, x + 1, y + 1);
+    if (s.n) g.text(String(s.n), x + 17, y + 11, { size: 5, align: 'right' });
   }
 
   draw(c) {
@@ -181,21 +228,27 @@ export class World {
 
   hud() {
     const g = this.g, k = this.clock, w = 78, x = g.w - w - 4;
-    g.panel(x, 4, w, 34);
-    g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, 7, { size: 7 });
-    g.text(k.timeString, x + 4, 16, { size: 7, color: '#fff3a8' });
-    g.panel(x + 4, 28, w - 8, 5, '#24361a');
-    g.panel(x + 4, 28, (w - 8) * k.energy / MAX_ENERGY, 5, '#86cf5e');
-    // Harvest counts, top left.
-    SEEDS.forEach((s, i) => {
-      g.panel(4 + i * 30, 4, 28, 18);
-      g.tile('farm', CROPS[s].item, 5 + i * 30, 5);
-      g.text(String(this.bag[s]), 21 + i * 30, 9, { size: 7 });
-    });
-    // Seed picker and action button, bottom right.
-    const b = this.buttons(), seed = SEEDS[this.seed];
-    g.panel(...b.seed, '#3f2631dd'); g.tile('farm', CROPS[seed].item, b.seed[0] + 3, b.seed[1] + 1);
-    g.text(CROPS[seed].name, b.seed[0] + 11, b.seed[1] + 15, { size: 5, align: 'center' });
+    const y = g.w < HOTBAR * 19 + w + 12 ? 26 : 4; // Drop below the hotbar on narrow screens.
+    g.panel(x, y, w, 34);
+    g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, y + 3, { size: 7 });
+    g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
+    g.panel(x + 4, y + 24, w - 8, 5, '#24361a');
+    g.panel(x + 4, y + 24, (w - 8) * k.energy / MAX_ENERGY, 5, '#86cf5e');
+    // Hotbar, top left, with the held item's name under it.
+    for (let i = 0; i < HOTBAR; i++) this.drawSlot(i);
+    const h = this.inv.held;
+    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
+    // Bag grid.
+    if (this.open) {
+      const [bx, by] = this.slotRect(HOTBAR);
+      g.panel(bx - 4, by - 14, 8 * 19 + 7, 2 * 19 + 17, '#3f2631ee');
+      g.text(this.pick < 0 ? 'Bag: tap two slots to swap' : 'Now tap where it goes', g.w / 2, by - 11, { size: 6, align: 'center' });
+      for (let i = HOTBAR; i < HOTBAR + BAG; i++) this.drawSlot(i);
+    }
+    // Bag and action buttons, bottom right.
+    const b = this.buttons();
+    g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('farm', 9, b.bag[0] + 3, b.bag[1] + 1);
+    g.text('Bag', b.bag[0] + 11, b.bag[1] + 15, { size: 5, align: 'center' });
     g.panel(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
     if (this.toastT > 0) {
       g.panel(4, g.h - 46, g.w - 8, 14);
