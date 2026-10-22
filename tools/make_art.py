@@ -559,8 +559,8 @@ def farmer(p):
             if p['long'] and dir_ == 3: shape(im, lambda d: d.rounded_rectangle([8, 10, 24, 23], 5), H, Hl, Hd)
             if p.get('cap'):  # baseball cap over the hair: crown, then the brim facing the way the head does
                 K, Kl, Kd = p['cap']
-                shape(im, lambda d: d.chord([7, 0, 25, 15], 180, 360), K, Kl, Kd, 1)
-                d = ImageDraw.Draw(im); d.line([(16, 1), (16, 6)], C(Kd)); d.point((16, 0), C(Kl))
+                shape(im, lambda d: d.chord([7, 1, 25, 15], 180, 360), K, Kl, Kd, 1)
+                d = ImageDraw.Draw(im); d.line([(16, 2), (16, 6)], C(Kd)); d.point((16, 1), C(Kl))
                 if dir_ == 0: shape(im, lambda d: d.rounded_rectangle([8, 6, 24, 8], 1), Kd, K, None)
                 elif side: shape(im, lambda d: d.rectangle([3, 6, 13, 8] if dir_ == 1 else [19, 6, 29, 8]), Kd, K, None)
                 else: d.rectangle([14, 6, 18, 7], C(H))  # strap gap at the back
