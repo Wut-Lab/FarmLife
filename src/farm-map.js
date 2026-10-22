@@ -53,14 +53,18 @@ export function buildFarm(seed = 7) {
   for (let y = 20; y < 26; y++) for (let x = 5; x < 17; x++) used[at(x, y)] = 1;
   place(5, 19, [['fence0', ...Array(10).fill('fence1'), 'fence2']]);
 
-  // Border of tall trees, then scattered single trees and mushrooms.
-  const tall = () => (rand() < 0.3 ? [['tree_orange_0'], ['tree_orange_1']] : [['tree_green_0'], ['tree_green_1']]);
+  // Border of tall trees, then scattered trees, shrubs and mushrooms.
+  const tall = () => { const r = rand(); return r < 0.25 ? [['tree_orange_0'], ['tree_orange_1']] : r < 0.45 ? [['pine_0'], ['pine_1']] : [['tree_green_0'], ['tree_green_1']]; };
   for (let x = 0; x < W; x++) { if (free(x, 0, 1, 2)) place(x, 0, tall(), 1); if (free(x, H - 2, 1, 2)) place(x, H - 2, tall(), 1); }
   for (let y = 2; y < H - 2; y += 1) { if (free(0, y, 1, 2)) place(0, y, tall(), 1); if (free(W - 1, y, 1, 2)) place(W - 1, y, tall(), 1); }
   for (let n = 0; n < 40; n++) {
     const x = 2 + Math.floor(rand() * (W - 4)), y = 2 + Math.floor(rand() * (H - 4));
-    const tree = rand() < 0.75;
-    if (free(x - 1, y - 1, 3, 3)) place(x, y, [[tree ? 'tree' : 'mushrooms']], tree ? 1 : 0);
+    const r = rand();
+    if (r < 0.1) { if (free(x - 1, y - 1, 4, 4)) place(x, y, [['oak_0', 'oak_1'], ['oak_2', 'oak_3']], 1); continue; }
+    if (r < 0.2) { if (free(x - 1, y - 1, 3, 4)) place(x, y, [['pine_0'], ['pine_1']], 1); continue; }
+    if (r < 0.3) { if (free(x - 1, y - 1, 4, 3)) place(x, y, [['shrub_large_0', 'shrub_large_1']]); continue; }
+    const kind = r < 0.4 ? 'shrub_flower' : r < 0.8 ? 'tree' : 'mushrooms';
+    if (free(x - 1, y - 1, 3, 3)) place(x, y, [[kind]], kind === 'mushrooms' ? 0 : 1);
   }
 
   return { W, H, ground, solid, objects, plots, door: '18,12', shop: '22,12', bin: ['25,12', '26,12'], spawn: { x: 18 * TILE, y: 13 * TILE } };

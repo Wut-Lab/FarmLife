@@ -167,6 +167,36 @@ def small_tree():
     im = new()
     shape(im, lambda d: d.rectangle([14, 20, 17, 29]), '#8a5a3a', '#a87048', '#5f3b25')
     canopy(im, ('#4f9e3a', '#6fc04f', '#357a2a'), 16, 13, 8); return outline(im)
+def pine():  # 32x64 conifer: stacked tiers of needles over a short trunk
+    im = new(S, 2 * S)
+    shape(im, lambda d: d.ellipse([7, 56, 25, 62]), '#3c6b2c', None, None)
+    shape(im, lambda d: d.rectangle([14, 48, 18, 59]), '#7a4e32', '#9a6440', '#55331f')
+    for top, bot, half in ((3, 22, 7), (12, 34, 10), (22, 46, 13), (32, 54, 15)):
+        shape(im, lambda d, t=top, b=bot, h=half: d.polygon([(16, t), (16 + h, b), (16 - h, b)]), '#2f7a4a', '#4a9a5e', '#1f5a36')
+    speckle(im, ['#4a9a5e', '#1f5a36'], 50, (2, 4, 30, 54), lambda x, y: im.getpixel((x, y))[:3] == C('#2f7a4a')[:3])
+    return outline(im)
+def oak():  # 64x64 broad oak: thick trunk with roots under a wide lumpy crown
+    im = new(2 * S, 2 * S)
+    shape(im, lambda d: d.ellipse([12, 54, 52, 63]), '#3c6b2c', None, None)
+    shape(im, lambda d: d.polygon([(26, 36), (38, 36), (39, 54), (44, 60), (20, 60), (25, 54)]), '#7a5a3a', '#987048', '#54391f')
+    base, light, dark = '#5a9a3a', '#7cba52', '#3c7428'
+    for cx, cy, r in ((32, 30, 18), (17, 26, 13), (47, 26, 13), (24, 14, 12), (41, 14, 12), (32, 9, 9)):
+        shape(im, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, cy + r * 3 // 4]), base, light, dark)
+    speckle(im, [light, dark], 160, (3, 0, 61, 44), lambda x, y: im.getpixel((x, y))[:3] == C(base)[:3])
+    return outline(im)
+def shrub(w, flowers=False):  # round bush, 32 or 64 wide; flowers adds pink blossoms
+    im = new(w, S); base, light, dark = ('#4e9440', '#6cb455', '#356c2c') if flowers else ('#468a3a', '#62a84c', '#2f6a2a')
+    shape(im, lambda d: d.ellipse([3, 25, w - 4, 31]), '#3c6b2c', None, None)
+    blobs = ((w // 2, 18, 11), (9, 21, 7), (w - 10, 21, 7)) if w == S else ((16, 20, 11), (32, 16, 13), (48, 20, 11), (8, 23, 7), (56, 23, 7))
+    for cx, cy, r in blobs:
+        shape(im, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, min(cy + r, 29)]), base, light, dark)
+    speckle(im, [light, dark], w * 2, (0, 0, w, S), lambda x, y: im.getpixel((x, y))[:3] == C(base)[:3])
+    if flowers:
+        d = ImageDraw.Draw(im)
+        for x, y in ((10, 17), (16, 10), (22, 15), (14, 22), (24, 22), (7, 23), (19, 18)):
+            for a, b in ((0, -1), (0, 1), (-1, 0), (1, 0)): d.point((x + a, y + b), C('#f28fb8'))
+            d.point((x, y), C('#f6d04d'))
+    return outline(im)
 def mushrooms():
     im = new()
     for x, y, r in ((12, 18, 6), (22, 23, 4)):
@@ -312,6 +342,7 @@ for kind in ('carrot', 'turnip', 'cabbage'):
 add('hoe', hoe()); add('can', can()); add('bag', cell(BAGS, 0, 32))
 add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orange', tall_tree(('#e0892f', '#f5ad4f', '#b0601f')))
 add('tree', small_tree()); add('mushrooms', mushrooms())
+add('pine', pine()); add('oak', oak()); add('shrub_large', shrub(2 * S)); add('shrub_flower', shrub(S, True))
 for k in range(3): add(f'fence{k}', fence(k))
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
