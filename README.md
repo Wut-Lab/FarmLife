@@ -22,7 +22,8 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Bag: I, or tap **Bag**. Tap two slots (bag or hotbar 4–8) to swap them
 - Seed shop: face the shop door (next to the house) and press Use. 1–3 buy seeds, S sells all crops
 - Shipping bin (next to the shop): press Use to open it, then tap an item and a bin slot to move it in. The 5 slots sell overnight
-- Back to menu: Escape
+- Saving: 4 save files. The game saves automatically each morning after you sleep. Delete a file from the file screen (press twice)
+- Back to the file screen: Escape (progress since this morning is not saved)
 
 ## Tests
 `npm test`

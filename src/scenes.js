@@ -1,8 +1,9 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
-import { Clock, MAX_ENERGY } from './clock.js';
+import { Clock, MAX_ENERGY, SEASONS } from './clock.js';
 import { buildFarm } from './farm-map.js';
 import { CROPS, SEEDS, Field } from './crops.js';
+import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
 const CHARACTERS = [
@@ -30,7 +31,7 @@ export class Menu {
   update(dt) {
     this.t += dt;
     this.walkers.forEach(w => w.update(dt, true));
-    if (this.g.input.hit('Enter', 'Space')) this.g.go(new CharacterSelect());
+    if (this.g.input.hit('Enter', 'Space')) this.g.go(new SaveSelect());
   }
   draw() {
     const g = this.g, cx = g.w / 2;
@@ -38,23 +39,73 @@ export class Menu {
     g.text('FarmLife', cx, g.h * 0.2, { size: 28, align: 'center', color: '#fff3a8' });
     g.text('A farming & life sim', cx, g.h * 0.2 + 32, { size: 8, align: 'center' });
     this.walkers.forEach((w, i) => w.draw(g, ((this.t * 24 + i * 20) % (g.w + 40)) - 20, g.h * 0.2 + 48));
-    if (button(g, 'New Game', cx - 45, g.h * 0.62, 90, 20, true)) g.go(new CharacterSelect());
+    if (button(g, 'Play', cx - 45, g.h * 0.62, 90, 20, true)) g.go(new SaveSelect());
     g.text('Enter or tap to start', cx, g.h * 0.62 + 26, { size: 6, align: 'center', color: '#e2f0d4' });
   }
 }
 
+// Four save files: continue a farm, or start a new one in an empty slot.
+export class SaveSelect {
+  enter(g) { this.g = g; this.t = 0; this.pick = 0; this.confirm = -1; this.saves = listSaves(); }
+  update(dt) {
+    const inp = this.g.input;
+    this.t += dt;
+    if (inp.hit('ArrowUp', 'KeyW')) { this.pick = (this.pick + SLOTS - 1) % SLOTS; this.confirm = -1; }
+    if (inp.hit('ArrowDown', 'KeyS')) { this.pick = (this.pick + 1) % SLOTS; this.confirm = -1; }
+    if (inp.hit('Escape')) this.g.go(new Menu());
+    if (inp.hit('Enter', 'Space')) this.choose(this.pick);
+    if (inp.hit('Delete', 'Backspace')) this.erase(this.pick);
+  }
+  choose(i) {
+    const s = this.saves[i];
+    this.g.go(s ? new World(s.sheet, i, s) : new CharacterSelect(i));
+  }
+  // Deleting takes two presses so a farm is never lost by accident.
+  erase(i) {
+    if (!this.saves[i]) return;
+    if (this.confirm !== i) { this.confirm = i; this.pick = i; return; }
+    deleteSave(i); this.saves[i] = null; this.confirm = -1;
+  }
+  draw() {
+    const g = this.g, cx = g.w / 2, w = Math.min(170, g.w - 16), x = cx - w / 2, top = 26;
+    const h = Math.max(24, Math.min(30, Math.floor((g.h - top - 12) / SLOTS) - 4));
+    meadow(g, this.t);
+    g.text('Choose a save file', cx, 8, { size: 12, align: 'center' });
+    this.saves.forEach((s, i) => {
+      const y = top + i * (h + 4);
+      g.panel(x, y, w, h, i === this.pick ? '#e86a9a' : '#3f2631dd');
+      g.text(`File ${i + 1}`, x + 6, y + 2, { size: 6, color: '#fff3a8' });
+      if (s) {
+        const c = s.clock;
+        g.ctx.save(); g.ctx.beginPath(); g.ctx.rect(x + 4, y + 8, 16, h - 8); g.ctx.clip();
+        new Walker(s.sheet).draw(g, x + 4, y + h - 16); g.ctx.restore();
+        g.text(`${SEASONS[c.season]} ${c.day}, Year ${c.year}`, x + 24, y + 9, { size: 7 });
+        g.text(`${s.gold}g`, x + 24, y + 17, { size: 6, color: '#fff3a8' });
+        const del = [x + w - 34, y + h - 13, 30, 10];
+        g.panel(...del, this.confirm === i ? '#c34b35' : '#5d7150');
+        g.text(this.confirm === i ? 'Sure?' : 'Delete', del[0] + 15, del[1] + 2, { size: 5, align: 'center' });
+        if (g.input.tapIn(...del)) return this.erase(i);
+      } else g.text('Empty: start a new farm', x + 24, y + 12, { size: 7, color: '#dcebc6' });
+      if (g.input.tapIn(x, y, w, h)) this.pick === i ? this.choose(i) : ((this.pick = i), (this.confirm = -1));
+    });
+    g.text('Enter: play  ·  Delete: erase (press twice)', cx, top + SLOTS * (h + 4) + 1, { size: 5, align: 'center', color: '#e2f0d4' });
+    if (button(g, 'Back', 4, 4, 30, 12, false)) g.go(new Menu());
+  }
+}
+
 export class CharacterSelect {
+  constructor(slot = 0) { this.slot = slot; }
   enter(g) { this.g = g; this.t = 0; this.pick = 0; this.walkers = CHARACTERS.map(c => new Walker(c.sheet)); }
   update(dt) {
     const inp = this.g.input;
     this.t += dt;
     if (inp.hit('ArrowLeft', 'KeyA')) this.pick = 0;
     if (inp.hit('ArrowRight', 'KeyD')) this.pick = 1;
-    if (inp.hit('Escape')) this.g.go(new Menu());
+    if (inp.hit('Escape')) this.g.go(new SaveSelect());
     if (inp.hit('Enter', 'Space')) this.start();
     this.walkers.forEach((w, i) => w.update(dt, i === this.pick));
   }
-  start() { this.g.go(new World(CHARACTERS[this.pick].sheet)); }
+  start() { this.g.go(new World(CHARACTERS[this.pick].sheet, this.slot)); }
   draw() {
     const g = this.g, cx = g.w / 2, size = 48, gap = 12, cardW = size + 16, cardH = size + 28;
     meadow(g, this.t);
@@ -69,14 +120,14 @@ export class CharacterSelect {
     });
     const by = top + cardH + 12;
     if (button(g, 'Start', cx - 40, by, 80, 18, true)) this.start();
-    if (button(g, 'Back', 4, 4, 36, 14, false)) g.go(new Menu());
+    if (button(g, 'Back', 4, 4, 36, 14, false)) g.go(new SaveSelect());
   }
 }
 
 const SPEED = 64; // pixels per second, 4 tiles
 
 export class World {
-  constructor(sheet) { this.sheet = sheet; }
+  constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
   enter(g) {
     this.g = g;
     this.map = buildFarm();
@@ -96,7 +147,29 @@ export class World {
       this.gold += this.paid;
     });
     this.toast = '';
-    this.clock.on('newDay', ({ passedOut }) => this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '')));
+    this.clock.on('newDay', ({ passedOut }) => {
+      Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
+      const saved = writeSave(this.slot, this.snapshot());
+      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (saved ? ' Game saved.' : ''));
+    });
+    if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
+  }
+
+  // Everything a save file needs. Saved each morning, so time of day and position aren't stored.
+  snapshot() {
+    const k = this.clock;
+    return {
+      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed,
+      clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
+      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel,
+    };
+  }
+  restore(s) {
+    Object.assign(this.clock, s.clock);
+    for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
+    this.inv.slots = s.slots; this.inv.sel = s.sel;
+    Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed });
+    this.say('Welcome back!');
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
 
@@ -113,7 +186,7 @@ export class World {
   update(dt) {
     const inp = this.g.input, d = inp.dir;
     if (this.shop) return this.shopUpdate(inp, dt);
-    if (inp.hit('Escape') && !this.open) return this.g.go(new Menu());
+    if (inp.hit('Escape') && !this.open) return this.g.go(new SaveSelect());
     const b = this.buttons(), inv = this.inv;
     if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag)) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
