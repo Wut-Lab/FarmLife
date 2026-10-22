@@ -26,10 +26,14 @@ export class Inventory {
     return true;
   }
 
-  // Removes every stack of an item; returns how many were removed.
-  take(id) {
+  // Removes up to `max` of an item (all of it by default); returns how many were removed.
+  take(id, max = Infinity) {
     let n = 0;
-    this.carried.forEach((s, i) => { if (s?.id === id && s.n) { n += s.n; this.slots[i] = null; } });
+    this.carried.forEach((s, i) => {
+      if (s?.id !== id || !s.n || n >= max) return;
+      const k = Math.min(s.n, max - n); n += k; s.n -= k;
+      if (!s.n) this.slots[i] = null;
+    });
     return n;
   }
 

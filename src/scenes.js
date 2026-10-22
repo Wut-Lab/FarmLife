@@ -7,6 +7,7 @@ import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { spawnVillagers, feet, overlaps } from './villagers.js';
+import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
 const CHARACTERS = [
@@ -134,11 +135,23 @@ const CONTROLS = [
   ['Seeds', 'Q, or tap the seed bag again'],
   ['Bag', 'I, or tap Bag; tap 2 slots to swap'],
   ['Sleep', 'Use on your front door'],
+  ['Villagers', 'Use to talk; hold a crop to gift it'],
   ['Pause', 'Esc / P, or tap II'],
   ['Help', '? key, or tap ?'],
 ];
 
 const SPEED = 64; // pixels per second, 4 tiles
+const FADE = 0.2; // seconds to fade out (and again to fade in) between locations
+
+// Ten small pixel hearts, filled up to n.
+function drawHearts(g, x, y, n) {
+  const c = g.ctx;
+  for (let i = 0; i < MAX_HEARTS; i++) {
+    c.fillStyle = i < n ? '#e8507a' : '#00000055';
+    const hx = x + i * 6;
+    c.fillRect(hx, y, 2, 1); c.fillRect(hx + 3, y, 2, 1); c.fillRect(hx, y + 1, 5, 1); c.fillRect(hx + 1, y + 2, 3, 1); c.fillRect(hx + 2, y + 3, 1, 1);
+  }
+}
 
 export class World {
   constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
@@ -154,13 +167,14 @@ export class World {
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
     this.field = new Field(this.map.plots);
     this.seed = 0;
+    this.support = new Support(); this.talk = null; this.fade = null;
     this.inv = new Inventory();
     this.gold = 200;
     this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
     this.shop = false;
     this.open = false; this.pick = -1;
     this.clock.on('overnight', () => {
-      this.field.overnight();
+      this.field.overnight(); this.support.overnight();
       this.paid = this.binValue(this.inv.emptyBin());
       this.gold += this.paid;
     });
@@ -180,7 +194,7 @@ export class World {
     return {
       v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
-      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel,
+      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
   }
   restore(s) {
@@ -188,6 +202,7 @@ export class World {
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     this.inv.slots = s.slots; this.inv.sel = s.sel;
     Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed });
+    this.support = new Support(s.support);
     this.say('Welcome back!');
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
@@ -213,6 +228,8 @@ export class World {
     const inp = this.g.input, d = inp.dir;
     if (this.menu) return this.menuUpdate(inp);
     if (this.shop) return this.shopUpdate(inp, dt);
+    if (this.talk) return this.talkUpdate(inp);
+    if (this.fade) return this.fadeUpdate(dt);
     const b = this.buttons(), inv = this.inv;
     if ((inp.hit('Escape', 'KeyP') && !this.open) || inp.tapIn(...b.pause)) return this.openMenu('pause');
     if (inp.hit('Slash') || inp.tapIn(...b.help)) return this.openMenu('controls', null);
@@ -245,7 +262,15 @@ export class World {
     for (const v of this.villagers) v.update(dt, (x, y) => overlaps(feet(x, y), me));
     // Walk off the end of the road into the next location.
     const { W, exits } = this.map, side = this.x + 8 < 0 ? 'left' : this.x + 8 > W * TILE ? 'right' : null; // centre past the edge (only possible on the road)
-    if (side && exits?.[side]) this.travel(exits[side], side);
+    if (side && exits?.[side]) this.fade = { t: 0, id: exits[side], side };
+  }
+  // Fade to black, switch location at the darkest point, then fade back in.
+  fadeUpdate(dt) {
+    const f = this.fade;
+    if (f.t < FADE && f.t + dt >= FADE) this.travel(f.id, f.side);
+    f.t += dt;
+    this.player.update(dt, f.t < FADE);
+    if (f.t >= 2 * FADE) this.fade = null;
   }
   travel(id, side) {
     this.map = this.maps[id];
@@ -267,6 +292,8 @@ export class World {
   // Ripe crops are picked by hand; otherwise the held tool decides what happens.
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
+    const v = this.villagerAhead();
+    if (v) return this.meet(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     if (key === this.map.shop) { this.shop = true; return; }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
@@ -287,7 +314,7 @@ export class World {
     if (held === 'can') {
       if (!p) return this.say('Nothing to water. Plant some seeds first.');
       if (p.wet) return this.say(`${CROPS[p.crop].name}: watered today. Ready in ${CROPS[p.crop].days - p.grown} day(s).`);
-      if (!this.clock.useEnergy(1)) return tired();
+      if (!this.clock.useEnergy(this.support.has('green_thumb') ? 0 : 1)) return tired();
       sfx('water'); return f.act(key);
     }
     if (held === 'hoe') {
@@ -303,11 +330,76 @@ export class World {
     return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r], help: [g.w - 14, 4, 10, 10], pause: [g.w - 14, 16, 10, 10] };
   }
 
+  // Support: talking, gifts and quests with villagers.
+  villagerAhead() {
+    const [dx, dy] = [[0, 1], [-1, 0], [1, 0], [0, -1]][this.player.dir], px = this.x + 8 + dx * 10, py = this.y + 13 + dy * 10;
+    return this.villagers.find(v => { const [x, y, w, h] = feet(v.x, v.y); return px > x - 4 && px < x + w + 4 && py > y - 8 && py < y + h + 4; });
+  }
+  meet(v) {
+    const id = v.walker.sheet, who = PEOPLE[id], sup = this.support, held = this.inv.held?.id;
+    if (!who) return;
+    v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = Math.max(v.wait, 2); // turn to face you
+    const lines = [], name = c => CROPS[c].name.toLowerCase();
+    let rewards = [];
+    const done = sup.turnIn(id, c => this.inv.count(c), (c, n) => this.inv.take(c, n));
+    if (done) {
+      this.gold += done.gold; rewards = done.rewards; sfx('coin');
+      lines.push(`You brought them! Thank you so much. (+${done.gold}g)`);
+    } else if (CROPS[held]) {
+      const r = sup.gift(id, held);
+      if (!r) lines.push(`You already gave me something today. Come back tomorrow!`);
+      else {
+        this.inv.take(held, 1); rewards = r.rewards; sfx(r.taste === 'dislike' ? 'nope' : 'harvest');
+        lines.push({ love: `A ${name(held)}! I love these! Thank you!`, like: `Oh, a ${name(held)}. Thanks!`,
+          neutral: `A ${name(held)}? Thanks, I suppose.`, dislike: `Ugh... a ${name(held)}. Not my favourite.` }[r.taste]);
+      }
+    } else {
+      rewards = sup.talk(id);
+      lines.push(who.hello[Math.floor(Math.random() * who.hello.length)]);
+    }
+    const q = sup.people[id].quest;
+    if (q) lines.push(`Could you bring me ${q.n} ${name(q.item)}${q.n > 1 ? 's' : ''}? I'll pay ${q.gold}g. (${q.days} day${q.days > 1 ? 's' : ''} left)`);
+    for (const r of rewards) {
+      const got = [r.gold && `${r.gold}g`, ...Object.entries(r.seeds ?? {}).map(([c, n]) => `${n} ${CROPS[c].name} seeds`)].filter(Boolean);
+      if (r.gold) this.gold += r.gold;
+      for (const [c, n] of Object.entries(r.seeds ?? {})) this.seeds[c] += n;
+      lines.push(`${r.hearts} heart${r.hearts > 1 ? "s" : ""} with ${who.name}!` + (got.length ? ` Gift: ${got.join(', ')}.` : '') + (r.perk ? ` Perk: ${r.perk.text}!` : ''));
+      sfx('coin');
+    }
+    this.talk = { id, lines };
+  }
+  talkUpdate(inp) {
+    this.player.update(0, false);
+    if (inp.hit('Space', 'KeyE', 'Enter', 'Escape') || inp.tapIn(0, 0, this.g.w, this.g.h)) this.talk = null;
+  }
+  wrap(str, w, size) {
+    const c = this.g.ctx, out = [];
+    c.font = `${size}px "Pixelify Sans", monospace`;
+    for (const word of str.split(' ')) {
+      const last = out[out.length - 1];
+      if (last !== undefined && c.measureText(last + ' ' + word).width <= w) out[out.length - 1] = last + ' ' + word; else out.push(word);
+    }
+    return out;
+  }
+  drawTalk() {
+    const g = this.g, { id, lines } = this.talk, who = PEOPLE[id], w = Math.min(g.w - 16, 220), x = Math.round(g.w / 2 - w / 2);
+    const paras = lines.map(l => this.wrap(l, w - 12, 6)), h = 26 + paras.flat().length * 8 + (paras.length - 1) * 4, y = g.h - h - 34;
+    g.panel(x, y, w, h, '#3f2631f2');
+    g.text(who.name, x + 6, y + 4, { size: 7, color: '#fff3a8' });
+    drawHearts(g, x + w - 6 - MAX_HEARTS * 6, y + 6, this.support.hearts(id));
+    let ty = y + 16;
+    for (const p of paras) { for (const l of p) { g.text(l, x + 6, ty, { size: 6 }); ty += 8; } ty += 4; }
+    g.text('Tap or press Space', x + w - 6, y + h - 9, { size: 5, align: 'right', color: '#dcebc6' });
+  }
+
   // Close button under the bag (and shipping bin) panel.
   closeRect() { const [, by] = this.slotRect(HOTBAR); return [this.g.w / 2 - 18, by + 45, 36, 11]; }
 
   // Shipping bin: 5 slots, filled from the bag; everything in it is sold overnight.
-  binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id]?.price ?? 0) * s.n, 0); }
+  binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id] ? this.sellPrice(s.id) : 0) * s.n, 0); }
+  // Perks from villagers' support change prices.
+  sellPrice(crop) { return Math.round(CROPS[crop].price * (this.support.has('bargain') ? 1.1 : 1)); }
+  seedCost(c) { return Math.ceil(c.seed * (this.support.has('discount') ? 0.9 : 1)); }
 
   // Pause menu, settings and controls help. The clock stops while any of them is open.
   openMenu(name, back = name === 'pause' ? null : 'pause') {
@@ -318,6 +410,7 @@ export class World {
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     if (this.menu === 'pause') return [
       { label: 'Resume', go: () => { this.menu = null; } },
+      { label: 'Friends', go: () => this.openMenu('friends') },
       { label: 'Controls', go: () => this.openMenu('controls') },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Quit to title', go: () => { stopMusic(); this.g.go(new SaveSelect()); } },
@@ -336,8 +429,8 @@ export class World {
     return [{ label: 'Back', go: () => (this.back ? this.openMenu(this.back) : (this.menu = null)) }];
   }
   menuLayout() {
-    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : 0;
-    const w = 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : 0;
+    const w = this.menu === 'friends' ? 170 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
     const rows = items.map((it, i) => ({ ...it, r: [x + 6, y + 18 + lines * 9 + i * 18, w - 12, 16] }));
     return { x, y, w, h, rows, top: y + 18 };
   }
@@ -363,9 +456,17 @@ export class World {
     const g = this.g, { x, y, w, h, rows, top } = this.menuLayout();
     g.ctx.fillStyle = '#0b142888'; g.ctx.fillRect(0, 0, g.w, g.h);
     g.panel(x, y, w, h, '#3f2631f2');
-    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls' }[this.menu];
+    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends' }[this.menu];
     g.text(title, x + w / 2, y + 5, { size: 8, align: 'center', color: '#fff3a8' });
     if (this.menu === 'pause') g.text(`Saved this morning · ♪ ${musicName()}`, x + w / 2, y + h + 3, { size: 5, align: 'center', color: '#e2f0d4' });
+    if (this.menu === 'friends') Object.entries(PEOPLE).forEach(([id, who], i) => {
+      const p = this.support.people[id], n = this.support.hearts(id), yy = top + i * 27;
+      g.text(who.name, x + 8, yy, { size: 6, color: '#fff3a8' });
+      drawHearts(g, x + w - 8 - MAX_HEARTS * 6, yy + 2, n);
+      const q = p.quest;
+      g.text(q ? `Wants ${q.n} ${CROPS[q.item].name}${q.n > 1 ? "s" : ""} · ${q.gold}g · ${q.days}d left` : 'No request right now', x + 8, yy + 8, { size: 5 });
+      g.text(`${n >= PERK_AT ? 'Perk' : `Perk at ${PERK_AT} hearts`}: ${who.perk.text}`, x + 8, yy + 15, { size: 5, color: n >= PERK_AT ? '#86cf5e' : '#dcebc6' });
+    });
     if (this.menu === 'controls') CONTROLS.forEach(([k, v], i) => {
       g.text(k, x + 8, top + i * 9, { size: 5, color: '#fff3a8' });
       g.text(v, x + 52, top + i * 9, { size: 5 });
@@ -395,11 +496,11 @@ export class World {
     SEEDS.forEach((s, i) => {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
       const c = CROPS[s];
-      if (this.gold < c.seed) return this.say(`Not enough gold for ${c.name} seeds.`);
-      sfx('coin'); this.gold -= c.seed; this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
+      if (this.gold < this.seedCost(c)) return this.say(`Not enough gold for ${c.name} seeds.`);
+      sfx('coin'); this.gold -= this.seedCost(c); this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
     });
     if (inp.hit('KeyS') || inp.tapIn(...r.sell)) {
-      const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * CROPS[s].price, 0);
+      const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * this.sellPrice(s), 0);
       if (earned) sfx('coin'); this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
     }
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
@@ -414,7 +515,7 @@ export class World {
       g.tile(c.packet, x + 1, y + 1);
       g.text(`${i + 1}. ${c.name}`, x + 20, y + 5, { size: 6 });
       g.text(`own ${this.seeds[s]}`, x + 82, y + 5, { size: 5, color: '#dcebc6' });
-      g.text(`${c.seed}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
+      g.text(`${this.seedCost(c)}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
     });
     g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' });
     g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
@@ -470,7 +571,9 @@ export class World {
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
     if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
+    if (this.fade) { const t = this.fade.t / FADE; c.fillStyle = `rgba(0,0,0,${Math.min(1, t < 1 ? t : 2 - t).toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
     this.hud();
+    if (this.talk) this.drawTalk();
     if (this.menu) this.drawMenu();
   }
 
