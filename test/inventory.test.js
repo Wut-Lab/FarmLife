@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Inventory, HOTBAR, LOCKED } from '../src/inventory.js';
+import { Inventory, HOTBAR, LOCKED, BAG } from '../src/inventory.js';
 
 test('items stack in the bag and swap into the hotbar', () => {
   const inv = new Inventory();
@@ -28,4 +28,11 @@ test('shipping bin slots are separate from the bag and empty overnight', () => {
   assert.equal(inv.slots[HOTBAR].n, 1);
   assert.deepEqual(inv.emptyBin(), [{ id: 'carrot', n: 3 }]);
   assert.equal(inv.slots[bin], null);
+});
+
+test('tools stay out of the shipping bin', () => {
+  const inv = new Inventory();
+  inv.add('shovel'); const at = inv.slots.findIndex(s => s?.id === 'shovel');
+  assert.equal(inv.swap(at, HOTBAR + BAG), false);
+  inv.add('carrot'); assert.equal(inv.swap(inv.slots.findIndex(s => s?.id === 'carrot'), HOTBAR + BAG), true);
 });

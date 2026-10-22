@@ -15,7 +15,9 @@ export const SCHEDULES = {
     { hour: 21, act: 'sleep' },
   ],
   storekeeper: [ // Bella
-    { hour: 6, act: 'move', map: 'town', x: 9, y: 15, size: 0 }, // in front of the store, just right of the door
+    { hour: 6, act: 'move', map: 'town', x: 5, y: 14, size: 0 }, // next to the store until it opens (store.js)
+    { hour: 8, act: 'move', map: 'town', x: 9, y: 15, size: 0 }, // in front of the store, just right of the door
+    { hour: 20, act: 'move', map: 'town', x: 5, y: 14, size: 0 }, // closed: next to it again
     { hour: 21, act: 'sleep' },
   ],
   villager_male: [ // Hank

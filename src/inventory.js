@@ -3,6 +3,7 @@ export const TOOLS = {
   hoe:   { name: 'Hoe',          icon: 'hoe' },
   can:   { name: 'Watering Can', icon: 'can' },
   seeds: { name: 'Seeds' },
+  shovel: { name: 'Shovel',      icon: 'shovel' }, // bought from Bella; carried in the bag like an item
 };
 export const HOTBAR = 8, LOCKED = 3, BAG = 16, BIN = 5; // bin slots come after the bag
 
@@ -44,9 +45,11 @@ export class Inventory {
     return out;
   }
 
-  // Swap any two non-tool slots (hotbar or bag).
+  // Swap any two non-tool slots (hotbar or bag). Tools can't go in the shipping bin.
   swap(a, b) {
     if (a < LOCKED || b < LOCKED) return false;
+    const binned = i => i >= HOTBAR + BAG;
+    if ((binned(a) && TOOLS[this.slots[b]?.id]) || (binned(b) && TOOLS[this.slots[a]?.id])) return false;
     [this.slots[a], this.slots[b]] = [this.slots[b], this.slots[a]];
     return true;
   }

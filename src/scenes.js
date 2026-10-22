@@ -8,6 +8,7 @@ import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicNam
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
+import { GOODS, STORE_HOURS, storeOpen } from './store.js';
 import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
@@ -179,6 +180,7 @@ export class World {
     this.inv = new Inventory();
     this.gold = 200;
     this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
+    this.gear = {}; // things bought at the general store: id -> true
     this.shop = false;
     this.open = false; this.pick = -1;
     this.clock.on('overnight', () => {
@@ -200,7 +202,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed,
+      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -209,7 +211,7 @@ export class World {
     Object.assign(this.clock, s.clock);
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     this.inv.slots = s.slots; this.inv.sel = s.sel;
-    Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed });
+    Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed, gear: s.gear ?? {} });
     this.support = new Support(s.support);
     this.say('Welcome back!');
   }
@@ -265,7 +267,7 @@ export class World {
     const moving = d.x !== 0 || d.y !== 0;
     if (moving) {
       this.player.dir = Math.abs(d.x) > Math.abs(d.y) ? (d.x < 0 ? DIRS.left : DIRS.right) : (d.y < 0 ? DIRS.up : DIRS.down);
-      const nx = this.x + d.x * SPEED * dt, ny = this.y + d.y * SPEED * dt;
+      const sp = SPEED * (this.gear.shoes ? 1.2 : 1), nx = this.x + d.x * sp * dt, ny = this.y + d.y * sp * dt; // running shoes: a little faster
       if (!this.blocked(nx, this.y)) this.x = nx;
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
@@ -338,14 +340,16 @@ export class World {
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     const v = this.villagerAhead();
-    if (v) return v.role === 'shop' ? this.openShop(v) : this.meet(v);
+    if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     const counter = Object.keys(KEEPERS).find(k => key === this.map[KEEPERS[k].building]);
     if (counter) { // the keeper sells, if they're here; otherwise the door opens the shop
+      if (this.closed(counter)) return this.say(this.closed(counter));
       const keeper = this.villagers.find(v => v.walker.sheet === counter);
       return keeper ? this.say(`${KEEPERS[counter].name} runs the ${KEEPERS[counter].building}. Talk to them outside.`) : (this.shop = counter);
     }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
+    if (held === 'shovel') return this.say('Nothing to dig up here yet.');
     if (!this.onFarm || !f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
@@ -532,6 +536,11 @@ export class World {
     });
   }
 
+  // Why a keeper's shop is closed right now, or '' if it's open (only the general store keeps hours).
+  closed(keeper) {
+    const h = h => `${((h + 11) % 12) + 1} ${h < 12 ? 'AM' : 'PM'}`;
+    return keeper === 'storekeeper' && !storeOpen(this.clock.minutes) ? `The General Store is closed. Open ${h(STORE_HOURS[0])} to ${h(STORE_HOURS[1])}.` : '';
+  }
   // A shopkeeper turns to you and opens their shop.
   openShop(v) {
     v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
@@ -548,6 +557,7 @@ export class World {
     this.clock.update(dt * 1000);
     if (this.toastT > 0) this.toastT -= dt;
     this.player.update(dt, false);
+    if (this.shop === 'storekeeper') return this.storeUpdate(inp);
     SEEDS.forEach((s, i) => {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
       const c = CROPS[s];
@@ -561,6 +571,7 @@ export class World {
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
   drawShop() {
+    if (this.shop === 'storekeeper') return this.drawStore();
     const g = this.g, r = this.shopRows();
     g.panel(r.x, r.y, 140, 96, '#3f2631ee');
     const keeper = typeof this.shop === 'string' && this.shop; // whose shop (true: an old-style shop with no keeper)
@@ -575,6 +586,39 @@ export class World {
       g.text(`${this.seedCost(c)}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
     });
     g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' });
+    g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
+  }
+
+  // General store: Bella's goods, each bought once.
+  storeRows() {
+    const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 46);
+    return { x, y, buy: Object.keys(GOODS).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 72, 64, 14] };
+  }
+  storeUpdate(inp) {
+    const r = this.storeRows();
+    Object.entries(GOODS).forEach(([id, it], i) => {
+      if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
+      if (this.gear[id]) return this.say(`You already have the ${it.name}.`);
+      if (this.gold < it.price) return this.say(`Not enough gold for the ${it.name}.`);
+      if (id === 'shovel' && !this.inv.add('shovel')) return this.say('Your bag is full.');
+      sfx('coin'); this.gold -= it.price; this.gear[id] = true;
+      this.say(id === 'shoes' ? 'Bought Running Shoes! You walk a little faster now.' : `Bought the ${it.name}! It's in your bag.`);
+    });
+    if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
+  }
+  drawStore() {
+    const g = this.g, r = this.storeRows();
+    g.panel(r.x, r.y, 140, 90, '#3f2631ee');
+    if (this.villagers.some(v => v.walker.sheet === 'storekeeper')) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker('storekeeper').draw(g, r.x - 22, r.y + 2); }
+    g.text(`${KEEPERS.storekeeper.title} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    Object.entries(GOODS).forEach(([id, it], i) => {
+      const [x, y, w, h] = r.buy[i], own = this.gear[id];
+      g.panel(x, y, w, h, own ? '#5d715066' : '#5d7150cc');
+      g.tile(it.icon, x + 2, y + 4);
+      g.text(`${i + 1}. ${it.name}`, x + 21, y + 4, { size: 6 });
+      g.text(it.about, x + 21, y + 14, { size: 5, color: '#dcebc6' });
+      g.text(own ? 'Owned' : `${it.price}g`, x + w - 3, y + 4, { size: own ? 5 : 6, align: 'right', color: own ? '#dcebc6' : '#fff3a8' });
+    });
     g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
   }
 

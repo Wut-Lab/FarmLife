@@ -151,6 +151,20 @@ def can():
     shape(im, lambda d: d.rounded_rectangle([10, 12, 26, 28], 4), '#7fb3d8', '#b9dcf2', '#4f80aa')
     d = ImageDraw.Draw(im); d.arc([13, 4, 27, 18], 200, 360, C('#4f80aa'), 2); d.line([(12, 21), (24, 21)], C('#4f80aa'))
     return outline(im)
+def shovel():  # long handle with a D grip at the top, rounded pointed blade at the bottom
+    im = new(); d = ImageDraw.Draw(im)
+    d.line([(11, 21), (24, 7)], C('#a86a3a'), 3); d.line([(12, 20), (23, 8)], C('#c88a50'), 1)
+    d.line([(22, 3), (29, 6)], C('#8a5a2e'), 2); d.line([(22, 3), (21, 8)], C('#8a5a2e'), 2); d.line([(29, 6), (26, 10)], C('#8a5a2e'), 2)
+    shape(im, lambda d: d.polygon([(9, 17), (15, 23), (12, 27), (4, 30), (5, 22)]), '#9aa7b8', '#d6e0ea', '#6a7688', 1)
+    return outline(im)
+def shoes():  # a running shoe from the side: red upper, white sole and laces, a swoosh
+    im = new()
+    shape(im, lambda d: d.polygon([(4, 12), (11, 11), (15, 16), (24, 18), (29, 21), (29, 24), (4, 24)]), '#e0483f', '#f5786a', '#a82c2a', 1)
+    shape(im, lambda d: d.rounded_rectangle([3, 23, 30, 27], 2), '#f4f1ea', '#ffffff', '#b8b4aa', 1)
+    d = ImageDraw.Draw(im)
+    for k in range(3): d.line([(12 + k * 3, 14 + k), (14 + k * 3, 17 + k)], C('#ffffff'))
+    d.line([(7, 21), (14, 21), (22, 19)], C('#ffd84a'), 1)
+    return outline(im)
 
 # ---------- trees, props ----------
 def canopy(im, cols, cx, cy, r):
@@ -837,6 +851,7 @@ COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2'
 add('cobble0', COB); add('brick0', BRK)
 blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))
 blob_set('shallow', SHAL, grass(0), 'shore'); blob_set('deep', DEEP, SHAL, 'deep')
+add('shovel', shovel()); add('shoes', shoes())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))
