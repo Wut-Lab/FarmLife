@@ -7,6 +7,7 @@ import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { spawnVillagers, feet, overlaps } from './villagers.js';
+import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
@@ -138,6 +139,7 @@ const CONTROLS = [
   ['Villagers', 'Use to talk; hold a crop to gift it'],
   ['Pause', 'Esc / P, or tap II'],
   ['Help', '? key, or tap ?'],
+  ['Map', 'M, or tap the globe'],
 ];
 
 const SPEED = 64; // pixels per second, 4 tiles
@@ -230,10 +232,12 @@ export class World {
     if (this.menu) return this.menuUpdate(inp);
     if (this.shop) return this.shopUpdate(inp, dt);
     if (this.talk) return this.talkUpdate(inp);
+    if (this.mapView) return this.mapUpdate(inp);
     if (this.fade) return this.fadeUpdate(dt);
     const b = this.buttons(), inv = this.inv;
     if ((inp.hit('Escape', 'KeyP') && !this.open) || inp.tapIn(...b.pause)) return this.openMenu('pause');
     if (inp.hit('Slash') || inp.tapIn(...b.help)) return this.openMenu('controls', null);
+    if (inp.hit('KeyM') || inp.tapIn(...b.map)) { this.mapView = true; this.open = this.binOpen = false; return sfx('click'); }
     if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag) || (this.open && inp.tapIn(...this.closeRect()))) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
     for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
@@ -329,7 +333,7 @@ export class World {
 
   buttons() {
     const g = this.g, r = 22;
-    return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r], help: [g.w - 14, 4, 10, 10], pause: [g.w - 14, 16, 10, 10] };
+    return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r], help: [g.w - 14, 4, 10, 10], map: [g.w - 14, 16, 10, 10], pause: [g.w - 14, 28, 10, 10] };
   }
 
   // Support: talking, gifts and quests with villagers.
@@ -576,7 +580,50 @@ export class World {
     if (this.fade) { const t = this.fade.t / FADE; c.fillStyle = `rgba(0,0,0,${Math.min(1, t < 1 ? t : 2 - t).toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
     this.hud();
     if (this.talk) this.drawTalk();
+    if (this.mapView) this.drawMap();
     if (this.menu) this.drawMenu();
+  }
+
+  drawGlobe(cx, cy) { // a small line-drawn globe for the Map button
+    const c = this.g.ctx;
+    c.strokeStyle = '#fff8e8'; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(cx, cy, 3.5, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.ellipse(cx, cy, 1.5, 3.5, 0, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.moveTo(cx - 3.5, cy); c.lineTo(cx + 3.5, cy); c.moveTo(cx - 3, cy - 1.8); c.lineTo(cx + 3, cy - 1.8); c.moveTo(cx - 3, cy + 1.8); c.lineTo(cx + 3, cy + 1.8); c.stroke();
+  }
+
+  // Map overlay: the whole current location, shrunk to fit, with a marker where you are. The clock stops while it's open.
+  mapLayout() {
+    const g = this.g, { W, H } = this.map, k = Math.min((g.w - 20) / (W * TILE), (g.h - 46) / (H * TILE));
+    const w = Math.round(W * TILE * k), h = Math.round(H * TILE * k), x = Math.round((g.w - w) / 2), y = Math.round((g.h - h - 36) / 2) + 14;
+    return { x, y, w, h, k, exit: [Math.round(g.w / 2 - 20), y + h + 5, 40, 13] };
+  }
+  mapUpdate(inp) {
+    this.player.update(0, false);
+    if (inp.hit('KeyM', 'Escape', 'Enter', 'Space') || inp.tapIn(...this.mapLayout().exit) || inp.tapIn(...this.buttons().map)) { this.mapView = false; sfx('click'); }
+  }
+  miniMap() { // drawn once per location at 16px per tile
+    const m = this.map;
+    if (m.mini) return m.mini;
+    const P = 16, cv = document.createElement('canvas'), c = cv.getContext('2d'), art = this.g.images.art;
+    cv.width = m.W * P; cv.height = m.H * P; c.imageSmoothingEnabled = false;
+    const put = (n, x, y) => { const i = A[n]; if (i !== undefined) c.drawImage(art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32, x * P, y * P, P, P); };
+    m.ground.forEach((n, i) => put(n, i % m.W, Math.floor(i / m.W)));
+    for (const o of [...m.objects].sort((a, b) => a.base - b.base)) o.tiles.forEach((row, j) => row.forEach((n, i) => put(n, o.x / TILE + i, o.y / TILE + j)));
+    return (m.mini = cv);
+  }
+  drawMap() {
+    const g = this.g, c = g.ctx, { x, y, w, h, k, exit } = this.mapLayout();
+    c.fillStyle = '#0b1428bb'; c.fillRect(0, 0, g.w, g.h);
+    g.panel(x - 4, y - 14, w + 8, h + 36, '#3f2631f2');
+    g.text(this.map.name, g.w / 2, y - 11, { size: 8, align: 'center', bold: true, color: '#fff3a8' });
+    c.imageSmoothingEnabled = false; c.drawImage(this.miniMap(), x, y, w, h);
+    // You-are-here marker, gently pulsing.
+    const px = x + (this.x + 8) * k, py = y + (this.y + 12) * k, r = 2.5 + Math.sin(performance.now() / 200) * 0.6;
+    c.beginPath(); c.arc(px, py, r + 1, 0, Math.PI * 2); c.fillStyle = '#fff8e8'; c.fill();
+    c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2); c.fillStyle = '#e8507a'; c.fill();
+    g.text('You', px, py - r - 8, { size: 5, align: 'center' });
+    g.panel(...exit, '#e86a9a'); g.text('Exit', exit[0] + exit[2] / 2, exit[1] + 3, { size: 6, align: 'center' });
   }
 
   hud() {
@@ -611,6 +658,7 @@ export class World {
     // Help and pause buttons, top right.
     const hb = this.buttons();
     g.panel(...hb.help, '#000000cc'); g.text('?', hb.help[0] + 5, hb.help[1] + 1, { size: 7, align: 'center' });
+    g.panel(...hb.map, '#000000cc'); this.drawGlobe(hb.map[0] + 5, hb.map[1] + 5);
     g.panel(...hb.pause, '#000000cc'); g.text('II', hb.pause[0] + 5, hb.pause[1] + 2, { size: 5, align: 'center' });
     // Bag and action buttons, bottom right.
     const b = this.buttons();
