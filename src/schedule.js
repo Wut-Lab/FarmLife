@@ -14,7 +14,10 @@ export const SCHEDULES = {
     { hour: 13, act: 'move', map: 'town', x: 13, y: 8, size: 0 }, // next to his stall
     { hour: 21, act: 'sleep' },
   ],
-  storekeeper: [], // Bella: no rules yet, so they stay wherever the map places them
+  storekeeper: [ // Bella
+    { hour: 6, act: 'move', map: 'town', x: 20, y: 15, size: 0 },
+    { hour: 21, act: 'sleep' },
+  ],
   villager_male: [ // Hank
     { hour: 6, act: 'move', map: 'town', x: 20, y: 9, size: 2 },
     { hour: 12, act: 'move', map: 'road', x: 18, y: 12, size: 2 },
