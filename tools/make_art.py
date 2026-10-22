@@ -420,12 +420,14 @@ def text(d, x, y, msg, col):  # 3x5 pixel capitals
         for k, b in enumerate(FONT[ch]):
             if b == '1': d.point((x + k % 3, y + k // 3), C(col))
         x += 4
-def store():  # 128x128 general store: green gable roof with a name board, striped awning, display windows, goods out front
-    im = new(4 * S, 4 * S); d = ImageDraw.Draw(im); G, Gl, Gd = '#4f8a4a', '#6fae5f', '#2f5a30'
+def store():  # 192x128 general store: green gable roof with a name board, striped awning, display windows, goods out front,
+    # and a covered patio stall on its right side
+    im = new(6 * S, 4 * S); d = ImageDraw.Draw(im); G, Gl, Gd = '#4f8a4a', '#6fae5f', '#2f5a30'
+    patio(im, G, Gl, Gd)
     shape(im, lambda d: d.rectangle([6, 56, 121, 118]), '#efe6d2', '#fffaf0', '#c8bca4')  # walls
     for y in range(62, 118, 6): d.line([(7, y), (120, y)], C('#d8ccb4'))
     shape(im, lambda d: d.polygon([(0, 60), (14, 8), (114, 8), (127, 60)]), G, Gl, Gd, 3)
-    sh = new(4 * S, 4 * S); sd = ImageDraw.Draw(sh)
+    sh = new(6 * S, 4 * S); sd = ImageDraw.Draw(sh)
     for r, y in enumerate(range(14, 58, 7)):
         for x in range(4 + (r % 2) * 5, 126, 10): sd.arc([x - 5, y - 4, x + 5, y + 4], 20, 160, C(Gd))
     for x, y in [(x, y) for y in range(8, 58) for x in range(128) if sh.getpixel((x, y))[3] and im.getpixel((x, y))[:3] == C(G)[:3]]: im.putpixel((x, y), C(Gd))
@@ -469,6 +471,37 @@ def store():  # 128x128 general store: green gable roof with a name board, strip
     d.line([(124, 96), (121, 120)], C('#8a5a36'), 2)  # broom leaning on the wall
     shape(im, lambda d: d.polygon([(118, 119), (125, 119), (126, 127), (116, 127)]), '#e0c070', '#f0d890', '#a88a40', 1)
     return outline(im)
+def patio(im, G, Gl, Gd):  # lean-to on the store's right: plank deck, lattice back, green roof with a striped valance, a table of produce
+    d = ImageDraw.Draw(im); WOOD, WOOD_L, WOOD_D = '#a8744a', '#c48e5e', '#6f4426'
+    shape(im, lambda d: d.rectangle([120, 78, 186, 114]), '#e8d8b8', '#f6ead0', '#c8b490', 1)  # lattice panel
+    for k in range(-40, 70, 7): d.line([(120 + k, 78), (156 + k, 114)], C('#c8b490')); d.line([(156 + k, 78), (120 + k, 114)], C('#c8b490'))
+    for x, y in [(x, y) for x in range(110, 192) for y in range(70, 120) if not (120 <= x <= 186 and 78 <= y <= 114)]:
+        if im.getpixel((x, y))[:3] == C('#c8b490')[:3]: im.putpixel((x, y), (0, 0, 0, 0))
+    shape(im, lambda d: d.rectangle([118, 112, 191, 124]), WOOD, WOOD_L, WOOD_D, 1)  # deck
+    for x in range(126, 190, 9): d.line([(x, 113), (x, 123)], C(WOOD_D))
+    shape(im, lambda d: d.rectangle([118, 123, 191, 127]), '#8a5a36', None, '#5f3b25', 1)
+    for x in (122, 184): shape(im, lambda d, x=x: d.rectangle([x, 70, x + 4, 122]), WOOD, WOOD_L, WOOD_D, 1)  # posts
+    shape(im, lambda d: d.polygon([(118, 54), (191, 66), (191, 74), (118, 74)]), G, Gl, Gd, 2)  # lean-to roof
+    for x in range(126, 190, 8): d.line([(x, 56 + (x - 118) * 12 // 73), (x, 72)], C(Gd))
+    for i, x in enumerate(range(118, 190, 8)):  # valance
+        top, top_l, top_d = (G, Gl, Gd) if i % 2 else ('#fff3e6', '#ffffff', '#d8c8b8')
+        shape(im, lambda d, x=x: d.rectangle([x, 74, x + 7, 78]), top, top_l, None)
+        shape(im, lambda d, x=x: d.pieslice([x, 75, x + 7, 82], 0, 180), top, None, top_d, 1)
+    shape(im, lambda d: d.pieslice([150, 80, 162, 90], 0, 180), '#a8744a', '#c48e5e', '#6f4426', 1)  # hanging flower basket
+    shape(im, lambda d: d.ellipse([149, 79, 163, 86]), '#4e9440', '#6cb455', '#356c2c', 1)
+    for a, b in ((152, 81), (156, 80), (160, 82), (154, 84), (158, 84)): d.point((a, b), C('#f28fb8'))
+    # Table with a checked cloth and baskets of produce.
+    shape(im, lambda d: d.rectangle([134, 100, 180, 104]), '#d83838', '#f06060', '#a02020', 1)
+    for x in range(135, 180, 4):
+        for y in (101, 103): d.point((x + (y == 103) * 2, y), C('#fff3e6'))
+    shape(im, lambda d: d.rectangle([134, 104, 180, 112]), '#d83838', '#f06060', '#a02020', 1)
+    for x in range(136, 180, 4): d.line([(x, 105), (x, 111)], C('#fff3e6'))
+    for x in (138, 176): d.line([(x, 112), (x, 118)], C(WOOD_D), 2)
+    for x, c in ((136, ('#e0892f', '#f5ad4f', '#b0601f')), (151, ('#6a4a8a', '#8a6aaa', '#4a2a6a')), (166, ('#d83838', '#f06060', '#a02020'))):
+        shape(im, lambda d, x=x: d.pieslice([x, 92, x + 12, 104], 0, 180), '#c88a50', '#e0a96a', '#8a5a36', 1)
+        for k in range(3): shape(im, lambda d, x=x, k=k: d.ellipse([x + 1 + k * 3, 94, x + 6 + k * 3, 99]), *c, 1)
+    shape(im, lambda d: d.ellipse([170, 112, 182, 123]), '#e0892f', '#f5ad4f', '#b0601f', 1)  # pumpkin on the deck
+    d.line([(176, 113), (176, 121)], C('#b0601f')); d.line([(176, 110), (177, 112)], C('#3e7a32'), 2)
 
 def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind the gable, grass tufts at its base
     im = new(4 * S, 4 * S); d = ImageDraw.Draw(im)
