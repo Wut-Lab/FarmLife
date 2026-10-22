@@ -12,6 +12,7 @@ await Promise.all([
     villager_child: 'assets/characters/villager_child.png',
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),
+  document.fonts?.load('bold 10px "Pixelify Sans"').catch(() => {}),
 ]);
 window.game = game; // handy for debugging in the console
 game.start(new Menu());

@@ -73,9 +73,9 @@ export class Game {
       Math.round(x * 2) / 2, Math.round(y * 2) / 2, TILE, TILE);
   }
 
-  text(str, x, y, { size = 8, color = '#fff8e8', align = 'left', shadow = '#3f2631' } = {}) {
+  text(str, x, y, { size = 8, color = '#fff8e8', align = 'left', shadow = '#3f2631', bold = false } = {}) {
     const c = this.ctx;
-    c.font = `${size}px "Pixelify Sans", monospace`;
+    c.font = `${bold ? 'bold ' : ''}${size}px "Pixelify Sans", monospace`;
     c.textAlign = align;
     c.textBaseline = 'top';
     if (shadow) { c.fillStyle = shadow; c.fillText(str, x + size / 8, y + size / 8); }

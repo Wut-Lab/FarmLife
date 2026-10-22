@@ -141,6 +141,7 @@ const CONTROLS = [
 ];
 
 const SPEED = 64; // pixels per second, 4 tiles
+const BANNER = [0.5, 1.5, 0.7]; // location name: seconds fading in, shown, fading out
 const FADE = 0.2; // seconds to fade out (and again to fade in) between locations
 
 // Ten small pixel hearts, filled up to n.
@@ -249,6 +250,7 @@ export class World {
     if (!this.open && (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act))) this.act();
     this.clock.update(dt * 1000);
     if (this.toastT > 0) this.toastT -= dt;
+    if (this.banner) this.banner.t += dt;
     if (this.open) return this.player.update(dt, false);
     const moving = d.x !== 0 || d.y !== 0;
     if (moving) {
@@ -268,7 +270,7 @@ export class World {
   fadeUpdate(dt) {
     const f = this.fade;
     if (f.t < FADE && f.t + dt >= FADE) this.travel(f.id, f.side);
-    f.t += dt;
+    f.t += dt; if (this.banner) this.banner.t += dt;
     this.player.update(dt, f.t < FADE);
     if (f.t >= 2 * FADE) this.fade = null;
   }
@@ -278,7 +280,7 @@ export class World {
     // Line up with the road on the side you came in; if the row you were on isn't road there, use the nearest road row.
     const rows = exitRows(this.map, side === 'right' ? 'left' : 'right'), row = Math.floor((this.y + 13) / TILE);
     if (rows.length && !rows.includes(row)) this.y = rows.reduce((a, b) => (Math.abs(b - row) < Math.abs(a - row) ? b : a)) * TILE - 4;
-    this.say(this.map.name); playMusic(); // each region picks its music on entry
+    this.banner = { text: this.map.name, t: 0 }; playMusic(); // each region picks its music on entry
   }
   get villagers() { return this.map.villagers; }
   get onFarm() { return this.map === this.maps.farm; }
@@ -615,6 +617,12 @@ export class World {
     g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('bag', b.bag[0] + 3, b.bag[1] + 1);
     g.text('Bag', b.bag[0] + 11, b.bag[1] + 15, { size: 5, align: 'center' });
     g.panel(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
+    // Location name: fades in and out at the top centre after you arrive (lower on narrow screens, clear of the hotbar).
+    if (this.banner) {
+      const t = this.banner.t, a = t < BANNER[0] ? t / BANNER[0] : t < BANNER[0] + BANNER[1] ? 1 : 1 - (t - BANNER[0] - BANNER[1]) / BANNER[2];
+      if (a <= 0) this.banner = null;
+      else { g.ctx.globalAlpha = a; g.text(this.banner.text, g.w / 2, g.w > 420 ? 6 : 64, { size: 12, align: 'center', bold: true }); g.ctx.globalAlpha = 1; }
+    }
     if (this.toastT > 0) {
       g.panel(4, g.h - 46, g.w - 8, 14);
       g.text(this.toast, g.w / 2, g.h - 43, { size: 7, align: 'center' });
