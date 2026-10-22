@@ -216,19 +216,24 @@ def shrub_small():  # low single bush, about half the flowering shrub's size
     speckle(im, [light, dark], 25, (6, 12, 27, 30), lambda x, y: im.getpixel((x, y))[:3] == C(base)[:3])
     return outline(im)
 
-def flower_patch(kind):  # three big blooms on one leafy bundle, small matching flowers scattered round it into the grass
+def flower_patch(kind):  # three big blooms on stems with leaves, small matching flowers scattered round it into the grass
     im = new(); d = ImageDraw.Draw(im); fr = random.Random(11 if kind == 'roses' else 12)
     G2 = ('#4a8e3c', '#66ae50', '#326a2a')
     if kind == 'roses': bloom, bloom_l, bloom_d, small = '#c8283a', '#ec5a64', '#8a1828', ('#e04a58', '#f48a96')
     else: bloom, bloom_l, bloom_d, small = '#f2c230', '#fde27a', '#b8801a', ('#f6d04d', '#fff0a0')
-    shape(im, lambda d: d.ellipse([5, 25, 27, 31]), '#3c6b2c', None, None)
-    for cx, cy, r in ((16, 21, 8), (9, 24, 6), (23, 24, 6)):  # the leafy bundle
-        shape(im, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, min(cy + r, 29)]), *G2)
-    d = ImageDraw.Draw(im)
-    for _ in range(20):  # leaf texture (own random, so the shared one stays in step for later tiles)
-        x, y = fr.randrange(3, 29), fr.randrange(13, 30)
-        if im.getpixel((x, y))[:3] == C(G2[0])[:3]: d.point((x, y), C(fr.choice(G2[1:])))
-    for (x0, y0), (cx, cy) in zip(((16, 18), (11, 21), (21, 21)), ((16, 7), (8, 12), (24, 12))): d.line([(x0, y0), (cx, cy + 3)], C('#3e7a32'))
+    d.ellipse([9, 28, 23, 31], (0, 0, 0, 50))  # soft shadow where the stems meet the ground
+    STEM, LEAF, LEAF_L, LEAF_D = '#3e7a32', '#4e9440', '#6cb455', '#326a2a'
+    for (x0, y0), (cx, cy) in zip(((16, 29), (14, 29), (18, 29)), ((16, 7), (8, 12), (24, 12))):  # three stems from one bundle
+        d.line([(x0, y0), ((x0 + cx) // 2, (y0 + cy) // 2 + 2), (cx, cy + 3)], C(STEM))
+    if kind == 'roses':  # small oval leaves in pairs along the stems
+        leaves = [(11, 22, -1), (21, 22, 1), (14, 17, -1), (18, 16, 1), (7, 18, -1), (25, 18, 1), (13, 25, -1), (19, 25, 1)]
+        for x, y, k in leaves:
+            shape(im, lambda d, x=x, y=y, k=k: d.ellipse([x - 2 + k, y - 1, x + 2 + k, y + 1]), LEAF, LEAF_L, LEAF_D, 1)
+            d.point((x + k, y), C(LEAF_D))
+    else:  # long blade leaves curving up from the base
+        for pts in (((15, 29), (10, 22), (8, 17), (11, 22), (16, 28)), ((17, 29), (22, 22), (25, 18), (21, 23), (17, 28)),
+                    ((14, 29), (5, 25), (3, 22), (7, 26), (15, 28)), ((18, 29), (27, 25), (29, 22), (25, 26), (18, 28))):
+            shape(im, lambda d, pts=pts: d.polygon(pts), LEAF, LEAF_L, LEAF_D, 1)
     for cx, cy in ((16, 7), (8, 12), (24, 12)):
         if kind == 'roses':  # round bloom with a spiral of darker petal edges
             shape(im, lambda d, cx=cx, cy=cy: d.ellipse([cx - 4, cy - 4, cx + 4, cy + 3]), bloom, bloom_l, bloom_d, 1)
@@ -418,19 +423,19 @@ def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind th
     for x in list(range(15, 37, 4)) + list(range(92, 114, 4)): tuft(x + tr.randrange(-1, 2), 127, 3, 5)  # along the footing
     for x in (40, 87): tuft(x, 127, 3, 3)  # a little at the door posts, doorway kept clear
     return im
-def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, chimney, shutters=None, brick_base=False, smoke=False):
-    """96x128 house (3x4 tiles): siding walls, shingle roof, chimney poking above it; the top row holds chimney and smoke."""
+def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, chimney, shutters=None, brick_base=False, smoke=False, cx=76):
+    """96x128 house (3x4 tiles): siding walls, shingle roof, chimney at one end of the roof (cx = its left edge); the top row holds chimney and smoke."""
     im = new(96, 128); d = ImageDraw.Draw(im)
     if chimney == 'brick':
-        shape(im, lambda d: d.rectangle([63, 22, 76, 56]), '#a8483a', '#c46050', '#7a3028', 1)
+        shape(im, lambda d: d.rectangle([cx, 22, cx + 13, 56]), '#a8483a', '#c46050', '#7a3028', 1)
         for y in range(25, 56, 4):
-            d.line([(64, y), (75, y)], C('#7a3028'))
-            for x in range(64 + (y // 4 % 2) * 3, 76, 6): d.line([(x, y - 3), (x, y - 1)], C('#7a3028'))
-        shape(im, lambda d: d.rectangle([61, 19, 78, 23]), '#8a8680', '#a8a49e', '#625e58', 1)
+            d.line([(cx + 1, y), (cx + 12, y)], C('#7a3028'))
+            for x in range(cx + 1 + (y // 4 % 2) * 3, cx + 13, 6): d.line([(x, y - 3), (x, y - 1)], C('#7a3028'))
+        shape(im, lambda d: d.rectangle([cx - 2, 19, cx + 15, 23]), '#8a8680', '#a8a49e', '#625e58', 1)
     else:  # fieldstone
-        shape(im, lambda d: d.rectangle([63, 22, 76, 56]), '#8e8a84', '#aaa69e', '#66625c', 1)
-        for x, y in ((65, 26), (71, 31), (66, 37), (72, 43), (65, 48), (70, 52)): d.line([(x, y), (x + 4, y)], C('#66625c'))
-        shape(im, lambda d: d.rectangle([61, 19, 78, 23]), '#6e6a64', '#8e8a84', '#4e4a46', 1)
+        shape(im, lambda d: d.rectangle([cx, 22, cx + 13, 56]), '#8e8a84', '#aaa69e', '#66625c', 1)
+        for x, y in ((cx + 2, 26), (cx + 8, 31), (cx + 3, 37), (cx + 9, 43), (cx + 2, 48), (cx + 7, 52)): d.line([(x, y), (x + 4, y)], C('#66625c'))
+        shape(im, lambda d: d.rectangle([cx - 2, 19, cx + 15, 23]), '#6e6a64', '#8e8a84', '#4e4a46', 1)
     shape(im, lambda d: d.rectangle([4, 78, 91, 118]), wall, wall_l, wall_d)
     for y in range(84, 118, 6): d.line([(5, y), (90, y)], C(wall_d))  # lap siding
     shape(im, lambda d: d.polygon([(0, 82), (10, 36), (86, 36), (95, 82)]), roof, roof_l, roof_d, 3)
@@ -462,8 +467,9 @@ def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, ch
         shape(im, lambda d: d.rectangle([2, 118, 93, 127]), '#b4b0a8', '#cac6be', '#8a867e', 1)
     shape(im, lambda d: d.rectangle([34, 120, 61, 125]), '#9a968e', '#b4b0a8', '#706c66', 1)  # door step
     outline(im)
-    if smoke:  # soft puffs drifting up and to the right, lighter as they rise
-        for (cx, cy, r), col in zip(((70, 14, 5), (76, 8, 5), (83, 4, 4), (89, 1, 3)), ('#d8d4dc', '#e2dee6', '#ece8f0', '#f4f2f6')):
+    if smoke:  # soft puffs drifting up and away from the roof's end, lighter as they rise
+        k = -1 if cx > 48 else 1
+        for (cx, cy, r), col in zip(((cx + 7, 14, 5), (cx + 7 + 6 * k, 8, 5), (cx + 7 + 13 * k, 4, 4), (cx + 7 + 19 * k, 1, 3)), ('#d8d4dc', '#e2dee6', '#ece8f0', '#f4f2f6')):
             sm = new(96, 128)
             shape(sm, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, cy + r]), col, '#ffffff', '#aaa6b4', 1)
             sm.putalpha(sm.getchannel('A').point(lambda a: a * 215 // 255)); im.alpha_composite(sm)
@@ -551,6 +557,13 @@ def farmer(p):
                 if dir_ == 1: pts = [(32 - x, y) for x, y in pts]
                 shape(im, lambda d: d.polygon(pts), H, Hl, Hd, 1)
             if p['long'] and dir_ == 3: shape(im, lambda d: d.rounded_rectangle([8, 10, 24, 23], 5), H, Hl, Hd)
+            if p.get('cap'):  # baseball cap over the hair: crown, then the brim facing the way the head does
+                K, Kl, Kd = p['cap']
+                shape(im, lambda d: d.chord([7, 0, 25, 15], 180, 360), K, Kl, Kd, 1)
+                d = ImageDraw.Draw(im); d.line([(16, 1), (16, 6)], C(Kd)); d.point((16, 0), C(Kl))
+                if dir_ == 0: shape(im, lambda d: d.rounded_rectangle([8, 6, 24, 8], 1), Kd, K, None)
+                elif side: shape(im, lambda d: d.rectangle([3, 6, 13, 8] if dir_ == 1 else [19, 6, 29, 8]), Kd, K, None)
+                else: d.rectangle([14, 6, 18, 7], C(H))  # strap gap at the back
             if p.get('tail') and dir_ == 3:
                 shape(im, lambda d: d.rounded_rectangle([14, 12, 18, 24], 2), H, Hl, Hd, 1); d = ImageDraw.Draw(im); d.line([(14, 12), (18, 12)], C(p['tie']))
             if p.get('tail') and side: d = ImageDraw.Draw(im); tx = 22 if dir_ == 1 else 5; d.line([(tx, 7), (tx + 5, 7)], C(p['tie']))
@@ -559,6 +572,9 @@ def farmer(p):
                 for a, b in ((0, -1), (0, 1), (-1, 0), (1, 0)): d.point((cx + a, cy + b), C(p['clip']))
                 d.point((cx, cy), C('#f6d04d'))
             outline(im)
+            if p.get('child'):  # shorter body under the same head: drop two torso rows and two leg rows
+                rows = [y for y in range(S) if y not in (19, 20, 25, 26)]
+                short = new(); [short.paste(im.crop((0, y, S, y + 1)), (0, 4 + i)) for i, y in enumerate(rows)]; im = short
             sheet.alpha_composite(im, (f * S, dir_ * S))
     return sheet
 
@@ -578,6 +594,10 @@ VILLAGER_F = dict(hair='#7a4a2c', hair_l='#9a6440', hair_d='#55321e', shirt='#f2
                   pants='#4a6aa8', pants_d='#34508a', long=False, tail=True, tie='#c8343a', sweater=True,
                   fringe=[(7, 11), (8, 3), (12, 1), (20, 1), (24, 3), (25, 11), (23, 8), (20, 5), (15, 5), (11, 6), (9, 9)],
                   side=[(7, 11), (8, 3), (13, 1), (20, 1), (25, 4), (25, 8), (20, 6), (14, 6), (11, 8), (9, 12)])
+VILLAGER_KID = dict(hair='#c8803a', hair_l='#e09a52', hair_d='#8a5228', shirt='#d8383e', shirt_l='#ee6066', shirt_d='#9a2430', accent='#ee6066', eye='#4a3a2a', eye_l='#8a6a4a',
+                    pants='#8a5a36', pants_d='#5f3b25', long=False, sweater=True, child=True, cap=('#d8383e', '#ee6066', '#9a2430'),
+                    fringe=[(7, 13), (8, 6), (24, 6), (25, 13), (23, 10), (22, 12), (20, 9), (12, 9), (10, 12), (9, 10)],
+                    side=[(7, 7), (17, 7), (15, 10), (13, 13), (9, 15), (7, 12)])
 
 # ---------- assemble ----------
 cells, names = [], {}
@@ -604,8 +624,8 @@ add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
 add('barn', barn())
 add('house_brown', cottage('#8a5a3a', '#a87050', '#64402a', '#5e4f5a', '#7a6a76', '#3f343e', '#efe2c8', '#fff4dc', '#b8a888', 'stone',
-                           shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True))
-add('house_blue', cottage('#a8d0e8', '#c8e4f4', '#7aa8c8', '#5f6670', '#7c838c', '#43484f', '#3f5a80', '#5c7fa8', '#2a3e5c', 'brick'))
+                           shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True, cx=74))
+add('house_blue', cottage('#a8d0e8', '#c8e4f4', '#7aa8c8', '#5f6670', '#7c838c', '#43484f', '#3f5a80', '#5c7fa8', '#2a3e5c', 'brick', cx=8))
 add('roses', flower_patch('roses')); add('tulips', flower_patch('tulips'))
 COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
 add('cobble0', COB); add('brick0', BRK)
@@ -618,6 +638,7 @@ import os; os.makedirs('assets/art', exist_ok=True)
 sheet.save('assets/art/world.png')
 farmer(MALE).save('assets/characters/farmer_male.png'); farmer(FEMALE).save('assets/characters/farmer_female.png')
 farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_F).save('assets/characters/villager_female.png')
+farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')
