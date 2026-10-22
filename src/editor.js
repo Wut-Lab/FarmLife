@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const art = new Image(); art.src = 'assets/art/world.png'; await art.decode();
 const cv = $('#map'), ctx = cv.getContext('2d');
 const T = 32; // screen pixels per tile at zoom 1
-const ZOOMS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
+const ZMIN = 0.2, ZMAX = 6; // zoom limits; the slider runs on a log scale between them
 
 // ---------- map state, autosave, undo ----------
 let d = load() ?? dataFromMap(buildFarm());
@@ -206,14 +206,20 @@ function resize(W, H) {
 let zoom = 1, ox = 0, oy = 0, grid = true, solidView = false, hover = null, box = null;
 function fitView() {
   const r = cv.getBoundingClientRect();
-  zoom = [...ZOOMS].reverse().find(z => d.W * T * z <= r.width - 20 && d.H * T * z <= r.height - 20) ?? ZOOMS[0];
-  ox = Math.round((r.width - d.W * T * zoom) / 2); oy = Math.round((r.height - d.H * T * zoom) / 2); draw();
+  zoom = Math.max(ZMIN, Math.min(ZMAX, (r.width - 24) / (d.W * T), (r.height - 24) / (d.H * T)));
+  ox = Math.round((r.width - d.W * T * zoom) / 2); oy = Math.round((r.height - d.H * T * zoom) / 2); zoomUI(); draw();
 }
-function zoomBy(step, cx, cy) {
+// Zoom to z, keeping the map point under screen point (cx, cy) still (default: the view's centre).
+function zoomTo(z, cx, cy) {
   const r = cv.getBoundingClientRect(); cx ??= r.width / 2; cy ??= r.height / 2;
-  const z = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + step))];
-  ox = cx - (cx - ox) * z / zoom; oy = cy - (cy - oy) * z / zoom; zoom = z; draw();
+  z = Math.max(ZMIN, Math.min(ZMAX, z));
+  ox = cx - (cx - ox) * z / zoom; oy = cy - (cy - oy) * z / zoom; zoom = z; zoomUI(); draw();
 }
+// Buttons and keys step through round levels: 25%, 50%, 75%, 100%, 150%, 200%...
+const LEVELS = [0.2, 0.25, 0.33, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6];
+const zoomBy = (step, cx, cy) => zoomTo(step > 0 ? LEVELS.find(z => z > zoom * 1.01) ?? ZMAX : [...LEVELS].reverse().find(z => z < zoom / 1.01) ?? ZMIN, cx, cy);
+const toSlider = z => Math.round(1000 * Math.log(z / ZMIN) / Math.log(ZMAX / ZMIN));
+function zoomUI() { $('#zpct').textContent = Math.round(zoom * 100) + '%'; $('#zslide').value = toSlider(zoom); }
 function showSolid(on) { solidView = on; $('#solidT').classList.toggle('on', on); draw(); }
 let queued = false;
 function draw() { if (!queued) { queued = true; requestAnimationFrame(render); } }
@@ -278,9 +284,20 @@ function previewObjects() {
 // ---------- input ----------
 const tileAt = e => { const r = cv.getBoundingClientRect(), s = T * zoom; return { x: Math.floor((e.clientX - r.left - ox) / s), y: Math.floor((e.clientY - r.top - oy) / s) }; };
 let drag = null, space = false;
+const touches = new Map(); // active pointers, for two-finger pinch zoom
+function pinchInfo() {
+  const [a, b] = [...touches.values()], r = cv.getBoundingClientRect();
+  return { dist: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top };
+}
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId);
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size === 2) { // second finger: undo the stroke the first one started, then pinch
+    if (drag && !drag.pan && !drag.pinch) { d = JSON.parse(undo.pop()); box = null; }
+    drag = { pinch: true, ...pinchInfo() }; return draw();
+  }
+  if (touches.size > 2) return;
   const t = tileAt(e);
   if (e.button === 1 || space || tool === 'pan' || (e.button === 2 && tool !== 'block')) { drag = { pan: true, x: e.clientX, y: e.clientY }; cv.style.cursor = 'grabbing'; return; }
   if (e.altKey || tool === 'pick') { pick(t.x, t.y); return; }
@@ -290,6 +307,13 @@ cv.addEventListener('pointerdown', e => {
   else { apply(t.x, t.y, e); draw(); }
 });
 cv.addEventListener('pointermove', e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (drag?.pinch) {
+    if (touches.size < 2) return;
+    const p = pinchInfo();
+    ox += p.x - drag.x; oy += p.y - drag.y; zoomTo(zoom * p.dist / drag.dist, p.x, p.y);
+    Object.assign(drag, p); return;
+  }
   const t = tileAt(e);
   if (!hover || t.x !== hover.x || t.y !== hover.y) { hover = t; status(); draw(); }
   if (!drag) return;
@@ -300,7 +324,9 @@ cv.addEventListener('pointermove', e => {
   for (let k = 1; k <= n; k++) apply(Math.round(last.x + (t.x - last.x) * k / n), Math.round(last.y + (t.y - last.y) * k / n), drag.e);
   drag.last = t; draw();
 });
-const end = () => {
+const end = e => {
+  touches.delete(e.pointerId);
+  if (drag?.pinch) { if (!touches.size) drag = null; return; }
   if (!drag) return;
   if (box) { boxFill(box.x0, box.y0, box.x1, box.y1); box = null; }
   if (!drag.pan) changed();
@@ -308,12 +334,12 @@ const end = () => {
 };
 cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
 cv.addEventListener('pointerleave', () => { hover = null; status(); draw(); });
-let wheel = 0;
+// Wheel (or trackpad pinch, which arrives as Ctrl+wheel) zooms smoothly toward the cursor; Shift+wheel scrolls sideways.
 cv.addEventListener('wheel', e => {
   e.preventDefault(); const r = cv.getBoundingClientRect();
   if (e.shiftKey) { ox -= e.deltaY + e.deltaX; return draw(); }
-  wheel += e.deltaY; if (Math.abs(wheel) < 50) return;
-  zoomBy(wheel < 0 ? 1 : -1, e.clientX - r.left, e.clientY - r.top); wheel = 0;
+  const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+  zoomTo(zoom * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
@@ -329,6 +355,7 @@ addEventListener('keydown', e => {
   if (k === '+' || k === '=') zoomBy(1);
   if (k === '-') zoomBy(-1);
   if (k === '0') fitView();
+  if (k === '1') zoomTo(1);
   const step = 64, arrows = { arrowleft: [step, 0], arrowright: [-step, 0], arrowup: [0, step], arrowdown: [0, -step] }[k];
   if (arrows) { ox += arrows[0]; oy += arrows[1]; draw(); e.preventDefault(); }
 });
@@ -362,9 +389,12 @@ $('#undo').onclick = () => history(undo, redo);
 $('#redo').onclick = () => history(redo, undo);
 $('#zin').onclick = () => zoomBy(1);
 $('#zout').onclick = () => zoomBy(-1);
+$('#zfit').onclick = fitView;
+$('#z100').onclick = () => zoomTo(1);
+$('#zslide').oninput = e => zoomTo(ZMIN * (ZMAX / ZMIN) ** (e.target.value / 1000));
 $('#gridT').onclick = () => { grid = !grid; $('#gridT').classList.toggle('on', grid); draw(); };
 $('#solidT').onclick = () => showSolid(!solidView);
 $('#resize').onclick = () => resize(+$('#mw').value, +$('#mh').value);
-$('#hint').textContent = 'Alt+click: pick · Right-drag / Space+drag / arrows: pan · Wheel: zoom · 0: fit · Ctrl+Z: undo';
+$('#hint').textContent = 'Alt+click: pick · Right-drag / Space+drag / arrows: pan · Wheel / pinch / + −: zoom · 0: fit · 1: actual size · Ctrl+Z: undo';
 
 buildPalette(); pickBrush(brush); setTool('paint'); changed(true); fitView(); status();

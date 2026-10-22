@@ -33,7 +33,8 @@ Online: https://wut-lab.github.io/FarmLife/editor.html (or `editor.html` locally
 - **Box** fills an area with ground, or a grid of objects; with **Fence (auto)** it draws a fenced pen
 - The map autosaves in the browser. **Export** downloads it as a `.json` file, **Import** opens one
 - **Play test** opens the game on your map (`index.html?map=editor`). A house gives you a door to sleep at, a shop a counter, a bin a shipping bin, and soil becomes farmable plots
-- Keys: B paint, R box, F fill, E erase, I pick (or Alt+click), C collide, S spawn, H pan, G grid, V collision view, Ctrl+Z / Ctrl+Y undo/redo, wheel zoom, right-drag or Space+drag to pan
+- Keys: B paint, R box, F fill, E erase, I pick (or Alt+click), C collide, S spawn, H pan, G grid, V collision view, Ctrl+Z / Ctrl+Y undo/redo, right-drag or Space+drag to pan
+- Zoom: the zoom bar (bottom right) has −/+, a slider, Fit and 1:1. Mouse wheel or pinch zooms toward the cursor; + / - keys, 0 fits the map, 1 is actual size
 
 ## Tests
 `npm test`
