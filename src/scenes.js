@@ -237,7 +237,7 @@ export class World {
     const b = this.buttons(), inv = this.inv;
     if ((inp.hit('Escape', 'KeyP') && !this.open) || inp.tapIn(...b.pause)) return this.openMenu('pause');
     if (inp.hit('Slash') || inp.tapIn(...b.help)) return this.openMenu('controls', null);
-    if (inp.hit('KeyM') || inp.tapIn(...b.map)) { this.mapView = true; this.open = this.binOpen = false; return sfx('click'); }
+    if (inp.hit('KeyM') || inp.tapIn(...b.map)) { this.mapView = true; this.mini = null; this.open = this.binOpen = false; return sfx('click'); }
     if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag) || (this.open && inp.tapIn(...this.closeRect()))) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
     for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
@@ -602,15 +602,24 @@ export class World {
     this.player.update(0, false);
     if (inp.hit('KeyM', 'Escape', 'Enter', 'Space') || inp.tapIn(...this.mapLayout().exit) || inp.tapIn(...this.buttons().map)) { this.mapView = false; sfx('click'); }
   }
-  miniMap() { // drawn once per location at 16px per tile
+  miniMap() { // redrawn each time the map opens (16px per tile), so it shows the latest crops, buildings and villagers
     const m = this.map;
-    if (m.mini) return m.mini;
+    if (this.mini) return this.mini;
     const P = 16, cv = document.createElement('canvas'), c = cv.getContext('2d'), art = this.g.images.art;
     cv.width = m.W * P; cv.height = m.H * P; c.imageSmoothingEnabled = false;
     const put = (n, x, y) => { const i = A[n]; if (i !== undefined) c.drawImage(art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32, x * P, y * P, P, P); };
-    m.ground.forEach((n, i) => put(n, i % m.W, Math.floor(i / m.W)));
+    m.ground.forEach((n, i) => {
+      const x = i % m.W, y = Math.floor(i / m.W), p = this.onFarm && this.field.get(`${x},${y}`);
+      put(n, x, y);
+      if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * P, y * P + 3, P, 11); }
+      if (p) put(this.field.sprite(p), x, y);
+    });
     for (const o of [...m.objects].sort((a, b) => a.base - b.base)) o.tiles.forEach((row, j) => row.forEach((n, i) => put(n, o.x / TILE + i, o.y / TILE + j)));
-    return (m.mini = cv);
+    for (const v of this.villagers) { // villagers as small figures where they stand right now
+      const f = v.walker, img = this.g.images[f.sheet];
+      if (img) c.drawImage(img, 0, 0, 32, 32, v.x / TILE * P, v.y / TILE * P, P, P);
+    }
+    return (this.mini = cv);
   }
   drawMap() {
     const g = this.g, c = g.ctx, { x, y, w, h, k, exit } = this.mapLayout();
