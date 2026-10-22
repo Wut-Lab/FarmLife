@@ -7,6 +7,7 @@ import { buildRoad, buildTown } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
+import { spawnVillagers, feet, overlaps } from './villagers.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
 const CHARACTERS = [
@@ -148,6 +149,7 @@ export class World {
     this.maps = { farm, road: buildRoad(), town: buildTown() };
     this.map = farm;
     this.player = new Walker(this.sheet);
+    for (const m of Object.values(this.maps)) m.villagers = m === farm ? spawnVillagers(m) : [];
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
@@ -191,9 +193,11 @@ export class World {
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
 
-  // Feet hitbox: 8x5 pixels at the bottom of the 16x16 logical sprite.
+  // Feet hitbox: 8x5 pixels at the bottom of the 16x16 logical sprite. Villagers block too,
+  // unless you already overlap one (so you can always step away).
   blocked(x, y) {
-    const { W, H, solid } = this.map;
+    const { W, H, solid } = this.map, me = feet(this.x, this.y), next = feet(x, y);
+    for (const v of this.villagers) { const f = feet(v.x, v.y); if (overlaps(next, f) && !overlaps(me, f)) return true; }
     for (const [px, py] of [[x + 4, y + 11], [x + 11, y + 11], [x + 4, y + 15], [x + 11, y + 15]]) {
       const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
       if (ty < 0 || ty >= H) return true;
@@ -235,6 +239,8 @@ export class World {
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
     this.player.update(dt, moving);
+    const me = feet(this.x, this.y);
+    for (const v of this.villagers) v.update(dt, (x, y) => overlaps(feet(x, y), me));
     // Walk off the end of the road into the next location.
     const { W, exits } = this.map, side = this.x < -4 ? 'left' : this.x > (W - 1) * TILE + 4 ? 'right' : null;
     if (side && exits?.[side]) this.travel(exits[side], side);
@@ -244,6 +250,7 @@ export class World {
     this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
     this.say(this.map.name); playMusic(); // each region picks its music on entry
   }
+  get villagers() { return this.map.villagers; }
   get onFarm() { return this.map === this.maps.farm; }
 
   // The tile in front of the player's feet.
@@ -448,10 +455,11 @@ export class World {
     }
     // Draw objects and the player back to front by their bottom edge.
     const list = objects.filter(o => o.x - cx < g.w && o.base - cy > 0 && o.x + o.tiles[0].length * TILE - cx > 0 && o.y - cy < g.h);
-    list.push({ base: this.y + 16, player: true });
+    list.push({ base: this.y + 16, player: true }, ...this.villagers.map(v => ({ base: v.y + 16, villager: v })));
     list.sort((a, b) => a.base - b.base);
     for (const o of list) {
       if (o.player) this.player.draw(g, this.x - cx, this.y - cy);
+      else if (o.villager) o.villager.draw(g, cx, cy);
       else o.tiles.forEach((row, j) => row.forEach((n, k) => g.tile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
     }
     // Night falls after 6 PM.

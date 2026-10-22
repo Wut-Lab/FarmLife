@@ -7,6 +7,9 @@ await Promise.all([
     art: 'assets/art/world.png',
     male: 'assets/characters/farmer_male.png',
     female: 'assets/characters/farmer_female.png',
+    villager_male: 'assets/characters/villager_male.png',
+    villager_female: 'assets/characters/villager_female.png',
+    villager_child: 'assets/characters/villager_child.png',
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),
 ]);
