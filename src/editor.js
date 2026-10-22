@@ -106,13 +106,14 @@ const TOOLS = [
   ['spawn', 'Spawn', 'S', 'Where the player starts'],
   ['pan', 'Pan', 'H', 'Drag to move the view (or middle-drag / Space+drag)'],
 ];
-let tool = 'paint';
+let tool = 'paint', lastTool = 'paint';
 for (const [id, label, key, tip] of TOOLS) {
   const b = document.createElement('button'); b.textContent = label; b.title = `${tip} (${key})`; b.id = 't-' + id;
   b.onclick = () => setTool(id); $('#tools').append(b);
 }
 function setTool(t) {
-  $('#t-' + tool).classList.remove('on'); tool = t; $('#t-' + t).classList.add('on');
+  $('#t-' + tool).classList.remove('on'); if (t === 'pan' && tool !== 'pan') lastTool = tool;
+  tool = t; $('#t-' + t).classList.add('on'); $('#move')?.classList.toggle('on', t === 'pan');
   if (t === 'block') showSolid(true);
   opts(); draw();
 }
@@ -417,13 +418,22 @@ const end = e => {
 };
 cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
 cv.addEventListener('pointerleave', () => { hover = null; status(); draw(); });
-// Wheel (or trackpad pinch, which arrives as Ctrl+wheel) zooms smoothly toward the cursor; Shift+wheel scrolls sideways.
+// Wheel / two-finger scroll moves the view (Shift turns it sideways); Ctrl+wheel (or trackpad pinch) zooms toward the cursor.
 cv.addEventListener('wheel', e => {
-  e.preventDefault(); const r = cv.getBoundingClientRect();
-  if (e.shiftKey) { ox -= e.deltaY + e.deltaX; return draw(); }
-  const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
-  zoomTo(zoom * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+  e.preventDefault(); const r = cv.getBoundingClientRect(), k = e.deltaMode === 1 ? 33 : 1;
+  const dx = e.deltaX * k, dy = e.deltaY * k;
+  if (!e.ctrlKey && !e.metaKey) { if (e.shiftKey) ox -= dx + dy; else { ox -= dx; oy -= dy; } return draw(); }
+  zoomTo(zoom * Math.exp(-dy * 0.01), e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
+// On-screen arrows scroll the map while held; the Move button toggles drag-to-move.
+for (const b of document.querySelectorAll('.pad button')) {
+  const [dx, dy] = b.dataset.d.split(',').map(Number);
+  let id = null;
+  const stop = () => { clearInterval(id); id = null; };
+  b.onpointerdown = e => { e.preventDefault(); stop(); const go = () => { ox += dx * 12; oy += dy * 12; draw(); }; go(); id = setInterval(go, 16); };
+  b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
+}
+$('#move').onclick = () => setTool(tool === 'pan' ? lastTool : 'pan');
 addEventListener('keydown', e => {
   if (['INPUT', 'SELECT'].includes(e.target.tagName)) return;
   const k = e.key.toLowerCase();
@@ -486,6 +496,6 @@ $('#zslide').oninput = e => zoomTo(ZMIN * (ZMAX / ZMIN) ** (e.target.value / 100
 $('#gridT').onclick = () => { grid = !grid; $('#gridT').classList.toggle('on', grid); draw(); };
 $('#solidT').onclick = () => showSolid(!solidView);
 $('#resize').onclick = () => resize(+$('#mw').value, +$('#mh').value);
-$('#hint').textContent = 'Alt+click: pick · Right-drag / Space+drag / arrows: pan · Wheel / pinch / + −: zoom · 0: fit · 1: actual size · Ctrl+Z: undo';
+$('#hint').textContent = 'Alt+click: pick · Wheel / arrows / ◀▶ pad / Move or Right-drag / Space+drag: scroll · Ctrl+wheel / pinch / + −: zoom · 0: fit · 1: actual size · Ctrl+Z: undo';
 
 buildPalette(); pickBrush(brush); setTool('paint'); openLoc('farm'); status();
