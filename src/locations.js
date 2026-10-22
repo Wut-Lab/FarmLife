@@ -41,7 +41,7 @@ const onRoad = y => ROAD.includes(y);
 export const LOCATIONS = {
   farm: { name: 'Farm', build: () => ({ ...buildFarm(), npcs: VILLAGERS }) },
   road: { name: 'Road to Town', build: () => buildRoad() },
-  town: { name: 'Town', build: () => mapFromData(TOWN) },
+  town: { name: 'Town', build: () => ({ ...mapFromData(TOWN), door: null }) }, // only your farmhouse door is for sleeping
 };
 
 // Road to town: a stone road straight across. Blank for now, to build on later.
