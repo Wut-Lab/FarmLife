@@ -167,13 +167,24 @@ def small_tree():
     im = new()
     shape(im, lambda d: d.rectangle([14, 20, 17, 29]), '#8a5a3a', '#a87048', '#5f3b25')
     canopy(im, ('#4f9e3a', '#6fc04f', '#357a2a'), 16, 13, 8); return outline(im)
-def pine():  # 32x64 conifer: stacked tiers of needles over a short trunk
-    im = new(S, 2 * S)
+def pine():  # 32x64 conifer: one silhouette of jagged needle tiers, each shadowed by the tier above
+    im = new(S, 2 * S); px = im.load()
     shape(im, lambda d: d.ellipse([7, 56, 25, 62]), '#3c6b2c', None, None)
     shape(im, lambda d: d.rectangle([14, 48, 18, 59]), '#7a4e32', '#9a6440', '#55331f')
-    for top, bot, half in ((3, 22, 7), (12, 34, 10), (22, 46, 13), (32, 54, 15)):
-        shape(im, lambda d, t=top, b=bot, h=half: d.polygon([(16, t), (16 + h, b), (16 - h, b)]), '#2f7a4a', '#4a9a5e', '#1f5a36')
-    speckle(im, ['#4a9a5e', '#1f5a36'], 50, (2, 4, 30, 54), lambda x, y: im.getpixel((x, y))[:3] == C('#2f7a4a')[:3])
+    base, light, dark, deep = C('#2f7a4a'), C('#4a9a5e'), C('#1f5a36'), C('#174a2c'); done = set()
+    for top, bot, half in ((2, 17, 6), (9, 28, 9), (18, 39, 12), (28, 51, 15)):  # top tier first; lower tiers only fill what is still empty
+        m = Image.new('L', im.size, 0); pts = [(16, top), (16 + half, bot)]
+        pts += [(16 + half - k * 3, bot - 3 * (k % 2)) for k in range(1, 2 * half // 3 + 1)] + [(16 - half, bot)]
+        ImageDraw.Draw(m).polygon(pts, 255); mp = m.load()
+        for y in range(top, bot + 1):
+            w = max(1, half * (y - top) / (bot - top))
+            for x in range(S):
+                if not mp[x, y] or (x, y) in done: continue
+                t = (x - 16) / w
+                shadow = any((x, y - k) in done for k in (1, 2))
+                px[x, y] = deep if shadow else light if t < -0.4 else dark if t > 0.45 else base
+        done |= {(x, y) for y in range(top, bot + 1) for x in range(S) if mp[x, y]}
+    speckle(im, ['#4a9a5e', '#1f5a36'], 30, (2, 4, 30, 52), lambda x, y: im.getpixel((x, y))[:3] == base[:3])
     return outline(im)
 def oak():  # 64x64 broad oak: thick trunk with roots under a wide lumpy crown
     im = new(2 * S, 2 * S)
