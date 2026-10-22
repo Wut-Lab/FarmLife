@@ -204,7 +204,7 @@ export class World {
     const b = this.buttons(), inv = this.inv;
     if ((inp.hit('Escape', 'KeyP') && !this.open) || inp.tapIn(...b.pause)) return this.openMenu('pause');
     if (inp.hit('Slash') || inp.tapIn(...b.help)) return this.openMenu('controls', null);
-    if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag)) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
+    if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag) || (this.open && inp.tapIn(...this.closeRect()))) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
     for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
     // Tap a slot: select it (tap the seed bag again to change seeds). With the bag open, tap two slots to swap them.
@@ -275,6 +275,9 @@ export class World {
     const g = this.g, r = 22;
     return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r], help: [g.w - 14, 4, 10, 10], pause: [g.w - 14, 16, 10, 10] };
   }
+
+  // Close button under the bag (and shipping bin) panel.
+  closeRect() { const [, by] = this.slotRect(HOTBAR); return [this.g.w / 2 - 18, by + 45, 36, 11]; }
 
   // Shipping bin: 5 slots, filled from the bag; everything in it is sold overnight.
   binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id]?.price ?? 0) * s.n, 0); }
@@ -468,6 +471,8 @@ export class World {
         g.panel(x - 3, y - 3, BIN * 19 + 5, 24, '#8a5a3aee');
         for (let i = HOTBAR + BAG; i < HOTBAR + BAG + BIN; i++) this.drawSlot(i);
       }
+      const cr = this.closeRect();
+      g.panel(...cr, '#e86a9a'); g.text('Close', cr[0] + cr[2] / 2, cr[1] + 2, { size: 6, align: 'center' });
     }
     if (this.shop) this.drawShop();
     // Help and pause buttons, top right.
