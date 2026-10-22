@@ -6,7 +6,8 @@ import { LOCATIONS } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
-import { spawnVillagers, feet, overlaps } from './villagers.js';
+import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps } from './villagers.js';
+import { SCHEDULES, activity, weekday } from './schedule.js';
 import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
@@ -164,7 +165,8 @@ export class World {
     this.maps = Object.fromEntries(Object.entries(LOCATIONS).map(([id, l]) => [id, { ...(edited[id] ?? l.build()), name: l.name }]));
     this.map = this.maps.farm;
     this.player = new Walker(this.sheet);
-    for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m);
+    for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m, sheet => SCHEDULES[sheet]); // scheduled people are placed by schedule()
+    this.people = {}; // sheet -> { key, map, v }: where each scheduled person is right now
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
@@ -253,6 +255,7 @@ export class World {
     }
     if (!this.open && (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act))) this.act();
     this.clock.update(dt * 1000);
+    this.schedule();
     if (this.toastT > 0) this.toastT -= dt;
     if (this.banner) this.banner.t += dt;
     if (this.open) return this.player.update(dt, false);
@@ -287,6 +290,22 @@ export class World {
     this.banner = { text: this.map.name, t: 0 }; playMusic(); // each region picks its music on entry
   }
   get villagers() { return this.map.villagers; }
+
+  // Move scheduled people when their rule changes (wanderers pick a new spot each hour); asleep, they're nowhere.
+  schedule() {
+    const k = this.clock, hour = Math.floor(k.minutes / 60), day = weekday(k.day);
+    for (const [sheet, rules] of Object.entries(SCHEDULES)) {
+      const r = activity(rules, hour, day, k.seasonName), map = this.maps[r.map];
+      const key = r.act === 'sleep' || !map ? 'sleep' : `${k.day}:${rules.indexOf(r)}${r.act === 'wander' ? ':' + hour : ''}`;
+      const p = this.people[sheet];
+      if (p?.key === key) continue;
+      if (p?.v) p.map.villagers.splice(p.map.villagers.indexOf(p.v), 1);
+      const spot = key === 'sleep' ? null : r.act === 'wander' ? randomSpot(map) : fits(map, r) ? r : null;
+      const v = spot && new Villager({ sheet, x: spot.x, y: spot.y, size: spot.size ?? 0 });
+      if (v) map.villagers.push(v);
+      this.people[sheet] = { key, map, v };
+    }
+  }
   get onFarm() { return this.map === this.maps.farm; }
 
   // The tile in front of the player's feet.

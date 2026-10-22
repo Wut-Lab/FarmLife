@@ -42,14 +42,25 @@ export class Villager {
   draw(g, cx, cy) { this.walker.draw(g, this.x - cx, this.y - cy); }
 }
 
-// The map's villagers (map.npcs) whose whole square is walkable.
-export function spawnVillagers(map) {
-  const clear = v => {
-    for (let j = 0; j <= v.size; j++) for (let i = 0; i <= v.size; i++) {
-      const x = v.x + i, y = v.y + j;
-      if (x < 0 || y < 0 || x >= map.W || y >= map.H || map.solid[y * map.W + x]) return false;
-    }
-    return true;
-  };
-  return (map.npcs ?? []).filter(clear).map(v => new Villager(v));
+// True if a villager's whole square (top-left x, y; side `size` tiles) is walkable.
+export function fits(map, { x, y, size }) {
+  for (let j = 0; j <= size; j++) for (let i = 0; i <= size; i++) {
+    const tx = x + i, ty = y + j;
+    if (tx < 0 || ty < 0 || tx >= map.W || ty >= map.H || map.solid[ty * map.W + tx]) return false;
+  }
+  return true;
+}
+
+// A random spot for a small square walk, away from the map's edges.
+export function randomSpot(map, rand = Math.random) {
+  for (let n = 0; n < 200; n++) {
+    const v = { x: 2 + Math.floor(rand() * (map.W - 6)), y: 2 + Math.floor(rand() * (map.H - 6)), size: 1 };
+    if (fits(map, v)) return v;
+  }
+  return null;
+}
+
+// The map's villagers (map.npcs) whose whole square is walkable; `skip(sheet)` leaves out people who follow a schedule.
+export function spawnVillagers(map, skip = () => false) {
+  return (map.npcs ?? []).filter(v => !skip(v.sheet) && fits(map, v)).map(v => new Villager(v));
 }
