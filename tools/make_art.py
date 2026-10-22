@@ -222,6 +222,11 @@ def fence(part):
     for x in posts + ([16] if part == 1 else []):
         shape(im, lambda d, x=x: d.rectangle([x - 2, 8, x + 2, 29]), '#b07440', '#d0965a', '#83532c', 1)
     return outline(im)
+def fence_v():  # vertical run of fence seen from above: one long rail with a post
+    im = new()
+    shape(im, lambda d: d.rectangle([14, 0, 17, 31]), '#c88a50', '#e0a96a', '#9a6436', 1)
+    shape(im, lambda d: d.rectangle([13, 10, 18, 25]), '#b07440', '#d0965a', '#83532c', 1)
+    return outline(im)
 def bin_():  # 64x32 wooden shipping bin with a lid, sliced into two tiles
     im = new(2 * S, S)
     shape(im, lambda d: d.rectangle([4, 12, 59, 30]), '#b07440', '#d0965a', '#83532c')
@@ -355,6 +360,7 @@ add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orang
 add('tree', small_tree()); add('mushrooms', mushrooms())
 add('pine', pine()); add('oak', oak()); add('shrub_large', shrub(2 * S)); add('shrub_flower', shrub(S, True))
 for k in range(3): add(f'fence{k}', fence(k))
+add('fence3', fence_v())
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))

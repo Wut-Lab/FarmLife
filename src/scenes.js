@@ -2,6 +2,7 @@
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS } from './clock.js';
 import { buildFarm } from './farm-map.js';
+import { editorMap } from './map-data.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
@@ -142,7 +143,7 @@ export class World {
   constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
   enter(g) {
     this.g = g;
-    this.map = buildFarm();
+    this.map = (new URLSearchParams(location.search).get('map') === 'editor' && editorMap()) || buildFarm(); // ?map=editor play-tests the editor's map
     this.player = new Walker(this.sheet);
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });

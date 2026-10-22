@@ -26,5 +26,14 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Pause: Esc / P, or tap **II** (Resume, Controls, Settings, Quit to title). Help: ? key, or tap **?**
 - Settings: music and sound volume, day speed (Relaxed / Normal / Fast). Saved per device
 
+## Map editor
+Online: https://wut-lab.github.io/FarmLife/editor.html (or `editor.html` locally)
+
+- Paint ground (Path and Field soil pick their edge pieces automatically), place trees, buildings and props, mark tiles as blocked or walkable (Collide), and set the player start (Spawn)
+- **Box** fills an area with ground, or a grid of objects; with **Fence (auto)** it draws a fenced pen
+- The map autosaves in the browser. **Export** downloads it as a `.json` file, **Import** opens one
+- **Play test** opens the game on your map (`index.html?map=editor`). A house gives you a door to sleep at, a shop a counter, a bin a shipping bin, and soil becomes farmable plots
+- Keys: B paint, R box, F fill, E erase, I pick (or Alt+click), C collide, S spawn, H pan, G grid, V collision view, Ctrl+Z / Ctrl+Y undo/redo, wheel zoom, right-drag or Space+drag to pan
+
 ## Tests
 `npm test`
