@@ -3,6 +3,7 @@ import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS } from './clock.js';
 import { buildFarm } from './farm-map.js';
 import { editorMap } from './map-data.js';
+import { buildRoad, buildTown } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
@@ -143,7 +144,9 @@ export class World {
   constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
   enter(g) {
     this.g = g;
-    this.map = (new URLSearchParams(location.search).get('map') === 'editor' && editorMap()) || buildFarm(); // ?map=editor play-tests the editor's map
+    const farm = (new URLSearchParams(location.search).get('map') === 'editor' && editorMap()) || buildFarm(); // ?map=editor play-tests the editor's map
+    this.maps = { farm, road: buildRoad(), town: buildTown() };
+    this.map = farm;
     this.player = new Walker(this.sheet);
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
@@ -162,7 +165,7 @@ export class World {
     });
     this.toast = '';
     this.clock.on('newDay', ({ passedOut }) => {
-      Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
+      this.map = this.maps.farm; Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
       const saved = writeSave(this.slot, this.snapshot());
       this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (saved ? ' Game saved.' : ''));
     });
@@ -193,7 +196,9 @@ export class World {
     const { W, H, solid } = this.map;
     for (const [px, py] of [[x + 4, y + 11], [x + 11, y + 11], [x + 4, y + 15], [x + 11, y + 15]]) {
       const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-      if (tx < 0 || ty < 0 || tx >= W || ty >= H || solid[ty * W + tx]) return true;
+      if (ty < 0 || ty >= H) return true;
+      if (tx < 0 || tx >= W) { if (!this.map.exits?.[tx < 0 ? 'left' : 'right']) return true; continue; } // road exits
+      if (solid[ty * W + tx]) return true;
     }
     return false;
   }
@@ -230,7 +235,16 @@ export class World {
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
     this.player.update(dt, moving);
+    // Walk off the end of the road into the next location.
+    const { W, exits } = this.map, side = this.x < -4 ? 'left' : this.x > (W - 1) * TILE + 4 ? 'right' : null;
+    if (side && exits?.[side]) this.travel(exits[side], side);
   }
+  travel(id, side) {
+    this.map = this.maps[id];
+    this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
+    this.say(this.map.name); playMusic(); // each region picks its music on entry
+  }
+  get onFarm() { return this.map === this.maps.farm; }
 
   // The tile in front of the player's feet.
   facing() {
@@ -244,7 +258,7 @@ export class World {
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     if (key === this.map.shop) { this.shop = true; return; }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
-    if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
+    if (!this.onFarm || !f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
       if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
@@ -422,13 +436,13 @@ export class World {
     for (let y = y0; y < Math.min(H, y0 + g.h / TILE + 2); y++)
       for (let x = x0; x < Math.min(W, x0 + g.w / TILE + 2); x++) {
         g.tile(ground[y * W + x], x * TILE - cx, y * TILE - cy);
-        const p = this.field.get(`${x},${y}`);
+        const p = this.onFarm && this.field.get(`${x},${y}`);
         if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx, y * TILE - cy + 3, 16, 11); }
         if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if (this.field.has(`${fx},${fy}`) || [this.map.door, this.map.shop, ...this.map.bin].includes(`${fx},${fy}`)) {
+    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, ...this.map.bin].includes(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }

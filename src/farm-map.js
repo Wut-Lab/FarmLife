@@ -1,5 +1,6 @@
 // The farm: a hand-placed layout with a seeded scatter of flowers and trees.
 import { TILE } from './engine.js';
+import { ROAD, paveRoad } from './locations.js';
 
 function rng(seed) {
   return () => {
@@ -36,10 +37,13 @@ export function buildFarm(seed = 7) {
 
   // Path (3 rows high so its grass edges line up), house, field and fence.
   for (let x = 3; x < 37; x++) for (let j = 0; j < 3; j++) {
-    const col = x === 3 ? 0 : x === 36 ? 2 : 1;
+    const col = x === 3 ? 0 : 1; // runs straight into the stone road
     ground[at(x, 15 + j)] = 'path' + (j * 3 + col);
     used[at(x, 15 + j)] = 1;
   }
+  // Stone road off the right edge, toward town.
+  paveRoad(ground, W, H, (x, y) => x >= 37 && ROAD.includes(y));
+  for (const y of ROAD) for (let x = 37; x < W; x++) used[at(x, y)] = 1;
   place(17, 10, [['house_0', 'house_1', 'house_2'], ['house_3', 'house_4', 'house_5'], ['house_6', 'house_7', 'house_8']]);
   // Seed shop next to the house, with a sign.
   place(21, 10, [['shop_0', 'shop_1', 'shop_2'], ['shop_3', 'shop_4', 'shop_5'], ['shop_6', 'shop_7', 'shop_8']]);
@@ -67,5 +71,5 @@ export function buildFarm(seed = 7) {
     if (free(x - 1, y - 1, 3, 3)) place(x, y, [[kind]], kind === 'mushrooms' ? 0 : 1);
   }
 
-  return { W, H, ground, solid, objects, plots, door: '18,12', shop: '22,12', bin: ['25,12', '26,12'], spawn: { x: 18 * TILE, y: 13 * TILE } };
+  return { W, H, ground, solid, objects, plots, door: '18,12', shop: '22,12', bin: ['25,12', '26,12'], name: 'Farm', exits: { right: 'road' }, spawn: { x: 18 * TILE, y: 13 * TILE } };
 }
