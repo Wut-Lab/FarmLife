@@ -6,7 +6,7 @@ import { LOCATIONS } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
-import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, KEEPERS } from './villagers.js';
+import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
 import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
@@ -157,6 +157,9 @@ function drawHearts(g, x, y, n) {
   }
 }
 
+// The tile a villager stands on, kept inside the map (they can be just past the edge while changing maps).
+const tileOf = (m, v) => [Math.min(m.W - 1, Math.max(0, Math.round(v.x / TILE))), Math.min(m.H - 1, Math.max(0, Math.round(v.y / TILE)))];
+
 export class World {
   constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
   enter(g) {
@@ -166,7 +169,7 @@ export class World {
     this.map = this.maps.farm;
     this.player = new Walker(this.sheet);
     for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m, sheet => SCHEDULES[sheet]?.length); // scheduled people are placed by schedule()
-    this.people = {}; // sheet -> { key, map, v }: where each scheduled person is right now
+    this.people = {}; // sheet -> { key, id, v }: each scheduled person and the map they're on right now
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
@@ -268,7 +271,8 @@ export class World {
     }
     this.player.update(dt, moving);
     const me = feet(this.x, this.y);
-    for (const v of this.villagers) v.update(dt, (x, y) => overlaps(feet(x, y), me));
+    for (const m of Object.values(this.maps)) for (const v of m.villagers) v.update(dt, m === this.map ? (x, y) => overlaps(feet(x, y), me) : () => false);
+    this.hop();
     // Walk off the end of the road into the next location.
     const { W, exits } = this.map, side = this.x + 8 < 0 ? 'left' : this.x + 8 > W * TILE ? 'right' : null; // centre past the edge (only possible on the road)
     if (side && exits?.[side]) this.fade = { t: 0, id: exits[side], side };
@@ -291,7 +295,9 @@ export class World {
   }
   get villagers() { return this.map.villagers; }
 
-  // Move scheduled people when their rule changes (wanderers pick a new spot each hour); asleep, they're nowhere.
+  // Send scheduled people somewhere new when their rule changes (wanderers pick a new spot each hour).
+  // Awake, they walk there; waking up or going to bed, they just appear or vanish. Talking to someone holds them up:
+  // the game doesn't run while you talk or shop, and they wait a moment after you're done.
   schedule() {
     const k = this.clock, hour = Math.floor(k.minutes / 60), day = weekday(k.day);
     for (const [sheet, rules] of Object.entries(SCHEDULES)) {
@@ -300,11 +306,24 @@ export class World {
       const key = r.act === 'sleep' || !map ? 'sleep' : `${k.day}:${rules.indexOf(r)}${r.act === 'wander' ? ':' + hour : ''}`;
       const p = this.people[sheet];
       if (p?.key === key) continue;
-      if (p?.v) p.map.villagers.splice(p.map.villagers.indexOf(p.v), 1);
-      const spot = key === 'sleep' ? null : r.act === 'wander' ? randomSpot(map) : fits(map, r) ? r : null;
-      const v = spot && new Villager({ sheet, x: spot.x, y: spot.y, size: spot.size ?? 0 });
+      const spot = key === 'sleep' ? null : r.act === 'wander' ? randomSpot(map) : fits(map, r) ? { x: r.x, y: r.y, size: r.size ?? 0 } : null;
+      const here = p?.v && this.maps[p.id], legs = spot && here && planRoute(this.maps, p.id, tileOf(here, p.v), r.map, [spot.x, spot.y]);
+      if (legs) { p.v.go(legs, spot); p.key = key; continue; }
+      if (here) here.villagers.splice(here.villagers.indexOf(p.v), 1);
+      const v = spot && new Villager({ sheet, ...spot });
       if (v) map.villagers.push(v);
-      this.people[sheet] = { key, map, v };
+      this.people[sheet] = { key, id: r.map, v };
+    }
+  }
+  // Move travelling villagers who've walked off a map's edge into the next map.
+  hop() {
+    for (const p of Object.values(this.people)) {
+      if (!p.v?.hopping) continue;
+      const from = this.maps[p.id].villagers;
+      from.splice(from.indexOf(p.v), 1);
+      p.v.legs.shift(); p.id = p.v.legs[0].map;
+      [p.v.x, p.v.y] = p.v.legs[0].from;
+      this.maps[p.id].villagers.push(p.v);
     }
   }
   get onFarm() { return this.map === this.maps.farm; }
