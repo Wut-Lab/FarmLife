@@ -471,12 +471,8 @@ def store():  # 192x128 general store: green gable roof with a name board, strip
     d.line([(124, 96), (121, 120)], C('#8a5a36'), 2)  # broom leaning on the wall
     shape(im, lambda d: d.polygon([(118, 119), (125, 119), (126, 127), (116, 127)]), '#e0c070', '#f0d890', '#a88a40', 1)
     return outline(im)
-def patio(im, G, Gl, Gd):  # lean-to on the store's right: plank deck, lattice back, green roof with a striped valance, a table of produce
+def patio(im, G, Gl, Gd):  # lean-to on the store's right, open at the back: plank deck, green roof with a striped valance, a table of produce
     d = ImageDraw.Draw(im); WOOD, WOOD_L, WOOD_D = '#a8744a', '#c48e5e', '#6f4426'
-    shape(im, lambda d: d.rectangle([120, 78, 186, 114]), '#e8d8b8', '#f6ead0', '#c8b490', 1)  # lattice panel
-    for k in range(-40, 70, 7): d.line([(120 + k, 78), (156 + k, 114)], C('#c8b490')); d.line([(156 + k, 78), (120 + k, 114)], C('#c8b490'))
-    for x, y in [(x, y) for x in range(110, 192) for y in range(70, 120) if not (120 <= x <= 186 and 78 <= y <= 114)]:
-        if im.getpixel((x, y))[:3] == C('#c8b490')[:3]: im.putpixel((x, y), (0, 0, 0, 0))
     shape(im, lambda d: d.rectangle([118, 112, 191, 124]), WOOD, WOOD_L, WOOD_D, 1)  # deck
     for x in range(126, 190, 9): d.line([(x, 113), (x, 123)], C(WOOD_D))
     shape(im, lambda d: d.rectangle([118, 123, 191, 127]), '#8a5a36', None, '#5f3b25', 1)

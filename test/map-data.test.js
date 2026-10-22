@@ -19,6 +19,13 @@ test('prefabs know their size and blocking rows', () => {
   assert.equal(PREFABS.carrot0, undefined);
 });
 
+test('the store blocks three rows, but its open patio only along the deck', () => {
+  const d = blankMap(8, 6); d.objects.push({ name: 'store', x: 0, y: 0 });
+  const m = mapFromData(d), at = (x, y) => m.solid[y * 8 + x];
+  assert.deepEqual([at(3, 0), at(3, 1), at(3, 3)], [0, 1, 1]);
+  assert.deepEqual([at(4, 2), at(5, 2), at(4, 3), at(5, 3)], [0, 0, 1, 1]);
+});
+
 test('editor overrides make tiles solid or walkable', () => {
   const d = blankMap(4, 4);
   d.objects.push({ name: 'sign', x: 1, y: 1 });
