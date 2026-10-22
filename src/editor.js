@@ -2,7 +2,7 @@
 // or play-test it (index.html?map=editor). The map autosaves to localStorage.
 import { A } from './art-index.js';
 import { buildFarm } from './farm-map.js';
-import { PREFABS, EDITOR_KEY, blankMap, dataFromMap, solidOf, grassTile, isGround } from './map-data.js';
+import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround } from './map-data.js';
 
 const $ = s => document.querySelector(s);
 const art = new Image(); art.src = 'assets/art/world.png'; await art.decode();
@@ -36,13 +36,20 @@ function changed(sizes) {
 }
 
 // ---------- brushes ----------
+const patch = f => [[blobTile(f, 2 | 4 | 32), blobTile(f, 8 | 4 | 64)], [blobTile(f, 1 | 2 | 16), blobTile(f, 1 | 8 | 128)]]; // 2x2 preview
 const AUTO = [
   { id: 'grass', label: 'Grass', icon: [['grass1']], ground: true, auto: 'grass' },
   { id: 'path', label: 'Path (auto)', icon: [['path4']], ground: true, auto: 'path' },
   { id: 'soil', label: 'Field soil (auto)', icon: [['soil1']], ground: true, auto: 'soil' },
+  { id: 'cobble0', label: 'Cobble', icon: [['cobble0']], ground: true, tile: 'cobble0' },
+  { id: 'cobbleb', label: 'Cobble (border)', icon: patch('cobbleb'), ground: true, auto: 'cobbleb' },
+  { id: 'brick0', label: 'Brick', icon: [['brick0']], ground: true, tile: 'brick0' },
+  { id: 'brickb', label: 'Brick (border)', icon: patch('brickb'), ground: true, auto: 'brickb' },
+  { id: 'shallow', label: 'Shallow water', icon: patch('shallow'), ground: true, auto: 'shallow' },
+  { id: 'deep', label: 'Deep water', icon: patch('deep'), ground: true, auto: 'deep' },
 ];
 const brushes = [...AUTO,
-  ...Object.keys(A).filter(isGround).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
+  ...Object.keys(A).filter(n => isGround(n) && /^(grass|path|soil)\d+$/.test(n)).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
   { id: 'fence', label: 'Fence (auto)', icon: [['fence0', 'fence2'], ['fence3', null]], prefab: 'fence1', auto: 'fence' },
   ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name }))];
 const group = b => b.ground ? 'Ground' : /house|shop|bin|sign|fence/.test(b.id) ? 'Buildings & props'
@@ -106,16 +113,34 @@ const inside = (x, y) => x >= 0 && y >= 0 && x < d.W && y < d.H;
 const fam = n => n.replace(/\d+$/, '');
 function setGround(x, y, b) {
   if (!inside(x, y) || !b.ground) return;
-  d.ground[y * d.W + x] = b.auto === 'grass' ? (isGrass(x, y) ? d.ground[y * d.W + x] : grassTile(Math.random()))
-    : b.auto === 'path' ? 'path4' : b.auto === 'soil' ? 'soil1' : b.tile;
-  if (b.auto === 'path' || b.auto === 'soil' || b.auto === 'grass') retileAround(x, y);
+  const k = y * d.W + x;
+  if (b.auto === 'grass') d.ground[k] = isGrass(x, y) ? d.ground[k] : grassTile(Math.random());
+  else if (BLOB_SETS.includes(b.auto)) d.ground[k] = b.auto + '0';
+  else d.ground[k] = b.auto === 'path' ? 'path4' : b.auto === 'soil' ? 'soil1' : b.tile;
+  // Deep water gets a ring of shallows so it never meets land directly.
+  if (b.auto === 'deep') for (let j = y - 1; j <= y + 1; j++) for (let i = x - 1; i <= x + 1; i++)
+    if (inside(i, j) && !/^(shallow|deep)\d+$/.test(d.ground[j * d.W + i])) d.ground[j * d.W + i] = 'shallow0';
+  retileAround(x, y, b.auto === 'deep' ? 2 : 1); // neighbours re-pick their edges
+  if (b.tile) d.ground[k] = b.tile; // a hand-picked tile stays exactly as painted
 }
 const isGrass = (x, y) => fam(d.ground[y * d.W + x]) === 'grass';
-// Paths pick their edge pieces from their neighbours; soil picks a row end or middle. Off-map counts as continuing.
-function retileAround(x, y) {
-  for (let j = y - 1; j <= y + 1; j++) for (let i = x - 1; i <= x + 1; i++) {
+// Autotiling. Paths and paving join each other (no border between them); shallow water joins deep; off-map counts as joined.
+// Dirt paths and soil use their 9/3-piece sets, everything in BLOB_SETS its 47-piece set.
+const PAVED = /^(path|cobbleb?|brickb?)\d+$/;
+function joins(f, n) {
+  if (f === 'path' || f === 'cobbleb' || f === 'brickb') return PAVED.test(n);
+  if (f === 'shallow') return /^(shallow|deep)\d+$/.test(n);
+  return fam(n) === f;
+}
+function retileAround(x, y, r = 1) {
+  for (let j = y - r; j <= y + r; j++) for (let i = x - r; i <= x + r; i++) {
     if (!inside(i, j)) continue;
-    const n = d.ground[j * d.W + i], f = fam(n), same = (a, b) => !inside(a, b) || fam(d.ground[b * d.W + a]) === f;
+    const n = d.ground[j * d.W + i], f = fam(n), same = (a, b) => !inside(a, b) || joins(f, d.ground[b * d.W + a]);
+    if (BLOB_SETS.includes(f)) {
+      const bits = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+      d.ground[j * d.W + i] = blobTile(f, bits.reduce((m, [a, b], k) => (same(i + a, j + b) ? m | (1 << k) : m), 0));
+      continue;
+    }
     if (!/^(path|soil)\d$/.test(n)) continue;
     const col = !same(i - 1, j) && same(i + 1, j) ? 0 : same(i - 1, j) && !same(i + 1, j) ? 2 : 1;
     if (f === 'soil') d.ground[j * d.W + i] = 'soil' + col;
@@ -174,7 +199,7 @@ function boxFill(x0, y0, x1, y1) {
 }
 function flood(x, y) {
   if (!inside(x, y) || !brush.ground) return;
-  const key = n => (fam(n) === 'grass' ? 'grass' : n), target = key(d.ground[y * d.W + x]);
+  const key = n => (fam(n) === 'grass' || BLOB_SETS.includes(fam(n)) ? fam(n) : n), target = key(d.ground[y * d.W + x]);
   if (brush.auto ? fam(target) === brush.auto : target === brush.tile) return;
   const todo = [[x, y]], seen = new Set();
   while (todo.length) {
@@ -187,7 +212,7 @@ function flood(x, y) {
 function pick(x, y) {
   if (!inside(x, y)) return;
   const o = objectAt(x, y), n = d.ground[y * d.W + x];
-  pickBrush(brushes.find(b => b.id === (o ? (isFence(o) ? 'fence' : o.name) : n)) ?? brush);
+  pickBrush(brushes.find(b => b.id === (o ? (isFence(o) ? 'fence' : o.name) : BLOB_SETS.includes(fam(n)) ? fam(n) : n)) ?? brush);
   brush.el?.scrollIntoView({ block: 'nearest' });
 }
 function resize(W, H) {

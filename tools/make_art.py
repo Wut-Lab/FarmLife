@@ -208,6 +208,86 @@ def shrub(w, flowers=False):  # round bush, 32 or 64 wide; flowers adds pink blo
             for a, b in ((0, -1), (0, 1), (-1, 0), (1, 0)): d.point((x + a, y + b), C('#f28fb8'))
             d.point((x, y), C('#f6d04d'))
     return outline(im)
+def shrub_small():  # low single bush, about half the flowering shrub's size
+    im = new(); base, light, dark = '#4a8e3c', '#66ae50', '#326a2a'
+    shape(im, lambda d: d.ellipse([8, 26, 24, 31]), '#3c6b2c', None, None)
+    for cx, cy, r in ((16, 21, 7), (11, 24, 5), (21, 24, 5)):
+        shape(im, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, min(cy + r, 29)]), base, light, dark)
+    speckle(im, [light, dark], 25, (6, 12, 27, 30), lambda x, y: im.getpixel((x, y))[:3] == C(base)[:3])
+    return outline(im)
+
+# ---------- paving and water: blob autotiles, 47 pieces per set chosen from all 8 neighbours ----------
+N_, E_, S_, W_, NE, SE, SW, NW = 1, 2, 4, 8, 16, 32, 64, 128
+def blob_reduce(m):  # a corner neighbour only matters when both sides next to it are connected
+    for dg, a, b in ((NE, N_, E_), (SE, S_, E_), (SW, S_, W_), (NW, N_, W_)):
+        if not (m & a and m & b): m &= ~dg
+    return m
+BLOB = sorted({blob_reduce(m) for m in range(256)})  # src/map-data.js builds the same list, in the same order
+def shade(c, k): return tuple(max(0, min(255, v + k)) for v in c[:3]) + (255,)
+def cobble_tex():  # wrap-around Voronoi stones, so the tile repeats seamlessly
+    r = random.Random(11); pts = [(i * 8 + r.uniform(1.5, 6.5), j * 8 + r.uniform(1.5, 6.5), r.choice(['#a8a29a', '#9c968e', '#b6b0a6', '#928c86'])) for j in range(4) for i in range(4)]
+    im = new(); px = im.load(); stone = {}
+    wrap = lambda a: min(abs(a), S - abs(a))
+    for y in range(S):
+        for x in range(S):
+            ds = sorted((wrap(x + .5 - a) ** 2 + wrap(y + .5 - b) ** 2, k) for k, (a, b, _) in enumerate(pts))
+            stone[x, y] = -1 if math.sqrt(ds[1][0]) - math.sqrt(ds[0][0]) < 1.4 else ds[0][1]
+    for (x, y), k in stone.items():
+        if k < 0: px[x, y] = C('#6f6a66'); continue
+        c = C(pts[k][2])
+        px[x, y] = shade(c, 26) if stone[(x - 1) % S, (y - 1) % S] < 0 else shade(c, -22) if stone[(x + 1) % S, (y + 1) % S] < 0 else c
+    return im
+def brick_tex():  # running bond, 16x8 bricks
+    r = random.Random(5); im = new(fill=C('#d8c8b0')); px = im.load()
+    for row in range(4):
+        for b in range(2):
+            c, x0 = C(r.choice(['#b0563e', '#a44e39', '#bc6448', '#9a4834'])), b * 16 + (8 if row % 2 else 0)
+            for y in range(row * 8, row * 8 + 7):
+                for x in range(x0, x0 + 15):
+                    px[x % S, y] = shade(c, 24) if y == row * 8 else shade(c, -20) if y == row * 8 + 6 else c
+    return im
+def water_tex(base, light, glint):
+    r = random.Random(base); im = new(fill=C(base)); px = im.load()
+    for _ in range(40): px[r.randrange(S), r.randrange(S)] = C(light)
+    for x, y in ((r.randrange(S), r.randrange(0, 14)), (r.randrange(S), r.randrange(17, 30))):
+        for k in range(3): px[(x + k) % S, y] = C(glint)
+    return im
+def blob_tile(m, top, under, edge):
+    """One piece of a set: `top` fills the connected area, `under` shows where it ends. edge: 'kerb' (paving) or 'shore'/'deep' (water)."""
+    inset = 3 if edge == 'kerb' else 4
+    wave = (lambda t: 0) if edge == 'kerb' else (lambda t: round(math.sin(t / S * 4 * math.pi + 0.6)))  # period 16: edges line up tile to tile
+    def cut(x, y):
+        if (not m & N_ and y < inset + wave(x)) or (not m & S_ and y > S - 1 - inset - wave(x)) or \
+           (not m & W_ and x < inset + wave(y)) or (not m & E_ and x > S - 1 - inset - wave(y)): return True
+        r = inset + 4  # rounded outer corners
+        for a, b, cx, cy in ((N_, W_, r, r), (N_, E_, S - 1 - r, r), (S_, W_, r, S - 1 - r), (S_, E_, S - 1 - r, S - 1 - r)):
+            if not m & a and not m & b and (x < cx if cx == r else x > cx) and (y < cy if cy == r else y > cy) and math.hypot(x - cx, y - cy) > r - inset: return True
+        for dg, a, b, cx, cy in ((NW, N_, W_, -.5, -.5), (NE, N_, E_, S - .5, -.5), (SW, S_, W_, -.5, S - .5), (SE, S_, E_, S - .5, S - .5)):
+            if m & a and m & b and not m & dg and math.hypot(x - cx, y - cy) < inset + .5: return True  # inner corner notch
+        return False
+    on = {(x, y): not cut(x, y) for y in range(S) for x in range(S)}
+    filled = lambda x, y: on.get((x, y), True)  # beyond the tile counts as connected
+    near = lambda x, y, k: any(not filled(x + a, y + b) for a in range(-k, k + 1) for b in range(-k, k + 1) if abs(a) + abs(b) <= k)
+    out = under.copy(); px, tp = out.load(), top.load()
+    for (x, y), v in on.items():
+        if not v:
+            if edge == 'shore' and near_on(on, x, y): px[x, y] = C('#4a7a36')  # shaded bank just above the water
+            continue
+        c = tp[x, y]
+        if edge == 'kerb':
+            c = OUT if near(x, y, 1) else (KERB[1] if (x + y) % 7 == 0 else KERB[0]) if near(x, y, 3) else c
+        elif edge == 'shore': c = C('#e2f6f2') if near(x, y, 1) else C('#9edcea') if near(x, y, 2) else c
+        else: c = C('#5aa6d0') if near(x, y, 1) else C('#4892c2') if near(x, y, 2) else c
+        px[x, y] = c
+    return out
+near_on = lambda on, x, y: any(on.get((x + a, y + b), False) for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+KERB = (C('#c9c3b8'), C('#a59f96'))
+def blob_set(name, top, under, edge, kerb=None):
+    global KERB
+    old, KERB = KERB, kerb or KERB
+    for i, m in enumerate(BLOB): add(f'{name}{i}', blob_tile(m, top, under, edge))
+    KERB = old
+
 def mushrooms():
     im = new()
     for x, y, r in ((12, 18, 6), (22, 23, 4)):
@@ -359,11 +439,16 @@ add('hoe', hoe()); add('can', can()); add('bag', cell(BAGS, 0, 32))
 add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orange', tall_tree(('#e0892f', '#f5ad4f', '#b0601f')))
 add('tree', small_tree()); add('mushrooms', mushrooms())
 add('pine', pine()); add('oak', oak()); add('shrub_large', shrub(2 * S)); add('shrub_flower', shrub(S, True))
+add('shrub_small', shrub_small())
 for k in range(3): add(f'fence{k}', fence(k))
 add('fence3', fence_v())
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
+COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
+add('cobble0', COB); add('brick0', BRK)
+blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))
+blob_set('shallow', SHAL, grass(0), 'shore'); blob_set('deep', DEEP, SHAL, 'deep')
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))

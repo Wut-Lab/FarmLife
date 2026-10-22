@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildFarm } from '../src/farm-map.js';
-import { PREFABS, blankMap, mapFromData, dataFromMap } from '../src/map-data.js';
+import { PREFABS, BLOB, blobTile, blankMap, mapFromData, dataFromMap } from '../src/map-data.js';
 
 test('the farm survives a round trip through editor data', () => {
   const farm = buildFarm(), back = mapFromData(dataFromMap(farm));
@@ -25,4 +25,13 @@ test('editor overrides make tiles solid or walkable', () => {
   d.block[0] = 1; d.block[5] = 2;
   const m = mapFromData(d);
   assert.equal(m.solid[0], 1); assert.equal(m.solid[5], 0);
+});
+
+test('blob autotiles: 47 pieces, deep water blocks', () => {
+  assert.equal(BLOB.length, 47);
+  assert.equal(blobTile('shallow', 255), 'shallow46');
+  assert.equal(blobTile('shallow', 1 | 2 | 16 | 32), blobTile('shallow', 1 | 2 | 16)); // SE ignored without S
+  const d = blankMap(3, 3); d.ground[4] = 'deep46'; d.ground[0] = 'shallow46';
+  const m = mapFromData(d);
+  assert.equal(m.solid[4], 1); assert.equal(m.solid[0], 0);
 });

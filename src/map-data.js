@@ -13,7 +13,15 @@ const SIZES = {
 };
 const WALK_THROUGH = new Set(['mushrooms']);
 const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
-export const isGround = n => /^(grass|path|soil)\d+$/.test(n);
+export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep)\d+$/.test(n);
+export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep']; // 47-piece autotile sets drawn by tools/make_art.py
+
+// Blob autotiles: neighbour bits N, E, S, W, NE, SE, SW, NW. A corner only counts when both sides next to it do,
+// which leaves 47 distinct masks; a set's tile number is the mask's position in this sorted list (same as make_art.py).
+const CORNERS = [[16, 1, 2], [32, 4, 2], [64, 4, 8], [128, 1, 8]];
+const reduce = m => CORNERS.reduce((m, [c, a, b]) => (m & a && m & b ? m : m & ~c), m);
+export const BLOB = [...new Set([...Array(256).keys()].map(reduce))].sort((a, b) => a - b);
+export const blobTile = (set, mask) => set + BLOB.indexOf(reduce(mask));
 
 // Every placeable object, from the art index: { name, w, h, solid, tiles: rows of tile names }.
 export const PREFABS = {};
@@ -46,6 +54,7 @@ export function solidOf(d) {
       if (x >= 0 && y >= 0 && x < d.W && y < d.H) solid[y * d.W + x] = 1;
     }
   }
+  d.ground.forEach((n, i) => { if (n.startsWith('deep')) solid[i] = 1; }); // deep water can't be waded
   d.block?.forEach((b, i) => { if (b) solid[i] = b === 1 ? 1 : 0; });
   return solid;
 }

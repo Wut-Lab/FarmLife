@@ -29,7 +29,7 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 ## Map editor
 Online: https://wut-lab.github.io/FarmLife/editor.html (or `editor.html` locally)
 
-- Paint ground (Path and Field soil pick their edge pieces automatically), place trees, buildings and props, mark tiles as blocked or walkable (Collide), and set the player start (Spawn)
+- Paint ground (Path, Field soil, bordered Cobble and Brick, and Shallow / Deep water pick their edge and corner pieces automatically; paths and paving join without a border, deep water gets a ring of shallows and blocks walking), place trees, buildings and props, mark tiles as blocked or walkable (Collide), and set the player start (Spawn)
 - **Box** fills an area with ground, or a grid of objects; with **Fence (auto)** it draws a fenced pen
 - The map autosaves in the browser. **Export** downloads it as a `.json` file, **Import** opens one
 - **Play test** opens the game on your map (`index.html?map=editor`). A house gives you a door to sleep at, a shop a counter, a bin a shipping bin, and soil becomes farmable plots
