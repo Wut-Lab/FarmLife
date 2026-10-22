@@ -216,6 +216,35 @@ def shrub_small():  # low single bush, about half the flowering shrub's size
     speckle(im, [light, dark], 25, (6, 12, 27, 30), lambda x, y: im.getpixel((x, y))[:3] == C(base)[:3])
     return outline(im)
 
+def flower_patch(kind):  # three big blooms on one leafy bundle, small matching flowers scattered round it into the grass
+    im = new(); d = ImageDraw.Draw(im); fr = random.Random(11 if kind == 'roses' else 12)
+    G2 = ('#4a8e3c', '#66ae50', '#326a2a')
+    if kind == 'roses': bloom, bloom_l, bloom_d, small = '#c8283a', '#ec5a64', '#8a1828', ('#e04a58', '#f48a96')
+    else: bloom, bloom_l, bloom_d, small = '#f2c230', '#fde27a', '#b8801a', ('#f6d04d', '#fff0a0')
+    shape(im, lambda d: d.ellipse([5, 25, 27, 31]), '#3c6b2c', None, None)
+    for cx, cy, r in ((16, 21, 8), (9, 24, 6), (23, 24, 6)):  # the leafy bundle
+        shape(im, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, min(cy + r, 29)]), *G2)
+    d = ImageDraw.Draw(im)
+    for _ in range(20):  # leaf texture (own random, so the shared one stays in step for later tiles)
+        x, y = fr.randrange(3, 29), fr.randrange(13, 30)
+        if im.getpixel((x, y))[:3] == C(G2[0])[:3]: d.point((x, y), C(fr.choice(G2[1:])))
+    for (x0, y0), (cx, cy) in zip(((16, 18), (11, 21), (21, 21)), ((16, 7), (8, 12), (24, 12))): d.line([(x0, y0), (cx, cy + 3)], C('#3e7a32'))
+    for cx, cy in ((16, 7), (8, 12), (24, 12)):
+        if kind == 'roses':  # round bloom with a spiral of darker petal edges
+            shape(im, lambda d, cx=cx, cy=cy: d.ellipse([cx - 4, cy - 4, cx + 4, cy + 3]), bloom, bloom_l, bloom_d, 1)
+            d.arc([cx - 2, cy - 2, cx + 2, cy + 2], 180, 450, C(bloom_d)); d.point((cx, cy), C(bloom_d)); d.point((cx - 1, cy - 3), C(bloom_l))
+        else:  # tulip cup: two outer petals and a pointed middle one
+            shape(im, lambda d, cx=cx, cy=cy: d.polygon([(cx - 4, cy - 4), (cx - 2, cy - 1), (cx, cy - 5), (cx + 2, cy - 1), (cx + 4, cy - 4), (cx + 4, cy + 1), (cx + 2, cy + 3), (cx - 2, cy + 3), (cx - 4, cy + 1)]), bloom, bloom_l, bloom_d, 1)
+            d.line([(cx - 2, cy), (cx - 1, cy + 2)], C(bloom_d)); d.line([(cx + 2, cy), (cx + 1, cy + 2)], C(bloom_d))
+        d.polygon([(cx - 2, cy + 3), (cx, cy + 5), (cx + 2, cy + 3)], C('#4e9440'))  # sepals
+    outline(im)
+    # Loose little flowers and blades with no outline round the edge, so the patch fades into the grass around it.
+    for x, y in ((2, 14), (29, 7), (3, 28), (28, 29), (12, 2), (30, 18), (1, 21), (21, 3), (7, 4)):
+        d.line([(x, y + 1), (x, y + 3)], C(G2[2])); c = C(fr.choice(small))
+        for a, b in ((0, 0), (1, 0), (0, -1), (-1, 0)): d.point((x + a, y + b), c)
+        d.point((x, y), C('#fff6c0'))
+    return im
+
 # ---------- paving and water: blob autotiles, 47 pieces per set chosen from all 8 neighbours ----------
 N_, E_, S_, W_, NE, SE, SW, NW = 1, 2, 4, 8, 16, 32, 64, 128
 def blob_reduce(m):  # a corner neighbour only matters when both sides next to it are connected
@@ -389,6 +418,56 @@ def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind th
     for x in list(range(15, 37, 4)) + list(range(92, 114, 4)): tuft(x + tr.randrange(-1, 2), 127, 3, 5)  # along the footing
     for x in (40, 87): tuft(x, 127, 3, 3)  # a little at the door posts, doorway kept clear
     return im
+def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, chimney, shutters=None, brick_base=False, smoke=False):
+    """96x128 house (3x4 tiles): siding walls, shingle roof, chimney poking above it; the top row holds chimney and smoke."""
+    im = new(96, 128); d = ImageDraw.Draw(im)
+    if chimney == 'brick':
+        shape(im, lambda d: d.rectangle([63, 22, 76, 56]), '#a8483a', '#c46050', '#7a3028', 1)
+        for y in range(25, 56, 4):
+            d.line([(64, y), (75, y)], C('#7a3028'))
+            for x in range(64 + (y // 4 % 2) * 3, 76, 6): d.line([(x, y - 3), (x, y - 1)], C('#7a3028'))
+        shape(im, lambda d: d.rectangle([61, 19, 78, 23]), '#8a8680', '#a8a49e', '#625e58', 1)
+    else:  # fieldstone
+        shape(im, lambda d: d.rectangle([63, 22, 76, 56]), '#8e8a84', '#aaa69e', '#66625c', 1)
+        for x, y in ((65, 26), (71, 31), (66, 37), (72, 43), (65, 48), (70, 52)): d.line([(x, y), (x + 4, y)], C('#66625c'))
+        shape(im, lambda d: d.rectangle([61, 19, 78, 23]), '#6e6a64', '#8e8a84', '#4e4a46', 1)
+    shape(im, lambda d: d.rectangle([4, 78, 91, 118]), wall, wall_l, wall_d)
+    for y in range(84, 118, 6): d.line([(5, y), (90, y)], C(wall_d))  # lap siding
+    shape(im, lambda d: d.polygon([(0, 82), (10, 36), (86, 36), (95, 82)]), roof, roof_l, roof_d, 3)
+    sh = new(96, 128); sd = ImageDraw.Draw(sh)
+    for r, y in enumerate(range(42, 80, 7)):
+        for x in range(4 + (r % 2) * 5, 94, 10): sd.arc([x - 5, y - 4, x + 5, y + 4], 20, 160, C(roof_d))
+    for (x, y) in [(x, y) for y in range(36, 80) for x in range(96) if sh.getpixel((x, y))[3] and im.getpixel((x, y))[:3] == C(roof)[:3]]: im.putpixel((x, y), C(roof_d))  # shingles kept inside the roof
+    shape(im, lambda d: d.rectangle([0, 79, 95, 83]), roof_d, None, None)
+    for x in (12, 64):  # windows, with shutters either side when asked
+        shape(im, lambda d, x=x: d.rectangle([x, 89, x + 19, 106]), '#f6e7c1', '#fff8e0', None)
+        shape(im, lambda d, x=x: d.rectangle([x + 2, 91, x + 17, 104]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+        d.line([(x + 10, 91), (x + 10, 104)], C('#f6e7c1')); d.line([(x + 2, 97), (x + 17, 97)], C('#f6e7c1'))
+        shape(im, lambda d, x=x: d.rectangle([x - 1, 107, x + 20, 109]), '#f6e7c1' if not shutters else wall_d, '#fff8e0' if not shutters else wall_l, None)
+        if shutters:
+            for sx in (x - 7, x + 21):
+                shape(im, lambda d, sx=sx: d.rectangle([sx, 88, sx + 5, 107]), shutters[0], shutters[1], shutters[2], 1)
+                for y in range(91, 106, 3): d.line([(sx + 1, y), (sx + 4, y)], C(shutters[2]))
+    shape(im, lambda d: d.rounded_rectangle([38, 88, 57, 120], 3), door, door_l, door_d)
+    d.rectangle([41, 92, 54, 102], outline=C(door_d)); d.rectangle([41, 106, 54, 116], outline=C(door_d)); d.point((53, 109), C('#f6d04d'))
+    if brick_base:  # faded brick: pale, low-contrast bricks with soft mortar
+        shape(im, lambda d: d.rectangle([2, 118, 93, 127]), '#d2c0b2', None, '#a8968a', 1)
+        br = random.Random(5)
+        for row, y in enumerate((119, 123)):
+            for x in range(3 - (row % 2) * 4, 93, 8):
+                c = C(br.choice(['#b48a7c', '#bc968a', '#a88074', '#c4a296']))
+                d.rectangle([max(x, 3), y, min(x + 6, 92), y + 2], c)
+        for _ in range(40): d.point((br.randrange(3, 93), br.randrange(119, 126)), C(br.choice(['#d2c0b2', '#c8b4a6'])))
+    else:
+        shape(im, lambda d: d.rectangle([2, 118, 93, 127]), '#b4b0a8', '#cac6be', '#8a867e', 1)
+    shape(im, lambda d: d.rectangle([34, 120, 61, 125]), '#9a968e', '#b4b0a8', '#706c66', 1)  # door step
+    outline(im)
+    if smoke:  # soft puffs drifting up and to the right, lighter as they rise
+        for (cx, cy, r), col in zip(((70, 14, 5), (76, 8, 5), (83, 4, 4), (89, 1, 3)), ('#d8d4dc', '#e2dee6', '#ece8f0', '#f4f2f6')):
+            sm = new(96, 128)
+            shape(sm, lambda d, cx=cx, cy=cy, r=r: d.ellipse([cx - r, cy - r, cx + r, cy + r]), col, '#ffffff', '#aaa6b4', 1)
+            sm.putalpha(sm.getchannel('A').point(lambda a: a * 215 // 255)); im.alpha_composite(sm)
+    return im
 def inside_poly(pts, x, y):
     m = Image.new('L', (4 * S, 4 * S)); ImageDraw.Draw(m).polygon(pts, 255); return m.getpixel((x, y)) > 0 if 0 <= y < 4 * S else False
 
@@ -407,6 +486,9 @@ def farmer(p):
             im = new(); step = (0, 1, -1)[f]
             d = ImageDraw.Draw(im); d.ellipse([9, 28, 23, 31], (0, 0, 0, 60))
             side = dir_ in (1, 2)
+            if p.get('tail') and side:  # ponytail hangs behind the head
+                tx = 22 if dir_ == 1 else 5
+                shape(im, lambda d: d.rounded_rectangle([tx, 6, tx + 5, 18], 2), p['hair'], p['hair_l'], p['hair_d'], 1)
             if p['long'] and dir_ != 3:  # long hair behind the body
                 box = [7, 8, 25, 23] if dir_ == 0 else [15, 8, 25, 22] if dir_ == 1 else [7, 8, 17, 22]
                 shape(im, lambda d: d.rounded_rectangle(box, 5), p['hair'], None, p['hair_d'])
@@ -426,7 +508,14 @@ def farmer(p):
             if not side or True:
                 shape(im, lambda d: d.rounded_rectangle([tx0, 15, tx1, 24], 3), p['shirt'], p['shirt_l'], p['shirt_d'])
                 d = ImageDraw.Draw(im)
-                if dir_ == 0: d.line([(16, 16), (16, 23)], C(p['shirt_d'])); d.point((16, 18), C(p['accent'])); d.point((16, 21), C(p['accent']))
+                if dir_ == 0 and not p.get('sweater'): d.line([(16, 16), (16, 23)], C(p['shirt_d'])); d.point((16, 18), C(p['accent'])); d.point((16, 21), C(p['accent']))
+                if p.get('sweater'): d.line([(tx0 + 1, 23), (tx1 - 1, 23)], C(p['shirt_d'])); d.line([(tx0 + 2, 15), (tx1 - 2, 15)], C(p['accent']))  # ribbed hem and collar
+                if p.get('overalls'):  # bib and straps in the trouser colour, brass buttons
+                    if dir_ == 0:
+                        shape(im, lambda d: d.rectangle([13, 18, 19, 24]), p['pants'], p['pants_l'], p['pants_d'], 1)
+                        d.line([(13, 15), (13, 18)], C(p['pants'])); d.line([(19, 15), (19, 18)], C(p['pants'])); d.point((14, 19), C('#f6d04d')); d.point((18, 19), C('#f6d04d'))
+                    elif dir_ == 3: d.line([(13, 15), (19, 21)], C(p['pants'])); d.line([(19, 15), (13, 21)], C(p['pants'])); shape(im, lambda d: d.rectangle([12, 21, 20, 24]), p['pants'], None, p['pants_d'], 1)
+                    else: d.line([(16, 15), (16, 20)], C(p['pants'])); shape(im, lambda d: d.rectangle([13, 20, 19, 24]), p['pants'], None, p['pants_d'], 1)
                 if p.get('apron') and dir_ == 0: shape(im, lambda d: d.rectangle([13, 19, 19, 24]), '#fff3e6', None, '#d8c8b8', 1)
             for ax, sw in arms:
                 shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 22 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
@@ -437,19 +526,34 @@ def farmer(p):
             if dir_ == 0:
                 for ex, out in ((12, -1), (19, 2)): eye(d, p, ex, out)
                 d.point((11, 14), C('#f29a9a')); d.point((21, 14), C('#f29a9a')); d.line([(15, 14), (16, 14)], C('#c06060'))
+                if p.get('stache'):  # thick moustache over the mouth, bushy brows
+                    shape(im, lambda d: d.polygon([(11, 15), (13, 12), (16, 13), (19, 12), (21, 15), (19, 14), (16, 15), (13, 14)]), p['stache'], p['stache_l'], p['stache_d'], 1)
+                    d.line([(11, 7), (14, 7)], C(p['stache'])); d.line([(18, 7), (21, 7)], C(p['stache']))
             elif side:
                 ex = 10 if dir_ == 1 else 20
                 eye(d, p, ex, 2 if dir_ == 2 else -1)
                 d.point((ex + (1 if dir_ == 1 else -1), 14), C('#f29a9a'))
+                if p.get('stache'):
+                    mx = 8 if dir_ == 1 else 19
+                    shape(im, lambda d: d.rectangle([mx, 12, mx + 4, 14]), p['stache'], p['stache_l'], p['stache_d'], 1)
+                    d.line([(ex - 1, 7), (ex + 2, 7)], C(p['stache']))
             # hair
             H, Hl, Hd = p['hair'], p['hair_l'], p['hair_d']
-            if dir_ == 3: shape(im, lambda d: d.ellipse([7, 1, 25, 18]), H, Hl, Hd)
+            if p.get('bald'):  # just a fringe of hair round the back and a shine on top
+                if dir_ == 3: shape(im, lambda d: d.chord([8, 2, 24, 17], 10, 170), H, Hl, Hd, 1)
+                elif side: shape(im, lambda d: d.polygon([(20, 8), (24, 8), (24, 13), (21, 14)] if dir_ == 1 else [(12, 8), (8, 8), (8, 13), (11, 14)]), H, Hl, Hd, 1)
+                else: shape(im, lambda d: d.rectangle([8, 9, 9, 12]), H, None, Hd); shape(im, lambda d: d.rectangle([23, 9, 24, 12]), H, None, Hd)
+                d = ImageDraw.Draw(im); d.point((13, 4), C('#ffffff')); d.point((14, 4), C('#ffffff')); d.point((13, 5), C('#ffffff'))
+            elif dir_ == 3: shape(im, lambda d: d.ellipse([7, 1, 25, 18]), H, Hl, Hd)
             elif dir_ == 0: shape(im, lambda d: d.polygon(p['fringe']), H, Hl, Hd, 1)
             else:
                 pts = p['side']
                 if dir_ == 1: pts = [(32 - x, y) for x, y in pts]
                 shape(im, lambda d: d.polygon(pts), H, Hl, Hd, 1)
             if p['long'] and dir_ == 3: shape(im, lambda d: d.rounded_rectangle([8, 10, 24, 23], 5), H, Hl, Hd)
+            if p.get('tail') and dir_ == 3:
+                shape(im, lambda d: d.rounded_rectangle([14, 12, 18, 24], 2), H, Hl, Hd, 1); d = ImageDraw.Draw(im); d.line([(14, 12), (18, 12)], C(p['tie']))
+            if p.get('tail') and side: d = ImageDraw.Draw(im); tx = 22 if dir_ == 1 else 5; d.line([(tx, 7), (tx + 5, 7)], C(p['tie']))
             if p.get('clip') and dir_ != 2:
                 cx = 22 if dir_ != 1 else 18; cy = 4
                 for a, b in ((0, -1), (0, 1), (-1, 0), (1, 0)): d.point((cx + a, cy + b), C(p['clip']))
@@ -466,6 +570,14 @@ FEMALE = dict(hair='#e6a64a', hair_l='#f6c66a', hair_d='#b06a2c', shirt='#f28462
               pants='#7a5a9a', pants_d='#5a3f78', long=True, clip='#e86a9a', apron=True,
               fringe=[(7, 12), (8, 3), (12, 1), (20, 1), (24, 3), (25, 12), (23, 10), (22, 6), (17, 6), (13, 7), (10, 6), (9, 11)],
               side=[(7, 15), (8, 3), (13, 1), (20, 1), (25, 4), (24, 8), (19, 7), (14, 7), (12, 10), (10, 18)])
+# Townsfolk built on the same body as the players.
+VILLAGER_M = dict(hair='#7a6a5e', hair_l='#9a8a7e', hair_d='#5a4a40', shirt='#c8343a', shirt_l='#e05a5a', shirt_d='#8a2028', accent='#e05a5a', eye='#4a3a2a', eye_l='#8a6a4a',
+                  pants='#3f68a8', pants_l='#5f88c8', pants_d='#2c4a80', long=False, bald=True, overalls=True,
+                  stache='#6a4a36', stache_l='#8a6a50', stache_d='#4a3020', fringe=[], side=[])
+VILLAGER_F = dict(hair='#7a4a2c', hair_l='#9a6440', hair_d='#55321e', shirt='#f2c230', shirt_l='#fde27a', shirt_d='#c08a18', accent='#fde27a', eye='#3a6a4a', eye_l='#7aaa7a',
+                  pants='#4a6aa8', pants_d='#34508a', long=False, tail=True, tie='#c8343a', sweater=True,
+                  fringe=[(7, 11), (8, 3), (12, 1), (20, 1), (24, 3), (25, 11), (23, 8), (20, 5), (15, 5), (11, 6), (9, 9)],
+                  side=[(7, 11), (8, 3), (13, 1), (20, 1), (25, 4), (25, 8), (20, 6), (14, 6), (11, 8), (9, 12)])
 
 # ---------- assemble ----------
 cells, names = [], {}
@@ -491,6 +603,10 @@ add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
 add('barn', barn())
+add('house_brown', cottage('#8a5a3a', '#a87050', '#64402a', '#5e4f5a', '#7a6a76', '#3f343e', '#efe2c8', '#fff4dc', '#b8a888', 'stone',
+                           shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True))
+add('house_blue', cottage('#a8d0e8', '#c8e4f4', '#7aa8c8', '#5f6670', '#7c838c', '#43484f', '#3f5a80', '#5c7fa8', '#2a3e5c', 'brick'))
+add('roses', flower_patch('roses')); add('tulips', flower_patch('tulips'))
 COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
 add('cobble0', COB); add('brick0', BRK)
 blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))
@@ -501,6 +617,7 @@ for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // 
 import os; os.makedirs('assets/art', exist_ok=True)
 sheet.save('assets/art/world.png')
 farmer(MALE).save('assets/characters/farmer_male.png'); farmer(FEMALE).save('assets/characters/farmer_female.png')
+farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_F).save('assets/characters/villager_female.png')
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')
