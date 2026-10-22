@@ -347,6 +347,51 @@ def building(roof, roof_l, roof_d, wall, wall_l, wall_d, awning=False):
     d.line([(47, 64), (47, 94)], C('#5f3b25')); d.point((53, 80), C('#f6d04d')); d.point((42, 80), C('#f6d04d'))
     return outline(im)
 
+def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind the gable, grass tufts at its base
+    im = new(4 * S, 4 * S); d = ImageDraw.Draw(im)
+    RED, RED_L, RED_D, WH, WH_D = '#b8322c', '#d24a3e', '#86221e', '#f4efe6', '#c8c0b4'
+    # Roof slopes going back from the front gable: a bigger gambrel outline, shingled grey.
+    shape(im, lambda d: d.polygon([(2, 70), (12, 34), (40, 8), (88, 8), (116, 34), (126, 70)]), '#8a8f96', '#a8adb4', '#62676e', 3)
+    roof = {(x, y) for y in range(4 * S) for x in range(4 * S) if im.getpixel((x, y))[:3] == C('#8a8f96')[:3]}
+    for (x, y) in roof:  # shingle rows: a dark seam under each row, a light lip above it, staggered joints
+        r, k = divmod(y - 10, 6)
+        c = '#62676e' if k == 5 else '#9ea3aa' if k == 0 else '#5c6168' if (x + (r % 2) * 5) % 10 == 0 else ('#7e838a' if (x * 7 + r * 3) % 11 == 0 else None)
+        if c: im.putpixel((x, y), C(c))
+    gable = [(10, 122), (10, 64), (20, 40), (64, 20), (108, 40), (118, 64), (118, 122)]
+    shape(im, lambda d: d.polygon(gable), RED, RED_L, RED_D)
+    for x in range(16, 116, 7): d.line([(x, 44 if 24 < x < 104 else 66), (x, 121)], C(RED_D))  # vertical boards
+    for x in range(16, 116, 7):  # clip boards to the gable slope
+        for y in range(18, 66):
+            if im.getpixel((x, y))[:3] == C(RED_D)[:3] and not inside_poly(gable, x, y - 2): im.putpixel((x, y), C(RED))
+    d.line(gable[1:-1], C(WH), 3); d.line([(9, 64), (9, 122)], C(WH), 2); d.line([(118, 64), (118, 122)], C(WH), 2)  # roof trim and corner boards
+    shape(im, lambda d: d.rectangle([8, 118, 119, 125]), '#9a968e', '#b4b0a8', '#706c66', 1)  # stone footing
+    def window(x, y, w, h):
+        shape(im, lambda d: d.rectangle([x, y, x + w, y + h]), WH, '#ffffff', WH_D, 1)
+        shape(im, lambda d: d.rectangle([x + 2, y + 2, x + w - 2, y + h - 2]), '#4f6f8f', '#7fa3c0', '#33506c', 1)
+        d.line([(x + w // 2, y + 2), (x + w // 2, y + h - 2)], C(WH)); d.line([(x + 2, y + h // 2), (x + w - 2, y + h // 2)], C(WH))
+    window(54, 36, 20, 16)  # hayloft
+    window(16, 74, 16, 14); window(96, 74, 16, 14)
+    # Double doors: white frame, white X brace on each leaf.
+    shape(im, lambda d: d.rectangle([38, 70, 89, 118]), WH, '#ffffff', WH_D, 1)
+    for x0 in (41, 65):
+        shape(im, lambda d, x0=x0: d.rectangle([x0, 73, x0 + 21, 117]), RED, RED_L, RED_D, 1)
+        d.line([(x0 + 1, 74), (x0 + 20, 116)], C(WH), 2); d.line([(x0 + 20, 74), (x0 + 1, 116)], C(WH), 2)
+        d.rectangle([x0, 73, x0 + 21, 117], outline=C(WH), width=2)
+    d.line([(63, 73), (63, 117)], C(WH_D), 2)
+    outline(im)
+    # Grass tufts over the base and corners, drawn after the outline so the barn sits in the turf.
+    tr = random.Random(9)
+    def tuft(x, y, n, h):
+        for k in range(n):
+            dx = k - n // 2; c = ('#4f9a3c', '#6fc04f', '#8fd16a')[tr.randrange(3)]
+            d.line([(x + dx, y), (x + dx + (dx > 0) - (dx < 0), y - tr.randrange(h - 2, h + 1))], C(c))
+    for x, y in ((6, 127), (11, 126), (3, 124), (117, 127), (122, 126), (125, 124)): tuft(x, y, 5, 7)  # corner clumps
+    for x in list(range(15, 37, 4)) + list(range(92, 114, 4)): tuft(x + tr.randrange(-1, 2), 127, 3, 5)  # along the footing
+    for x in (40, 87): tuft(x, 127, 3, 3)  # a little at the door posts, doorway kept clear
+    return im
+def inside_poly(pts, x, y):
+    m = Image.new('L', (4 * S, 4 * S)); ImageDraw.Draw(m).polygon(pts, 255); return m.getpixel((x, y)) > 0 if 0 <= y < 4 * S else False
+
 # ---------- characters ----------
 SKIN, SKIN_L, SKIN_D = '#f5c7a0', '#ffdcc0', '#d99a78'
 def eye(d, p, ex, out):
@@ -445,6 +490,7 @@ add('fence3', fence_v())
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
+add('barn', barn())
 COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
 add('cobble0', COB); add('brick0', BRK)
 blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))

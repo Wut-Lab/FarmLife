@@ -7,7 +7,7 @@ export const EDITOR_KEY = 'farmlife-editor-map';
 
 // Multi-tile objects: size in tiles and how many bottom rows block movement (default: all rows).
 const SIZES = {
-  house: { w: 3, h: 3 }, shop: { w: 3, h: 3 }, bin: { w: 2, h: 1 },
+  house: { w: 3, h: 3 }, shop: { w: 3, h: 3 }, barn: { w: 4, h: 4, solid: 3 }, bin: { w: 2, h: 1 },
   tree_green: { w: 1, h: 2, solid: 1 }, tree_orange: { w: 1, h: 2, solid: 1 },
   pine: { w: 1, h: 2, solid: 1 }, oak: { w: 2, h: 2, solid: 1 }, shrub_large: { w: 2, h: 1 },
 };
