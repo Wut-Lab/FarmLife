@@ -413,6 +413,63 @@ def stall():  # 96x96 seed stall: striped awning on posts, shelves of seed packe
         for a, b in ((6, 85), (7, 86), (5, 84), (10, 85), (9, 86), (11, 84)): d.point((x + a, b), C('#6cb455'))
     return outline(im)
 
+FONT = {'G': '111100101101111', 'E': '111100110100111', 'N': '111101101101101', 'R': '110101110101101', 'A': '010101111101101',
+        'L': '100100100100111', 'S': '111100111001111', 'T': '111010010010010', 'O': '111101101101111', ' ': '000000000000000'}
+def text(d, x, y, msg, col):  # 3x5 pixel capitals
+    for ch in msg:
+        for k, b in enumerate(FONT[ch]):
+            if b == '1': d.point((x + k % 3, y + k // 3), C(col))
+        x += 4
+def store():  # 128x128 general store: green gable roof with a name board, striped awning, display windows, goods out front
+    im = new(4 * S, 4 * S); d = ImageDraw.Draw(im); G, Gl, Gd = '#4f8a4a', '#6fae5f', '#2f5a30'
+    shape(im, lambda d: d.rectangle([6, 56, 121, 118]), '#efe6d2', '#fffaf0', '#c8bca4')  # walls
+    for y in range(62, 118, 6): d.line([(7, y), (120, y)], C('#d8ccb4'))
+    shape(im, lambda d: d.polygon([(0, 60), (14, 8), (114, 8), (127, 60)]), G, Gl, Gd, 3)
+    sh = new(4 * S, 4 * S); sd = ImageDraw.Draw(sh)
+    for r, y in enumerate(range(14, 58, 7)):
+        for x in range(4 + (r % 2) * 5, 126, 10): sd.arc([x - 5, y - 4, x + 5, y + 4], 20, 160, C(Gd))
+    for x, y in [(x, y) for y in range(8, 58) for x in range(128) if sh.getpixel((x, y))[3] and im.getpixel((x, y))[:3] == C(G)[:3]]: im.putpixel((x, y), C(Gd))
+    shape(im, lambda d: d.rectangle([0, 57, 127, 61]), Gd, None, None)
+    shape(im, lambda d: d.rounded_rectangle([40, 24, 87, 42], 2), '#f6e7c1', '#fff8e0', '#c8a878', 1)  # name board
+    d.rectangle([42, 26, 85, 40], outline=C('#a8744a')); text(d, 50, 28, 'GENERAL', '#2f5a30'); text(d, 54, 34, 'STORE', '#b8372f')
+    # Display windows with goods on shelves, and a glazed door.
+    for x in (12, 84):
+        shape(im, lambda d, x=x: d.rectangle([x, 80, x + 31, 105]), '#f6e7c1', '#fff8e0', '#c8a878', 1)
+        shape(im, lambda d, x=x: d.rectangle([x + 2, 82, x + 29, 103]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+        for y in (91, 101): d.line([(x + 3, y), (x + 28, y)], C('#a8744a'))
+        for i, gx in enumerate(range(x + 4, x + 27, 5)):
+            c1, c2 = ('#e8504a', '#f6d04d', '#6cb455', '#f28fb8', '#e0892f')[i % 5], ('#f4f2ee', '#c88a50', '#e8504a', '#6a4a8a', '#4a8ad8')[i % 5]
+            d.rectangle([gx, 87, gx + 2, 90], C(c1)); d.rectangle([gx, 97, gx + 2, 100], C(c2))
+        shape(im, lambda d, x=x: d.rectangle([x - 1, 106, x + 32, 108]), '#a8744a', '#c48e5e', None)
+    shape(im, lambda d: d.rounded_rectangle([53, 78, 74, 118], 2), '#4f8a4a', '#6fae5f', '#2f5a30')
+    shape(im, lambda d: d.rectangle([56, 82, 71, 100]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1); d.point((70, 106), C('#f6d04d'))
+    shape(im, lambda d: d.rectangle([4, 116, 123, 127]), '#9a968e', '#b4b0a8', '#706c66', 1)  # foundation
+    shape(im, lambda d: d.rectangle([48, 118, 79, 124]), '#a8a49c', '#c4c0b8', '#7a766e', 1)  # step
+    # Striped awning over the front.
+    for i, x in enumerate(range(4, 124, 8)):
+        top, top_l, top_d = ('#4f8a4a', '#6fae5f', '#2f5a30') if i % 2 else ('#fff3e6', '#ffffff', '#d8c8b8')
+        shape(im, lambda d, x=x: d.polygon([(x, 62), (x + 7, 62), (x + 7, 72), (x, 72)]), top, top_l, None)
+        shape(im, lambda d, x=x: d.pieslice([x, 68, x + 7, 77], 0, 180), top, None, top_d, 1)
+    # Goods out front: apple barrel, produce crates, potted flowers, sacks and a broom.
+    shape(im, lambda d: d.rounded_rectangle([4, 106, 22, 127], 3), '#a8744a', '#c48e5e', '#6f4426')
+    for y in (110, 122): d.line([(5, y), (21, y)], C('#5f6168'))
+    for x, y in ((7, 105), (11, 104), (15, 105), (19, 105), (9, 102), (14, 102), (17, 102)):
+        shape(im, lambda d, x=x, y=y: d.ellipse([x - 2, y - 2, x + 2, y + 2]), '#d83838', '#f06060', '#a02020', 1)
+    for x, y, c in ((25, 114, ('#e0892f', '#f5ad4f', '#b0601f')), (37, 114, ('#6cb455', '#8fd16a', '#3e7a32')), (31, 104, ('#f6d04d', '#fde27a', '#c08a18'))):
+        shape(im, lambda d, x=x, y=y: d.rectangle([x, y, x + 13, y + 11]), '#c88a50', '#e0a96a', '#8a5a36', 1)
+        d.line([(x + 1, y + 6), (x + 12, y + 6)], C('#8a5a36'))
+        for k in range(4): shape(im, lambda d, x=x, y=y, k=k: d.ellipse([x + 1 + k * 3, y - 2, x + 4 + k * 3, y + 1]), *c, 1)
+    for x in (84, 96):  # flower pots
+        shape(im, lambda d, x=x: d.polygon([(x, 116), (x + 10, 116), (x + 8, 127), (x + 2, 127)]), '#c8643a', '#e0845a', '#8a3e22', 1)
+        shape(im, lambda d, x=x: d.ellipse([x - 1, 108, x + 11, 117]), '#4e9440', '#6cb455', '#356c2c', 1)
+        for a, b in ((2, 110), (6, 109), (9, 112), (4, 113)): d.point((x + a, b), C('#f28fb8' if x == 84 else '#f6d04d'))
+    for x in (108, 116):  # sacks
+        shape(im, lambda d, x=x: d.rounded_rectangle([x - 2, 112, x + 9, 127], 4), '#d8bf8a', '#ead6a8', '#a88a5a')
+        d.line([(x, 115), (x + 7, 115)], C('#8a6a3a'))
+    d.line([(124, 96), (121, 120)], C('#8a5a36'), 2)  # broom leaning on the wall
+    shape(im, lambda d: d.polygon([(118, 119), (125, 119), (126, 127), (116, 127)]), '#e0c070', '#f0d890', '#a88a40', 1)
+    return outline(im)
+
 def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind the gable, grass tufts at its base
     im = new(4 * S, 4 * S); d = ImageDraw.Draw(im)
     RED, RED_L, RED_D, WH, WH_D = '#b8322c', '#d24a3e', '#86221e', '#f4efe6', '#c8c0b4'
@@ -741,7 +798,7 @@ add('fence3', fence_v())
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
 add('shop', stall())
-add('barn', barn())
+add('barn', barn()); add('store', store())
 add('house_brown', cottage('#8a5a3a', '#a87050', '#64402a', '#5e4f5a', '#7a6a76', '#3f343e', '#efe2c8', '#fff4dc', '#b8a888', 'stone',
                            shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True, cx=74))
 add('house_blue', cottage('#a8d0e8', '#c8e4f4', '#7aa8c8', '#5f6670', '#7c838c', '#43484f', '#3f5a80', '#5c7fa8', '#2a3e5c', 'brick', cx=8))
