@@ -582,13 +582,13 @@ def farmer(p):
                     for x in xs:
                         if im.getpixel((x, y))[:3] in (C(SKIN)[:3], C(SKIN_D)[:3]) and (x + y) % 2 and not (dir_ == 0 and 14 <= x <= 17 and y == 14):
                             im.putpixel((x, y), C(p['stubble']))
-            if p.get('glasses') and dir_ != 3:  # thin round-cornered frames, arms back to the ears
+            if p.get('glasses') and dir_ != 3:  # thin round frames, arms back to the ears
                 F = C(p['glasses'])
                 for ex in ((12, 19) if dir_ == 0 else (10 if dir_ == 1 else 20,)):
-                    d.line([(ex - 1, 8), (ex + 2, 8)], F); d.line([(ex - 1, 13), (ex + 2, 13)], F); d.line([(ex - 1, 9), (ex - 1, 12)], F); d.line([(ex + 2, 9), (ex + 2, 12)], F)
-                if dir_ == 0: d.line([(15, 9), (17, 9)], F)
-                elif dir_ == 1: d.line([(13, 10), (16, 10)], F)
-                else: d.line([(16, 10), (19, 10)], F)
+                    d.line([(ex - 1, 8), (ex + 2, 8)], F); d.line([(ex - 1, 13), (ex + 2, 13)], F); d.line([(ex - 2, 9), (ex - 2, 12)], F); d.line([(ex + 3, 9), (ex + 3, 12)], F)
+                if dir_ == 0: d.point((16, 10), F)
+                elif dir_ == 1: d.line([(14, 10), (16, 10)], F)
+                else: d.line([(16, 10), (17, 10)], F)
             if p.get('tail') and dir_ == 3:
                 shape(im, lambda d: d.rounded_rectangle([14, 12, 18, 24], 2), H, Hl, Hd, 1); d = ImageDraw.Draw(im); d.line([(14, 12), (18, 12)], C(p['tie']))
             if p.get('tail') and side: d = ImageDraw.Draw(im); tx = 22 if dir_ == 1 else 5; d.line([(tx, 7), (tx + 5, 7)], C(p['tie']))
