@@ -9,7 +9,6 @@ export const VILLAGERS = [
   { sheet: 'villager_male', x: 6, y: 15, size: 2 },
   { sheet: 'villager_female', x: 29, y: 15, size: 2 },
   { sheet: 'villager_child', x: 12, y: 15, size: 2 },
-  { sheet: 'shopkeeper', x: 21, y: 13, size: 0 }, // Fredrick, in front of his shop
 ];
 // What talking to someone does, if it isn't the usual chat (see support.js).
 export const ROLES = { shopkeeper: 'shop' };

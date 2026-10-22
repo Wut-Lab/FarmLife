@@ -4,7 +4,8 @@ import { buildFarm } from '../src/farm-map.js';
 import { LOCATIONS } from '../src/locations.js';
 import { Villager, spawnVillagers } from '../src/villagers.js';
 
-test('every farm villager fits, Fredrick included', () => assert.equal(spawnVillagers(LOCATIONS.farm.build()).length, 4));
+test('every farm villager fits', () => assert.equal(spawnVillagers(LOCATIONS.farm.build()).length, 3));
+test('Fredrick fits in town', () => assert.ok(spawnVillagers(LOCATIONS.town.build()).some(v => v.role === 'shop')));
 
 test('a villager walks its square and comes back', () => {
   const v = new Villager({ sheet: 's', x: 2, y: 2, size: 2 });
