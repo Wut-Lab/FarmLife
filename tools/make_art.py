@@ -350,8 +350,8 @@ def building(roof, roof_l, roof_d, wall, wall_l, wall_d, awning=False):
 def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind the gable, grass tufts at its base
     im = new(4 * S, 4 * S); d = ImageDraw.Draw(im)
     RED, RED_L, RED_D, WH, WH_D = '#b8322c', '#d24a3e', '#86221e', '#f4efe6', '#c8c0b4'
-    # Roof slopes going back from the front gable: a bigger gambrel outline, shingled grey.
-    shape(im, lambda d: d.polygon([(2, 70), (12, 34), (40, 8), (88, 8), (116, 34), (126, 70)]), '#8a8f96', '#a8adb4', '#62676e', 3)
+    # Roof: a narrow band of grey shingles just outside the gable.
+    shape(im, lambda d: d.polygon([(3, 68), (13, 37), (60, 13), (68, 13), (115, 37), (125, 68)]), '#8a8f96', '#a8adb4', '#62676e', 2)
     roof = {(x, y) for y in range(4 * S) for x in range(4 * S) if im.getpixel((x, y))[:3] == C('#8a8f96')[:3]}
     for (x, y) in roof:  # shingle rows: a dark seam under each row, a light lip above it, staggered joints
         r, k = divmod(y - 10, 6)
