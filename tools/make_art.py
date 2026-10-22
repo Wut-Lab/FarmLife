@@ -522,8 +522,19 @@ def farmer(p):
                         d.line([(13, 15), (13, 18)], C(p['pants'])); d.line([(19, 15), (19, 18)], C(p['pants'])); d.point((14, 19), C('#f6d04d')); d.point((18, 19), C('#f6d04d'))
                     elif dir_ == 3: d.line([(13, 15), (19, 21)], C(p['pants'])); d.line([(19, 15), (13, 21)], C(p['pants'])); shape(im, lambda d: d.rectangle([12, 21, 20, 24]), p['pants'], None, p['pants_d'], 1)
                     else: d.line([(16, 15), (16, 20)], C(p['pants'])); shape(im, lambda d: d.rectangle([13, 20, 19, 24]), p['pants'], None, p['pants_d'], 1)
-                if p.get('apron') and dir_ == 0: shape(im, lambda d: d.rectangle([13, 19, 19, 24]), '#fff3e6', None, '#d8c8b8', 1)
+                if p.get('apron') is True and dir_ == 0: shape(im, lambda d: d.rectangle([13, 19, 19, 24]), '#fff3e6', None, '#d8c8b8', 1)
+                if isinstance(p.get('apron'), tuple):  # full bib apron in the given colours, tied at the back
+                    A_, Al, Ad = p['apron']
+                    if dir_ == 0:
+                        shape(im, lambda d: d.rectangle([12, 17, 20, 24]), A_, Al, Ad, 1)
+                        d.line([(13, 15), (13, 16)], C(Ad)); d.line([(19, 15), (19, 16)], C(Ad)); d.line([(14, 21), (18, 21)], C(Ad)); d.line([(16, 21), (16, 23)], C(Ad))
+                    elif dir_ == 3: d.line([(12, 20), (20, 20)], C(A_)); d.point((15, 21), C(A_)); d.point((17, 21), C(A_)); d.point((16, 20), C(Ad)); d.line([(16, 15), (16, 19)], C(A_))
+                    else: shape(im, lambda d: d.rectangle([12, 17, 14, 24] if dir_ == 1 else [18, 17, 20, 24]), A_, Al, Ad, 1)
             for ax, sw in arms:
+                if p.get('tee'):  # short sleeves, bare forearms
+                    shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 23 + sw], 1), SKIN, SKIN_L, SKIN_D, 1)
+                    shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 19 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
+                    continue
                 shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 22 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
                 shape(im, lambda d: d.rectangle([ax, 22 + sw, ax + 2, 23 + sw]), SKIN, None, None)
             # head
@@ -564,6 +575,20 @@ def farmer(p):
                 if dir_ == 0: shape(im, lambda d: d.rounded_rectangle([8, 6, 24, 8], 1), Kd, K, None)
                 elif side: shape(im, lambda d: d.rectangle([3, 6, 13, 8] if dir_ == 1 else [19, 6, 29, 8]), Kd, K, None)
                 else: d.rectangle([14, 6, 18, 7], C(H))  # strap gap at the back
+            d = ImageDraw.Draw(im)
+            if p.get('stubble') and dir_ != 3:  # dotted shadow along the jaw
+                xs = range(10, 23) if dir_ == 0 else range(8, 17) if dir_ == 1 else range(16, 25)
+                for y in range(13, 18):
+                    for x in xs:
+                        if im.getpixel((x, y))[:3] in (C(SKIN)[:3], C(SKIN_D)[:3]) and (x + y) % 2 and not (dir_ == 0 and 14 <= x <= 17 and y == 14):
+                            im.putpixel((x, y), C(p['stubble']))
+            if p.get('glasses') and dir_ != 3:  # thin round-cornered frames, arms back to the ears
+                F = C(p['glasses'])
+                for ex in ((12, 19) if dir_ == 0 else (10 if dir_ == 1 else 20,)):
+                    d.line([(ex - 1, 8), (ex + 2, 8)], F); d.line([(ex - 1, 13), (ex + 2, 13)], F); d.line([(ex - 1, 9), (ex - 1, 12)], F); d.line([(ex + 2, 9), (ex + 2, 12)], F)
+                if dir_ == 0: d.line([(15, 9), (17, 9)], F)
+                elif dir_ == 1: d.line([(13, 10), (16, 10)], F)
+                else: d.line([(16, 10), (19, 10)], F)
             if p.get('tail') and dir_ == 3:
                 shape(im, lambda d: d.rounded_rectangle([14, 12, 18, 24], 2), H, Hl, Hd, 1); d = ImageDraw.Draw(im); d.line([(14, 12), (18, 12)], C(p['tie']))
             if p.get('tail') and side: d = ImageDraw.Draw(im); tx = 22 if dir_ == 1 else 5; d.line([(tx, 7), (tx + 5, 7)], C(p['tie']))
@@ -598,6 +623,11 @@ VILLAGER_KID = dict(hair='#c8803a', hair_l='#e09a52', hair_d='#8a5228', shirt='#
                     pants='#8a5a36', pants_d='#5f3b25', long=False, sweater=True, child=True, cap=('#d8383e', '#ee6066', '#9a2430'),
                     fringe=[(7, 13), (8, 6), (24, 6), (25, 13), (23, 10), (22, 12), (20, 9), (12, 9), (10, 12), (9, 10)],
                     side=[(7, 7), (17, 7), (15, 10), (13, 13), (9, 15), (7, 12)])
+SHOPKEEPER = dict(hair='#5a3a28', hair_l='#7a5440', hair_d='#3a2418', shirt='#f4f2ee', shirt_l='#ffffff', shirt_d='#c8c4bc', accent='#f4f2ee', eye='#3a5a7a', eye_l='#7a9aba',
+                  pants='#4a6aa8', pants_d='#34508a', long=False, sweater=True, tee=True, apron=('#8a5a36', '#a8744a', '#5f3b25'),
+                  glasses='#3a2a2a', stubble='#b88a72',
+                  fringe=[(7, 10), (8, 3), (12, 1), (20, 1), (24, 3), (25, 10), (24, 7), (21, 5), (14, 5), (10, 6), (8, 9)],
+                  side=[(7, 11), (8, 3), (13, 1), (20, 1), (25, 4), (25, 7), (20, 5), (13, 5), (11, 7), (9, 12)])
 
 # ---------- assemble ----------
 cells, names = [], {}
@@ -639,6 +669,7 @@ sheet.save('assets/art/world.png')
 farmer(MALE).save('assets/characters/farmer_male.png'); farmer(FEMALE).save('assets/characters/farmer_female.png')
 farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_F).save('assets/characters/villager_female.png')
 farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
+farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')
