@@ -1,8 +1,8 @@
-// Map editor (editor.html): paint ground, place objects, adjust collision and the spawn point, then export JSON
-// or play-test it (index.html?map=editor). The map autosaves to localStorage.
+// Map editor (editor.html): pick a location, paint ground, place objects and villagers, adjust collision, the spawn
+// point and the road exits, then export JSON or play-test (index.html?map=editor). Each location autosaves to localStorage.
 import { A } from './art-index.js';
-import { buildFarm } from './farm-map.js';
-import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround } from './map-data.js';
+import { LOCATIONS } from './locations.js';
+import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround, editorData, exitRows } from './map-data.js';
 
 const $ = s => document.querySelector(s);
 const art = new Image(); art.src = 'assets/art/world.png'; await art.decode();
@@ -11,18 +11,26 @@ const T = 32; // screen pixels per tile at zoom 1
 const ZMIN = 0.2, ZMAX = 6; // zoom limits; the slider runs on a log scale between them
 
 // ---------- map state, autosave, undo ----------
-let d = load() ?? dataFromMap(buildFarm());
-function load() {
-  try { const m = JSON.parse(localStorage.getItem(EDITOR_KEY)); return valid(m) ? m : null; } catch { return null; }
+const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)' };
+const sheets = Object.fromEntries(await Promise.all(Object.keys(NPCS).map(async k => {
+  const im = new Image(); im.src = `assets/characters/${k}.png`; await im.decode(); return [k, im];
+})));
+const all = editorData(); // every location's edited map; untouched locations use the game's own
+let loc = 'farm', d;
+const fresh = id => dataFromMap(LOCATIONS[id].build());
+function openLoc(id) {
+  loc = id; d = valid(all[id]) ? all[id] : fresh(id); undo.length = redo.length = 0;
+  $('#loc').value = id; changed(true, false); fitView();
 }
 function valid(m) {
   if (!m || !(m.W > 0 && m.H > 0) || m.ground?.length !== m.W * m.H || !Array.isArray(m.objects)) return false;
   m.block = m.block?.length === m.W * m.H ? m.block : Array(m.W * m.H).fill(0);
   m.spawn ??= { x: m.W >> 1, y: m.H >> 1 };
   m.objects = m.objects.filter(o => PREFABS[o.name]);
+  m.exits = { ...m.exits }; m.npcs = (m.npcs ?? []).filter(v => NPCS[v.sheet]);
   return true;
 }
-const save = () => { try { localStorage.setItem(EDITOR_KEY, JSON.stringify(d)); } catch {} };
+const save = () => { all[loc] = d; try { localStorage.setItem(EDITOR_KEY, JSON.stringify(all)); } catch {} };
 const undo = [], redo = [];
 const snap = () => { undo.push(JSON.stringify(d)); if (undo.length > 200) undo.shift(); redo.length = 0; };
 function history(from, to) {
@@ -30,9 +38,10 @@ function history(from, to) {
   to.push(JSON.stringify(d)); d = JSON.parse(from.pop()); changed(true);
 }
 function replace(m) { snap(); d = m; changed(true); fitView(); }
-function changed(sizes) {
-  save(); draw();
-  if (sizes) { $('#mw').value = d.W; $('#mh').value = d.H; }
+function changed(sizes, store = true) {
+  if (store) save();
+  draw();
+  if (sizes) { $('#mw').value = d.W; $('#mh').value = d.H; $('#exitL').value = d.exits.left ?? ''; $('#exitR').value = d.exits.right ?? ''; }
 }
 
 // ---------- brushes ----------
@@ -51,8 +60,9 @@ const AUTO = [
 const brushes = [...AUTO,
   ...Object.keys(A).filter(n => isGround(n) && /^(grass|path|soil)\d+$/.test(n)).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
   { id: 'fence', label: 'Fence (auto)', icon: [['fence0', 'fence2'], ['fence3', null]], prefab: 'fence1', auto: 'fence' },
-  ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name }))];
-const group = b => b.ground ? 'Ground' : /house|shop|bin|sign|fence/.test(b.id) ? 'Buildings & props'
+  ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name })),
+  ...Object.entries(NPCS).map(([k, label]) => ({ id: k, label, npc: k }))];
+const group = b => b.ground ? 'Ground' : b.npc ? 'Villagers' : /house|shop|bin|sign|fence/.test(b.id) ? 'Buildings & props'
   : /tree|pine|oak|shrub|mushroom|flower|bush|rock/.test(b.id) ? 'Nature' : 'Other';
 let brush = brushes.find(b => b.id === 'path');
 
@@ -61,6 +71,9 @@ function thumb(rows) {
   c.width = c.height = s; const g = c.getContext('2d');
   rows.forEach((row, j) => row.forEach((n, i) => cell(g, n, (s - w * 32) / 2 + i * 32, (s - h * 32) + j * 32, 32)));
   return c;
+}
+function npcThumb(k) {
+  const c = document.createElement('canvas'); c.width = c.height = 32; c.getContext('2d').drawImage(sheets[k], 0, 0, 32, 32, 0, 0, 32, 32); return c;
 }
 function cell(g, n, x, y, size) {
   const i = A[n]; if (i === undefined) return;
@@ -74,7 +87,7 @@ function buildPalette() {
     const grid = document.createElement('div'); grid.className = 'grid'; pal.append(grid);
     for (const b of list) {
       const el = document.createElement('div'); el.className = 'brush'; el.title = b.label;
-      el.append(thumb(b.icon), b.label); b.el = el;
+      el.append(b.npc ? npcThumb(b.npc) : thumb(b.icon), b.label); b.el = el;
       el.onclick = () => { pickBrush(b); if (!['paint', 'rect', 'fill'].includes(tool)) setTool('paint'); };
       grid.append(el);
     }
@@ -105,7 +118,8 @@ function setTool(t) {
 }
 function opts() {
   const tip = TOOLS.find(t => t[0] === tool)[3];
-  $('#opts').textContent = ['paint', 'rect', 'fill'].includes(tool) ? `${tip}. Brush: ${brush.label}` : tip;
+  $('#opts').textContent = brush.npc && ['paint', 'rect'].includes(tool) ? `${brush.label}: click to set where their walk starts, or drag a Box to set the square they walk.`
+    : ['paint', 'rect', 'fill'].includes(tool) ? `${tip}. Brush: ${brush.label}` : tip;
 }
 
 // ---------- editing ----------
@@ -178,13 +192,24 @@ function objectAt(x, y) {
   }
   return best;
 }
+// Villagers: one of each per location. They walk the edge of a square whose top-left corner is (x, y).
+const npcAt = (x, y) => d.npcs.find(v => v.x === x && v.y === y);
+function putNpc(sheet, x, y, size) {
+  if (!inside(x, y)) return;
+  const old = d.npcs.find(v => v.sheet === sheet);
+  d.npcs = d.npcs.filter(v => v !== old && !(v.x === x && v.y === y));
+  d.npcs.push({ sheet, x, y, size: size ?? old?.size ?? 2 });
+}
+// A villager's square must be walkable all the way round, like the game checks.
+const npcOk = v => { const s = solidOf(d); for (let j = 0; j <= v.size; j++) for (let i = 0; i <= v.size; i++) if (!inside(v.x + i, v.y + j) || s[(v.y + j) * d.W + v.x + i]) return false; return true; };
 function erase(x, y) {
-  const o = objectAt(x, y);
-  if (o) { d.objects.splice(d.objects.indexOf(o), 1); if (isFence(o)) retileFence(o.x, o.y); }
+  const v = npcAt(x, y), o = objectAt(x, y);
+  if (v) d.npcs.splice(d.npcs.indexOf(v), 1);
+  else if (o) { d.objects.splice(d.objects.indexOf(o), 1); if (isFence(o)) retileFence(o.x, o.y); }
   else if (inside(x, y)) d.block[y * d.W + x] = 0;
 }
 function apply(x, y, e) {
-  if (tool === 'paint') { if (brush.ground) setGround(x, y, brush); else place(brush, x, y); }
+  if (tool === 'paint') { if (brush.ground) setGround(x, y, brush); else if (brush.npc) putNpc(brush.npc, x, y); else place(brush, x, y); }
   else if (tool === 'erase') erase(x, y);
   else if (tool === 'block' && inside(x, y)) d.block[y * d.W + x] = e.button === 2 || e.shiftKey ? 2 : 1;
   else if (tool === 'spawn' && inside(x, y)) d.spawn = { x, y };
@@ -192,6 +217,7 @@ function apply(x, y, e) {
 function boxFill(x0, y0, x1, y1) {
   [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)]; [y0, y1] = [Math.min(y0, y1), Math.max(y0, y1)];
   if (brush.ground) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) setGround(x, y, brush); return; }
+  if (brush.npc) return putNpc(brush.npc, x0, y0, Math.max(1, Math.min(x1 - x0, y1 - y0)));
   const p = PREFABS[brush.prefab];
   if (brush.auto === 'fence') { for (let x = x0; x <= x1; x++) for (const y of new Set([y0, y1])) place(brush, x, y);
     for (let y = y0 + 1; y < y1; y++) for (const x of new Set([x0, x1])) place(brush, x, y); return; }
@@ -211,8 +237,8 @@ function flood(x, y) {
 }
 function pick(x, y) {
   if (!inside(x, y)) return;
-  const o = objectAt(x, y), n = d.ground[y * d.W + x];
-  pickBrush(brushes.find(b => b.id === (o ? (isFence(o) ? 'fence' : o.name) : BLOB_SETS.includes(fam(n)) ? fam(n) : n)) ?? brush);
+  const v = npcAt(x, y), o = objectAt(x, y), n = d.ground[y * d.W + x];
+  pickBrush(brushes.find(b => b.id === (v ? v.sheet : o ? (isFence(o) ? 'fence' : o.name) : BLOB_SETS.includes(fam(n)) ? fam(n) : n)) ?? brush);
   brush.el?.scrollIntoView({ block: 'nearest' });
 }
 function resize(W, H) {
@@ -224,6 +250,7 @@ function resize(W, H) {
   }
   m.objects = d.objects.filter(o => { const r = rectOf(o); return r.x + r.w <= W && r.y + r.h <= H; });
   m.spawn = { x: Math.min(d.spawn.x, W - 1), y: Math.min(d.spawn.y, H - 1) };
+  m.exits = d.exits; m.npcs = d.npcs.filter(v => v.x + v.size < W && v.y + v.size < H);
   replace(m);
 }
 
@@ -231,7 +258,7 @@ function resize(W, H) {
 let zoom = 1, ox = 0, oy = 0, grid = true, solidView = false, hover = null, box = null;
 function fitView() {
   const r = cv.getBoundingClientRect();
-  zoom = Math.max(ZMIN, Math.min(ZMAX, (r.width - 24) / (d.W * T), (r.height - 24) / (d.H * T)));
+  zoom = Math.max(ZMIN, Math.min(ZMAX, (r.width - 24) / ((d.W + 2) * T), (r.height - 24) / (d.H * T)));
   ox = Math.round((r.width - d.W * T * zoom) / 2); oy = Math.round((r.height - d.H * T * zoom) / 2); zoomUI(); draw();
 }
 // Zoom to z, keeping the map point under screen point (cx, cy) still (default: the view's centre).
@@ -268,6 +295,12 @@ function render() {
     PREFABS[o.name].tiles.forEach((row, j) => row.forEach((n, i) => cell(ctx, n, X(o.x + i), Y(o.y + j), s + 0.5)));
   }
   ctx.globalAlpha = 1;
+  // Villagers at the start of their walk, with the square they walk (red if something blocks it).
+  for (const v of d.npcs) {
+    ctx.strokeStyle = npcOk(v) ? '#fff8e8cc' : '#ff6b5b'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.strokeRect(X(v.x + 0.5), Y(v.y + 0.5), v.size * s, v.size * s); ctx.setLineDash([]);
+    ctx.drawImage(sheets[v.sheet], 0, 0, 32, 32, X(v.x), Y(v.y), s, s);
+  }
   if (solidView) {
     const solid = solidOf(d);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
@@ -283,6 +316,31 @@ function render() {
     ctx.stroke();
   }
   ctx.strokeStyle = '#fff8e8'; ctx.lineWidth = 2; ctx.strokeRect(X(0) - 1, Y(0) - 1, d.W * s + 2, d.H * s + 2);
+  // Road exits: arrows off each edge where the road reaches it, labelled with where they lead.
+  ctx.font = `${Math.max(10, s * 0.4)}px "Pixelify Sans", monospace`; ctx.textBaseline = 'middle';
+  for (const side of ['left', 'right']) {
+    const to = d.exits[side], rows = exitRows(d, side), ex = side === 'left' ? -1 : d.W, edge = side === 'left' ? 0 : d.W - 1;
+    const tx = side === 'left' ? X(0) + 4 : X(d.W) - 4; // labels sit just inside the edge, above the road
+    ctx.textAlign = side === 'left' ? 'left' : 'right'; ctx.textBaseline = 'bottom';
+    if (to && !rows.length) { // an exit with no road to walk off on
+      ctx.strokeStyle = '#ff6b5b'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.moveTo(X(edge + (side === 'left' ? 0 : 1)), Y(0)); ctx.lineTo(X(edge + (side === 'left' ? 0 : 1)), Y(d.H)); ctx.stroke(); ctx.setLineDash([]);
+      const msg = `No road reaches this edge (exit to ${LOCATIONS[to].name})`, w = ctx.measureText(msg).width;
+      ctx.fillStyle = '#3f2631dd'; ctx.fillRect(side === 'left' ? tx - 3 : tx - w - 3, Y(d.H / 2) - s * 0.5 - 2, w + 6, s * 0.5 + 4);
+      ctx.fillStyle = '#ff6b5b'; ctx.fillText(msg, tx, Y(d.H / 2)); ctx.textBaseline = 'middle'; continue;
+    }
+    for (const y of rows) {
+      ctx.fillStyle = to ? '#f6d04d99' : '#ffffff22'; ctx.fillRect(X(ex), Y(y), s, s);
+      ctx.strokeStyle = to ? '#f6d04d' : '#ffffff55'; ctx.lineWidth = 2; ctx.strokeRect(X(edge) + 1, Y(y) + 1, s - 2, s - 2);
+      ctx.fillStyle = '#3f2631'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(side === 'left' ? '◀' : '▶', X(ex + 0.5), Y(y + 0.5) + 1);
+    }
+    if (rows.length) {
+      ctx.textAlign = side === 'left' ? 'left' : 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#3f2631cc';
+      const label = to ? `${side === 'left' ? '◀' : ''} To ${LOCATIONS[to].name} ${side === 'left' ? '' : '▶'}` : 'No exit set', w = ctx.measureText(label).width;
+      ctx.fillRect(side === 'left' ? tx - 3 : tx - w - 3, Y(rows[0]) - s * 0.5 - 6, w + 6, s * 0.5 + 4);
+      ctx.fillStyle = to ? '#f6d04d' : '#fff8e8'; ctx.fillText(label, tx, Y(rows[0]) - 4); ctx.textBaseline = 'middle';
+    }
+  }
   // Spawn marker.
   ctx.fillStyle = '#f6d04d'; ctx.strokeStyle = '#3f2631'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(X(d.spawn.x + 0.5), Y(d.spawn.y + 0.5), s * 0.3, 0, 7); ctx.fill(); ctx.stroke();
@@ -297,7 +355,7 @@ function render() {
   }
 }
 function previewObjects() {
-  if (!hover || brush.ground || !['paint', 'rect'].includes(tool) || (tool === 'rect' && !box)) return [];
+  if (!hover || brush.ground || brush.npc || !['paint', 'rect'].includes(tool) || (tool === 'rect' && !box)) return [];
   if (tool === 'paint') {
     const f = footprint(brush, hover.x, hover.y);
     const bad = f.x < 0 || f.y < 0 || f.x + f.w > d.W || f.y + f.h > d.H || d.objects.some(o => hits(rectOf(o), f));
@@ -367,7 +425,7 @@ cv.addEventListener('wheel', e => {
   zoomTo(zoom * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  if (['INPUT', 'SELECT'].includes(e.target.tagName)) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); return e.shiftKey ? history(redo, undo) : history(undo, redo); }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); return history(redo, undo); }
@@ -389,14 +447,22 @@ addEventListener('resize', draw);
 
 function status() {
   if (!hover || !inside(hover.x, hover.y)) { $('#pos').textContent = `${d.W} × ${d.H} tiles`; $('#info').textContent = ''; return; }
-  const o = objectAt(hover.x, hover.y), k = hover.y * d.W + hover.x;
+  const o = npcAt(hover.x, hover.y) ?? objectAt(hover.x, hover.y), k = hover.y * d.W + hover.x;
   $('#pos').innerHTML = `<b>${hover.x}, ${hover.y}</b>`;
-  $('#info').textContent = [d.ground[k], o && o.name, solidOf(d)[k] ? 'blocked' : 'walkable'].filter(Boolean).join(' · ');
+  $('#info').textContent = [d.ground[k], o && (o.name ?? NPCS[o.sheet]), solidOf(d)[k] ? 'blocked' : 'walkable'].filter(Boolean).join(' · ');
 }
 
 // ---------- header buttons ----------
-$('#new').onclick = () => confirm('Start a new empty map? (Undo can bring this one back.)') && replace(blankMap(+$('#mw').value || 40, +$('#mh').value || 30, Date.now() % 100000));
-$('#farm').onclick = () => confirm('Open the current farm map? (Undo can bring this one back.)') && replace(dataFromMap(buildFarm()));
+$('#new').onclick = () => confirm(`Start ${LOCATIONS[loc].name} over as empty grass? (Undo can bring this one back.)`)
+  && replace({ ...blankMap(+$('#mw').value || 40, +$('#mh').value || 30, Date.now() % 100000), exits: d.exits, npcs: [] });
+$('#reset').onclick = () => confirm(`Go back to the game's own ${LOCATIONS[loc].name}? (Undo can bring yours back.)`) && replace(fresh(loc));
+for (const [id, l] of Object.entries(LOCATIONS)) $('#loc').append(new Option(l.name, id));
+$('#loc').onchange = e => openLoc(e.target.value);
+for (const side of ['L', 'R']) {
+  const sel = $('#exit' + side); sel.append(new Option('No exit', ''));
+  for (const [id, l] of Object.entries(LOCATIONS)) sel.append(new Option(l.name, id));
+  sel.onchange = e => { snap(); d.exits[side === 'L' ? 'left' : 'right'] = e.target.value || undefined; changed(); };
+}
 $('#export').onclick = () => {
   const name = (prompt('File name', 'hub') ?? '').trim().replace(/\.json$/i, '');
   if (!name) return;
@@ -422,4 +488,4 @@ $('#solidT').onclick = () => showSolid(!solidView);
 $('#resize').onclick = () => resize(+$('#mw').value, +$('#mh').value);
 $('#hint').textContent = 'Alt+click: pick · Right-drag / Space+drag / arrows: pan · Wheel / pinch / + −: zoom · 0: fit · 1: actual size · Ctrl+Z: undo';
 
-buildPalette(); pickBrush(brush); setTool('paint'); changed(true); fitView(); status();
+buildPalette(); pickBrush(brush); setTool('paint'); openLoc('farm'); status();

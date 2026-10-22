@@ -35,3 +35,13 @@ test('blob autotiles: 47 pieces, deep water blocks', () => {
   const m = mapFromData(d);
   assert.equal(m.solid[4], 1); assert.equal(m.solid[0], 0);
 });
+
+test('locations keep their exits and villagers through the editor, and exits sit on the road', async () => {
+  const { LOCATIONS, ROAD } = await import('../src/locations.js');
+  const { exitRows } = await import('../src/map-data.js');
+  for (const l of Object.values(LOCATIONS)) {
+    const m = l.build(), back = mapFromData(dataFromMap(m));
+    assert.deepEqual(back.exits, m.exits); assert.deepEqual(back.npcs, m.npcs ?? []);
+    for (const side of Object.keys(m.exits)) assert.deepEqual(exitRows(m, side), ROAD, `${l.name} ${side}`);
+  }
+});

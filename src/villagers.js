@@ -39,7 +39,7 @@ export class Villager {
   draw(g, cx, cy) { this.walker.draw(g, this.x - cx, this.y - cy); }
 }
 
-// Villagers whose whole square is walkable on this map.
+// The map's villagers (map.npcs) whose whole square is walkable.
 export function spawnVillagers(map) {
   const clear = v => {
     for (let j = 0; j <= v.size; j++) for (let i = 0; i <= v.size; i++) {
@@ -48,5 +48,5 @@ export function spawnVillagers(map) {
     }
     return true;
   };
-  return VILLAGERS.filter(clear).map(v => new Villager(v));
+  return (map.npcs ?? []).filter(clear).map(v => new Villager(v));
 }

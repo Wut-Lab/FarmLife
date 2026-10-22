@@ -1,9 +1,12 @@
 // Hand-built maps: the JSON the map editor (editor.html) saves, and turning it into the map shape the game uses.
-// Data: { W, H, ground: [tile name per cell], objects: [{ name, x, y }], block: [0 auto | 1 solid | 2 walkable], spawn: { x, y } }
+// Data: { W, H, ground: [tile name per cell], objects: [{ name, x, y }], block: [0 auto | 1 solid | 2 walkable], spawn: { x, y },
+//   name, exits: { left, right: location id }, npcs: [{ sheet, x, y, size }] }
 import { A } from './art-index.js';
 import { CROPS } from './crops.js';
+import { VILLAGERS } from './villagers.js';
 export const TILE = 16;
-export const EDITOR_KEY = 'farmlife-editor-map';
+export const EDITOR_KEY = 'farmlife-editor-maps'; // { [location id]: data }
+const OLD_EDITOR_KEY = 'farmlife-editor-map'; // a single farm map, from before locations
 
 // Multi-tile objects: size in tiles and how many bottom rows block movement (default: all rows).
 const SIZES = {
@@ -15,6 +18,9 @@ const SIZES = {
 const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips']);
 const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
 export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep)\d+$/.test(n);
+export const isPaved = n => /^(path|cobbleb?|brickb?)\d+$/.test(n);
+// Rows where a road reaches the map's left or right edge: walking off there takes you through that side's exit.
+export const exitRows = (m, side) => [...Array(m.H).keys()].filter(y => isPaved(m.ground[y * m.W + (side === 'left' ? 0 : m.W - 1)]));
 export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep']; // 47-piece autotile sets drawn by tools/make_art.py
 
 // Blob autotiles: neighbour bits N, E, S, W, NE, SE, SW, NW. A corner only counts when both sides next to it do,
@@ -63,7 +69,8 @@ export function solidOf(d) {
 // Data -> the game's map: houses get a door, shops a counter, bins their tiles, soil becomes plots.
 export function mapFromData(d) {
   const { W, H } = d, key = (x, y) => `${x},${y}`;
-  const out = { W, H, ground: d.ground.slice(), solid: solidOf(d), objects: [], plots: [], door: null, shop: null, bin: [] };
+  const out = { W, H, ground: d.ground.slice(), solid: solidOf(d), objects: [], plots: [], door: null, shop: null, bin: [],
+    name: d.name, exits: { ...d.exits }, npcs: (d.npcs ?? []).map(v => ({ ...v })) };
   for (const o of d.objects) {
     const p = PREFABS[o.name]; if (!p) continue;
     out.objects.push({ x: o.x * TILE, y: o.y * TILE, base: (o.y + p.h) * TILE, tiles: p.tiles });
@@ -81,7 +88,8 @@ export function mapFromData(d) {
 // The game's map (e.g. buildFarm()) -> editor data, so an existing map can be opened and changed.
 export function dataFromMap(m) {
   const d = { W: m.W, H: m.H, ground: m.ground.slice(), objects: [], block: Array(m.W * m.H).fill(0),
-    spawn: { x: Math.round(m.spawn.x / TILE), y: Math.round(m.spawn.y / TILE) } };
+    spawn: { x: Math.round(m.spawn.x / TILE), y: Math.round(m.spawn.y / TILE) },
+    name: m.name, exits: { ...m.exits }, npcs: (m.npcs ?? []).map(v => ({ ...v })) };
   for (const o of m.objects) o.tiles.forEach((row, j) => row.forEach((n, i) => {
     const name = n.endsWith('_0') ? n.slice(0, -2) : n;
     if (PREFABS[name]) d.objects.push({ name, x: o.x / TILE + i, y: o.y / TILE + j });
@@ -91,7 +99,12 @@ export function dataFromMap(m) {
   return d;
 }
 
-// The map saved by the editor, for play-testing with index.html?map=editor.
-export function editorMap() {
-  try { const d = JSON.parse(localStorage.getItem(EDITOR_KEY)); return d ? mapFromData(d) : null; } catch { return null; }
+// The maps saved by the editor, by location id, for play-testing with index.html?map=editor.
+export function editorData() {
+  try {
+    const all = JSON.parse(localStorage.getItem(EDITOR_KEY)) ?? {}, old = JSON.parse(localStorage.getItem(OLD_EDITOR_KEY));
+    if (old && !all.farm) all.farm = { name: 'Farm', exits: { right: 'road' }, npcs: VILLAGERS, ...old };
+    return all;
+  } catch { return {}; }
 }
+export const editorMaps = () => Object.fromEntries(Object.entries(editorData()).map(([id, d]) => [id, mapFromData(d)]));

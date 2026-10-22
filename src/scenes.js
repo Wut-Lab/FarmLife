@@ -1,9 +1,8 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS } from './clock.js';
-import { buildFarm } from './farm-map.js';
-import { editorMap } from './map-data.js';
-import { buildRoad, buildTown } from './locations.js';
+import { editorMaps, exitRows, isPaved } from './map-data.js';
+import { LOCATIONS } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
@@ -145,11 +144,11 @@ export class World {
   constructor(sheet, slot = 0, save = null) { this.sheet = sheet; this.slot = slot; this.save = save; }
   enter(g) {
     this.g = g;
-    const farm = (new URLSearchParams(location.search).get('map') === 'editor' && editorMap()) || buildFarm(); // ?map=editor play-tests the editor's map
-    this.maps = { farm, road: buildRoad(), town: buildTown() };
-    this.map = farm;
+    const edited = new URLSearchParams(location.search).get('map') === 'editor' ? editorMaps() : {}; // ?map=editor play-tests the editor's maps
+    this.maps = Object.fromEntries(Object.entries(LOCATIONS).map(([id, l]) => [id, { ...(edited[id] ?? l.build()), name: l.name }]));
+    this.map = this.maps.farm;
     this.player = new Walker(this.sheet);
-    for (const m of Object.values(this.maps)) m.villagers = m === farm ? spawnVillagers(m) : [];
+    for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m);
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
@@ -201,7 +200,10 @@ export class World {
     for (const [px, py] of [[x + 4, y + 11], [x + 11, y + 11], [x + 4, y + 15], [x + 11, y + 15]]) {
       const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
       if (ty < 0 || ty >= H) return true;
-      if (tx < 0 || tx >= W) { if (!this.map.exits?.[tx < 0 ? 'left' : 'right']) return true; continue; } // road exits
+      if (tx < 0 || tx >= W) { // off the edge only along a road with an exit
+        if (!this.map.exits?.[tx < 0 ? 'left' : 'right'] || !isPaved(this.map.ground[ty * W + (tx < 0 ? 0 : W - 1)])) return true;
+        continue;
+      }
       if (solid[ty * W + tx]) return true;
     }
     return false;
@@ -242,12 +244,15 @@ export class World {
     const me = feet(this.x, this.y);
     for (const v of this.villagers) v.update(dt, (x, y) => overlaps(feet(x, y), me));
     // Walk off the end of the road into the next location.
-    const { W, exits } = this.map, side = this.x < -4 ? 'left' : this.x > (W - 1) * TILE + 4 ? 'right' : null;
+    const { W, exits } = this.map, side = this.x + 8 < 0 ? 'left' : this.x + 8 > W * TILE ? 'right' : null; // centre past the edge (only possible on the road)
     if (side && exits?.[side]) this.travel(exits[side], side);
   }
   travel(id, side) {
     this.map = this.maps[id];
     this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
+    // Line up with the road on the side you came in; if the row you were on isn't road there, use the nearest road row.
+    const rows = exitRows(this.map, side === 'right' ? 'left' : 'right'), row = Math.floor((this.y + 13) / TILE);
+    if (rows.length && !rows.includes(row)) this.y = rows.reduce((a, b) => (Math.abs(b - row) < Math.abs(a - row) ? b : a)) * TILE - 4;
     this.say(this.map.name); playMusic(); // each region picks its music on entry
   }
   get villagers() { return this.map.villagers; }

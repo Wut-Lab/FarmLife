@@ -1,5 +1,7 @@
 // The places you can walk between. Each location is a map plus exits on its left/right edges along the stone road.
 import { blobTile, mapFromData, grassTile } from './map-data.js';
+import { buildFarm } from './farm-map.js';
+import { VILLAGERS } from './villagers.js';
 
 export const ROAD = [15, 16, 17]; // the stone road's rows, the same in every location so walking across lines up
 
@@ -33,6 +35,13 @@ function area(W, H, seed, on, extra = () => {}) {
   return mapFromData({ W, H, ground, objects, spawn: { x: 1, y: ROAD[1] } });
 }
 const onRoad = y => ROAD.includes(y);
+
+// Every location, by id: its name and how to build its default map. The editor can replace any of them.
+export const LOCATIONS = {
+  farm: { name: 'Farm', build: () => ({ ...buildFarm(), npcs: VILLAGERS }) },
+  road: { name: 'Road to Town', build: () => buildRoad() },
+  town: { name: 'Town', build: () => buildTown() },
+};
 
 // Road to town: a stone road straight across. Blank for now, to build on later.
 export function buildRoad() {

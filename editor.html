@@ -48,7 +48,10 @@
 <header>
   <h1>Map Editor</h1>
   <button id="new" title="Start an empty grass map">New</button>
-  <button id="farm" title="Open the current farm map to change it">Open farm</button>
+  <select id="loc" title="Which location you're editing"></select>
+  <button id="reset" title="Throw away your changes to this location and start from the game's version">Reset</button>
+  <label title="Where walking off the road at the left edge takes you">← <select id="exitL"></select></label>
+  <label title="Where walking off the road at the right edge takes you"><select id="exitR"></select> →</label>
   <button id="import" title="Open a map .json file">Import</button>
   <button id="export" title="Download this map as a .json file">Export</button>
   <button id="play" title="Play this map in the game (new tab)">▶ Play test</button>

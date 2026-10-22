@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildFarm } from '../src/farm-map.js';
+import { LOCATIONS } from '../src/locations.js';
 import { Villager, spawnVillagers } from '../src/villagers.js';
 
-test('all three villagers fit on the farm', () => assert.equal(spawnVillagers(buildFarm()).length, 3));
+test('all three villagers fit on the farm', () => assert.equal(spawnVillagers(LOCATIONS.farm.build()).length, 3));
 
 test('a villager walks its square and comes back', () => {
   const v = new Villager({ sheet: 's', x: 2, y: 2, size: 2 });
