@@ -3,6 +3,7 @@ import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS } from './clock.js';
 import { buildFarm } from './farm-map.js';
 import { CROPS, SEEDS, Field } from './crops.js';
+import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
@@ -124,6 +125,17 @@ export class CharacterSelect {
   }
 }
 
+const CONTROLS = [
+  ['Move', 'Arrows / WASD, or drag'],
+  ['Use', 'Space / E, or tap Use'],
+  ['Hotbar', '1-8, or tap a slot'],
+  ['Seeds', 'Q, or tap the seed bag again'],
+  ['Bag', 'I, or tap Bag; tap 2 slots to swap'],
+  ['Sleep', 'Use on your front door'],
+  ['Pause', 'Esc / P, or tap II'],
+  ['Help', '? key, or tap ?'],
+];
+
 const SPEED = 64; // pixels per second, 4 tiles
 
 export class World {
@@ -133,7 +145,8 @@ export class World {
     this.map = buildFarm();
     this.player = new Walker(this.sheet);
     Object.assign(this, this.map.spawn);
-    this.clock = new Clock();
+    this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
+    this.menu = null; this.mi = 0; // pause / settings / controls overlay
     this.field = new Field(this.map.plots);
     this.seed = 0;
     this.inv = new Inventory();
@@ -153,6 +166,7 @@ export class World {
       this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (saved ? ' Game saved.' : ''));
     });
     if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
+    playMusic(); // one of two tracks, picked at random each time you enter
   }
 
   // Everything a save file needs. Saved each morning, so time of day and position aren't stored.
@@ -185,9 +199,11 @@ export class World {
 
   update(dt) {
     const inp = this.g.input, d = inp.dir;
+    if (this.menu) return this.menuUpdate(inp);
     if (this.shop) return this.shopUpdate(inp, dt);
-    if (inp.hit('Escape') && !this.open) return this.g.go(new SaveSelect());
     const b = this.buttons(), inv = this.inv;
+    if ((inp.hit('Escape', 'KeyP') && !this.open) || inp.tapIn(...b.pause)) return this.openMenu('pause');
+    if (inp.hit('Slash') || inp.tapIn(...b.help)) return this.openMenu('controls', null);
     if (inp.hit('KeyI', ...(this.open ? ['Escape'] : [])) || inp.tapIn(...b.bag)) { this.open = !this.open; this.binOpen = false; this.pick = -1; }
     if (inp.hit('KeyQ', 'Tab')) this.seed = (this.seed + 1) % SEEDS.length;
     for (let i = 0; i < HOTBAR; i++) if (inp.hit('Digit' + (i + 1))) inv.sel = i;
@@ -224,14 +240,14 @@ export class World {
   // Ripe crops are picked by hand; otherwise the held tool decides what happens.
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
-    if (key === this.map.door) return this.clock.sleep();
+    if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     if (key === this.map.shop) { this.shop = true; return; }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
     if (!f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
-    const p = f.get(key), tired = () => this.say('Too tired. Sleep at your front door.');
+    const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
       if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
-      f.act(key); return this.say(`Harvested a ${CROPS[p.crop].name}!`);
+      sfx('harvest'); f.act(key); return this.say(`Harvested a ${CROPS[p.crop].name}!`);
     }
     if (held === 'seeds') {
       if (p) return this.say(`Something is already growing here.`);
@@ -239,29 +255,102 @@ export class World {
       if (!this.seeds[seed]) return this.say(`Out of ${CROPS[seed].name} seeds. Buy more at the shop.`);
       if (!this.clock.useEnergy(1)) return tired();
       this.seeds[seed]--;
-      const r = f.act(key, seed); return this.say(`Planted ${CROPS[r.crop].name} seeds. Water them daily.`);
+      sfx('plant'); const r = f.act(key, seed); return this.say(`Planted ${CROPS[r.crop].name} seeds. Water them daily.`);
     }
     if (held === 'can') {
       if (!p) return this.say('Nothing to water. Plant some seeds first.');
       if (p.wet) return this.say(`${CROPS[p.crop].name}: watered today. Ready in ${CROPS[p.crop].days - p.grown} day(s).`);
       if (!this.clock.useEnergy(1)) return tired();
-      return f.act(key);
+      sfx('water'); return f.act(key);
     }
     if (held === 'hoe') {
       if (!p) return this.say('The soil is already tilled.');
       if (!this.clock.useEnergy(2)) return tired();
-      f.plots.set(key, null); return this.say(`Dug up the ${CROPS[p.crop].name}.`);
+      sfx('dig'); f.plots.set(key, null); return this.say(`Dug up the ${CROPS[p.crop].name}.`);
     }
     this.say('Pick a tool from your hotbar (1-3).');
   }
 
   buttons() {
     const g = this.g, r = 22;
-    return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r] };
+    return { act: [g.w - r - 6, g.h - r - 6, r, r], bag: [g.w - 2 * r - 12, g.h - r - 6, r, r], help: [g.w - 14, 4, 10, 10], pause: [g.w - 14, 16, 10, 10] };
   }
 
   // Shipping bin: 5 slots, filled from the bag; everything in it is sold overnight.
   binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id]?.price ?? 0) * s.n, 0); }
+
+  // Pause menu, settings and controls help. The clock stops while any of them is open.
+  openMenu(name, back = name === 'pause' ? null : 'pause') {
+    this.menu = name; this.back = back; this.mi = 0; this.open = this.binOpen = false; this.shop = false;
+    sfx('click');
+  }
+  menuItems() {
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (this.menu === 'pause') return [
+      { label: 'Resume', go: () => { this.menu = null; } },
+      { label: 'Controls', go: () => this.openMenu('controls') },
+      { label: 'Settings', go: () => this.openMenu('settings') },
+      { label: 'Quit to title', go: () => { stopMusic(); this.g.go(new SaveSelect()); } },
+    ];
+    if (this.menu === 'settings') {
+      const vol = (k, label) => ({ label, value: settings[k] ? `${settings[k] * 10}%` : 'Off', adj: d => { settings[k] = clamp(settings[k] + d, 0, 10); saveSettings(); } });
+      return [
+        vol('music', 'Music'), vol('sfx', 'Sound effects'),
+        { label: 'Day speed', value: DAY_SPEEDS[settings.speed].label, adj: d => {
+          settings.speed = clamp(settings.speed + d, 0, DAY_SPEEDS.length - 1); saveSettings();
+          this.clock.msPerTick = DAY_SPEEDS[settings.speed].ms;
+        } },
+        { label: 'Back', go: () => this.openMenu('pause') },
+      ];
+    }
+    return [{ label: 'Back', go: () => (this.back ? this.openMenu(this.back) : (this.menu = null)) }];
+  }
+  menuLayout() {
+    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : 0;
+    const w = 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    const rows = items.map((it, i) => ({ ...it, r: [x + 6, y + 18 + lines * 9 + i * 18, w - 12, 16] }));
+    return { x, y, w, h, rows, top: y + 18 };
+  }
+  menuUpdate(inp) {
+    const { rows } = this.menuLayout(), n = rows.length;
+    this.player.update(0, false);
+    if (inp.hit('ArrowUp', 'KeyW')) this.mi = (this.mi + n - 1) % n;
+    if (inp.hit('ArrowDown', 'KeyS')) this.mi = (this.mi + 1) % n;
+    const cur = rows[this.mi];
+    if (cur.adj && inp.hit('ArrowLeft', 'KeyA')) { cur.adj(-1); sfx('click'); }
+    if (cur.adj && inp.hit('ArrowRight', 'KeyD')) { cur.adj(1); sfx('click'); }
+    if (cur.go && inp.hit('Enter', 'Space')) return cur.go();
+    if (inp.hit('Escape')) return this.menu === 'pause' ? rows[0].go() : rows[n - 1].go(); // Esc resumes or goes back
+    rows.forEach((it, i) => {
+      const [x, y, w, h] = it.r;
+      if (it.adj) {
+        if (inp.tapIn(x + w - 70, y, 16, h)) { it.adj(-1); sfx('click'); this.mi = i; }
+        if (inp.tapIn(x + w - 16, y, 16, h)) { it.adj(1); sfx('click'); this.mi = i; }
+      } else if (inp.tapIn(...it.r)) it.go();
+    });
+  }
+  drawMenu() {
+    const g = this.g, { x, y, w, h, rows, top } = this.menuLayout();
+    g.ctx.fillStyle = '#0b142888'; g.ctx.fillRect(0, 0, g.w, g.h);
+    g.panel(x, y, w, h, '#3f2631f2');
+    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls' }[this.menu];
+    g.text(title, x + w / 2, y + 5, { size: 8, align: 'center', color: '#fff3a8' });
+    if (this.menu === 'pause') g.text(`Saved this morning · ♪ ${musicName()}`, x + w / 2, y + h + 3, { size: 5, align: 'center', color: '#e2f0d4' });
+    if (this.menu === 'controls') CONTROLS.forEach(([k, v], i) => {
+      g.text(k, x + 8, top + i * 9, { size: 5, color: '#fff3a8' });
+      g.text(v, x + 52, top + i * 9, { size: 5 });
+    });
+    rows.forEach((it, i) => {
+      const [rx, ry, rw, rh] = it.r;
+      g.panel(rx, ry, rw, rh, i === this.mi ? '#e86a9a' : '#5d7150cc');
+      g.text(it.label, it.adj ? rx + 6 : rx + rw / 2, ry + 4, { size: 6, align: it.adj ? 'left' : 'center' });
+      if (it.adj) {
+        g.text('<', rx + rw - 62, ry + 4, { size: 6, align: 'center', color: '#fff3a8' });
+        g.text(it.value, rx + rw - 35, ry + 4, { size: 6, align: 'center' });
+        g.text('>', rx + rw - 8, ry + 4, { size: 6, align: 'center', color: '#fff3a8' });
+      }
+    });
+  }
 
   // Seed shop: buy seeds, sell crops.
   shopRows() {
@@ -277,11 +366,11 @@ export class World {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
       const c = CROPS[s];
       if (this.gold < c.seed) return this.say(`Not enough gold for ${c.name} seeds.`);
-      this.gold -= c.seed; this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
+      sfx('coin'); this.gold -= c.seed; this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
     });
     if (inp.hit('KeyS') || inp.tapIn(...r.sell)) {
       const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * CROPS[s].price, 0);
-      this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
+      if (earned) sfx('coin'); this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
     }
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
@@ -351,11 +440,12 @@ export class World {
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
     if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
     this.hud();
+    if (this.menu) this.drawMenu();
   }
 
   hud() {
-    const g = this.g, k = this.clock, w = 78, x = g.w - w - 4;
-    const y = g.w < HOTBAR * 19 + w + 12 ? 26 : 4; // Drop below the hotbar on narrow screens.
+    const g = this.g, k = this.clock, w = 78, x = g.w - w - 18;
+    const y = g.w < HOTBAR * 19 + w + 26 ? 26 : 4; // Drop below the hotbar on narrow screens.
     g.panel(x, y, w, 34);
     g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, y + 3, { size: 7 });
     g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
@@ -380,6 +470,10 @@ export class World {
       }
     }
     if (this.shop) this.drawShop();
+    // Help and pause buttons, top right.
+    const hb = this.buttons();
+    g.panel(...hb.help, '#000000cc'); g.text('?', hb.help[0] + 5, hb.help[1] + 1, { size: 7, align: 'center' });
+    g.panel(...hb.pause, '#000000cc'); g.text('II', hb.pause[0] + 5, hb.pause[1] + 2, { size: 5, align: 'center' });
     // Bag and action buttons, bottom right.
     const b = this.buttons();
     g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('bag', b.bag[0] + 3, b.bag[1] + 1);

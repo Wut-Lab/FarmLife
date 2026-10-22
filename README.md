@@ -23,7 +23,8 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Seed shop: face the shop door (next to the house) and press Use. 1–3 buy seeds, S sells all crops
 - Shipping bin (next to the shop): press Use to open it, then tap an item and a bin slot to move it in. The 5 slots sell overnight
 - Saving: 4 save files. The game saves automatically each morning after you sleep. Delete a file from the file screen (press twice)
-- Back to the file screen: Escape (progress since this morning is not saved)
+- Pause: Esc / P, or tap **II** (Resume, Controls, Settings, Quit to title). Help: ? key, or tap **?**
+- Settings: music and sound volume, day speed (Relaxed / Normal / Fast). Saved per device
 
 ## Tests
 `npm test`
