@@ -2,6 +2,7 @@
 import { blobTile, mapFromData, grassTile } from './map-data.js';
 import { buildFarm } from './farm-map.js';
 import { VILLAGERS } from './villagers.js';
+import { TOWN } from './town-map.js';
 
 export const ROAD = [15, 16, 17]; // the stone road's rows, the same in every location so walking across lines up
 
@@ -40,7 +41,7 @@ const onRoad = y => ROAD.includes(y);
 export const LOCATIONS = {
   farm: { name: 'Farm', build: () => ({ ...buildFarm(), npcs: VILLAGERS }) },
   road: { name: 'Road to Town', build: () => buildRoad() },
-  town: { name: 'Town', build: () => buildTown() },
+  town: { name: 'Town', build: () => mapFromData(TOWN) },
 };
 
 // Road to town: a stone road straight across. Blank for now, to build on later.
@@ -48,9 +49,3 @@ export function buildRoad() {
   return { ...area(40, 30, 11, (x, y) => onRoad(y)), name: 'Road to Town', exits: { left: 'farm', right: 'town' } };
 }
 
-// Town: the road comes in from the left and opens into a square. Buildings come later.
-export function buildTown() {
-  const square = (x, y) => x >= 14 && x <= 27 && y >= 9 && y <= 22;
-  const m = area(40, 30, 23, (x, y) => (x <= 14 && onRoad(y)) || square(x, y), put => put('sign', 12, 14, 1, 1));
-  return { ...m, name: 'Town', exits: { left: 'road' } };
-}
