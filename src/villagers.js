@@ -15,7 +15,7 @@ export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop' };
 // Shopkeepers: who they are, their shop page's title, and the building (map.shop / map.store) whose door sends you to them.
 export const KEEPERS = {
   shopkeeper: { name: 'Fredrick', title: "Fredrick's Seeds", building: 'shop' },
-  storekeeper: { name: 'The storekeeper', title: 'General Store', building: 'store' },
+  storekeeper: { name: 'Bella', title: 'General Store', building: 'store' },
 };
 
 // Feet box shared by villagers and the player: [x, y, w, h] in pixels.

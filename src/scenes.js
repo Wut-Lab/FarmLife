@@ -165,7 +165,7 @@ export class World {
     this.maps = Object.fromEntries(Object.entries(LOCATIONS).map(([id, l]) => [id, { ...(edited[id] ?? l.build()), name: l.name }]));
     this.map = this.maps.farm;
     this.player = new Walker(this.sheet);
-    for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m, sheet => SCHEDULES[sheet]); // scheduled people are placed by schedule()
+    for (const m of Object.values(this.maps)) m.villagers = spawnVillagers(m, sheet => SCHEDULES[sheet]?.length); // scheduled people are placed by schedule()
     this.people = {}; // sheet -> { key, map, v }: where each scheduled person is right now
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
@@ -295,6 +295,7 @@ export class World {
   schedule() {
     const k = this.clock, hour = Math.floor(k.minutes / 60), day = weekday(k.day);
     for (const [sheet, rules] of Object.entries(SCHEDULES)) {
+      if (!rules.length) continue; // not scheduled yet
       const r = activity(rules, hour, day, k.seasonName), map = this.maps[r.map];
       const key = r.act === 'sleep' || !map ? 'sleep' : `${k.day}:${rules.indexOf(r)}${r.act === 'wander' ? ':' + hour : ''}`;
       const p = this.people[sheet];

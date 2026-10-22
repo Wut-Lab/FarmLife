@@ -4,6 +4,7 @@
 //   move:   go to map x, y and walk a square of `size` tiles there (0: stand still)
 //   wander: go somewhere random in `map`, a new spot each hour
 //   sleep:  go home for the night (not seen anywhere)
+// Someone with no rules isn't scheduled: they stay where the map places them.
 export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const ACTS = ['move', 'wander', 'sleep'];
 
@@ -13,6 +14,7 @@ export const SCHEDULES = {
     { hour: 13, act: 'move', map: 'town', x: 13, y: 8, size: 0 }, // next to his stall
     { hour: 21, act: 'sleep' },
   ],
+  storekeeper: [], // Bella: no rules yet, so they stay wherever the map places them
   villager_male: [ // Hank
     { hour: 6, act: 'move', map: 'town', x: 20, y: 9, size: 2 },
     { hour: 12, act: 'move', map: 'road', x: 18, y: 12, size: 2 },
