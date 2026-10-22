@@ -14,6 +14,7 @@ const SIZES = {
   tree_green: { w: 1, h: 2, solid: 1 }, tree_orange: { w: 1, h: 2, solid: 1 },
   pine: { w: 1, h: 2, solid: 1 }, oak: { w: 2, h: 2, solid: 1 }, shrub_large: { w: 2, h: 1 },
   house_brown: { w: 3, h: 4, solid: 3 }, house_blue: { w: 3, h: 4, solid: 3 },
+  pickup: { w: 3, h: 2, solid: 1 }, car_small: { w: 2, h: 2, solid: 1 }, box_truck: { w: 4, h: 3, solid: 2 },
 };
 const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips']);
 const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);

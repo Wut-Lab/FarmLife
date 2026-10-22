@@ -509,12 +509,66 @@ def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, ch
 def inside_poly(pts, x, y):
     m = Image.new('L', (4 * S, 4 * S)); ImageDraw.Draw(m).polygon(pts, 255); return m.getpixel((x, y)) > 0 if 0 <= y < 4 * S else False
 
+# ---------- vehicles (side view, facing right) ----------
+def wheel(im, cx, cy, r):
+    shape(im, lambda d: d.ellipse([cx - r, cy - r, cx + r, cy + r]), '#3a3a42', '#55555e', '#22222a', 1)
+    h = r // 2; shape(im, lambda d: d.ellipse([cx - h, cy - h, cx + h, cy + h]), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+    im.putpixel((cx, cy), C('#6a6e76'))
+def pickup():  # 96x64 rounded fifties pickup in faded red, chrome grille and bumpers
+    im = new(3 * S, 2 * S); d = ImageDraw.Draw(im); R, Rl, Rd = '#b8372f', '#d65a4a', '#82211e'
+    d.ellipse([10, 58, 92, 63], (0, 0, 0, 60))
+    shape(im, lambda d: d.rounded_rectangle([4, 30, 46, 50], 2), R, Rl, Rd)  # bed
+    shape(im, lambda d: d.rectangle([4, 29, 46, 32]), '#d65a4a', '#e8806e', Rd, 1)
+    shape(im, lambda d: d.ellipse([8, 37, 38, 59]), R, Rl, Rd)  # rear fender
+    shape(im, lambda d: d.polygon([(40, 50), (40, 18), (44, 11), (63, 11), (69, 27), (90, 29), (93, 35), (93, 48), (40, 50)]), R, Rl, Rd)  # cab and hood
+    shape(im, lambda d: d.ellipse([60, 34, 92, 60]), R, Rl, Rd)  # front fender
+    shape(im, lambda d: d.polygon([(45, 15), (61, 15), (65, 27), (45, 27)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)  # window
+    d.line([(64, 30), (64, 47)], C(Rd)); d.line([(42, 30), (42, 47)], C(Rd)); d.line([(57, 33), (60, 33)], C('#d8dce0'))  # door and handle
+    shape(im, lambda d: d.rectangle([38, 49, 62, 51]), '#4a4a52', None, '#2a2a30', 1)  # running board
+    for x in range(88, 93, 2): d.line([(x, 37), (x, 46)], C('#d8dce0'))  # grille
+    shape(im, lambda d: d.ellipse([84, 30, 90, 36]), '#fff4c0', '#ffffff', '#c8b878', 1)  # headlight
+    shape(im, lambda d: d.rounded_rectangle([84, 47, 95, 51], 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)  # bumpers
+    shape(im, lambda d: d.rounded_rectangle([0, 46, 8, 50], 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+    d.rectangle([4, 34, 5, 37], C('#f6d04d'))  # tail light
+    for x, y in ((14, 33), (30, 42), (70, 40), (50, 44)): d.point((x, y), C('#9a5a3a'))  # a few rust spots
+    wheel(im, 23, 53, 9); wheel(im, 76, 53, 9)
+    return outline(im)
+def small_car():  # 64x64 little rounded blue hatchback
+    im = new(2 * S, 2 * S); d = ImageDraw.Draw(im); B, Bl, Bd = '#4a8ad8', '#72aaee', '#2e5ea8'
+    d.ellipse([6, 58, 58, 63], (0, 0, 0, 60))
+    shape(im, lambda d: d.ellipse([10, 20, 52, 50]), B, Bl, Bd)  # cabin dome
+    shape(im, lambda d: d.rounded_rectangle([2, 36, 61, 54], 7), B, Bl, Bd)  # body
+    shape(im, lambda d: d.polygon([(16, 25), (29, 23), (29, 35), (13, 35)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+    shape(im, lambda d: d.polygon([(33, 23), (43, 25), (49, 35), (33, 35)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+    d.line([(31, 38), (31, 51)], C(Bd)); d.line([(25, 40), (28, 40)], C('#d8dce0'))
+    shape(im, lambda d: d.ellipse([55, 39, 60, 44]), '#fff4c0', '#ffffff', '#c8b878', 1); d.rectangle([3, 40, 4, 43], C('#e8504a'))
+    shape(im, lambda d: d.rounded_rectangle([54, 49, 63, 53], 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+    shape(im, lambda d: d.rounded_rectangle([0, 49, 8, 53], 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+    wheel(im, 15, 53, 7); wheel(im, 48, 53, 7)
+    return outline(im)
+def box_truck():  # 128x96 white box van with a red cab
+    im = new(4 * S, 3 * S); d = ImageDraw.Draw(im); R, Rl, Rd = '#c8343a', '#e05a5a', '#8a2028'
+    d.ellipse([8, 89, 122, 95], (0, 0, 0, 60))
+    shape(im, lambda d: d.rectangle([6, 76, 122, 83]), '#4a4a52', None, '#2a2a30', 1)  # chassis
+    shape(im, lambda d: d.rounded_rectangle([2, 10, 88, 78], 2), '#f4f2ee', '#ffffff', '#c8c4bc', 3)  # box
+    for x in range(14, 86, 12): d.line([(x, 13), (x, 75)], C('#dcd8d0'))
+    d.line([(4, 14), (86, 14)], C('#dcd8d0')); d.line([(4, 72), (86, 72)], C('#c8c4bc'))
+    shape(im, lambda d: d.polygon([(90, 80), (90, 34), (112, 34), (122, 52), (125, 56), (125, 80)]), R, Rl, Rd)  # cab
+    shape(im, lambda d: d.polygon([(94, 38), (110, 38), (118, 52), (94, 52)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+    d.line([(112, 55), (112, 78)], C(Rd)); d.line([(104, 58), (108, 58)], C('#d8dce0'))
+    shape(im, lambda d: d.rectangle([87, 40, 89, 50]), '#3a3a42', None, None)  # mirror
+    shape(im, lambda d: d.ellipse([119, 59, 124, 64]), '#fff4c0', '#ffffff', '#c8b878', 1)
+    shape(im, lambda d: d.rounded_rectangle([116, 77, 127, 82], 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+    d.rectangle([3, 66, 5, 70], C('#e8504a'))
+    for cx in (22, 44, 108): wheel(im, cx, 84, 10)
+    return outline(im)
+
 # ---------- characters ----------
 SKIN, SKIN_L, SKIN_D = '#f5c7a0', '#ffdcc0', '#d99a78'
 def eye(d, p, ex, out):
     """2x4 eye: lash line on top, white glint, iris, lighter bottom. out = side for the outer lash flick."""
     d.line([(ex, 9), (ex + 1, 9)], C('#2a1a2a'))
-    if p['long']: d.point((ex + out, 9 - (out > 0) * 0), C('#2a1a2a')); d.point((ex + out, 8), C('#2a1a2a'))
+    if p['long'] or p.get('lashes'): d.point((ex + out, 9 - (out > 0) * 0), C('#2a1a2a')); d.point((ex + out, 8), C('#2a1a2a'))
     d.point((ex, 10), C('#ffffff')); d.point((ex + 1, 10), C(p['eye']))
     d.line([(ex, 11), (ex + 1, 11)], C(p['eye'])); d.line([(ex, 12), (ex + 1, 12)], C(p['eye_l']))
 def farmer(p):
@@ -660,6 +714,9 @@ SHOPKEEPER = dict(hair='#5a3a28', hair_l='#7a5440', hair_d='#3a2418', shirt='#f4
                   glasses='#3a2a2a', stubble='#b88a72',
                   fringe=[(7, 10), (8, 3), (12, 1), (20, 1), (24, 3), (25, 10), (24, 7), (21, 5), (14, 5), (10, 6), (8, 9)],
                   side=[(7, 11), (8, 3), (13, 1), (20, 1), (25, 4), (25, 7), (20, 5), (13, 5), (11, 7), (9, 12)])
+STOREKEEPER = dict(hair='#8a3a26', hair_l='#aa5638', hair_d='#5e2418', shirt='#4f9a8a', shirt_l='#6fbaa8', shirt_d='#33706a', accent='#6fbaa8', eye='#5a3a2a', eye_l='#9a6a4a',
+                   pants='#6a4a3a', pants_d='#4a3228', long=False, lashes=True, tail=True, tie='#f6d04d', sweater=True, apron=('#f4f2ee', '#ffffff', '#c8c4bc'),
+                   fringe=VILLAGER_F['fringe'], side=VILLAGER_F['side'])
 
 # ---------- assemble ----------
 cells, names = [], {}
@@ -688,6 +745,7 @@ add('barn', barn())
 add('house_brown', cottage('#8a5a3a', '#a87050', '#64402a', '#5e4f5a', '#7a6a76', '#3f343e', '#efe2c8', '#fff4dc', '#b8a888', 'stone',
                            shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True, cx=74))
 add('house_blue', cottage('#a8d0e8', '#c8e4f4', '#7aa8c8', '#5f6670', '#7c838c', '#43484f', '#3f5a80', '#5c7fa8', '#2a3e5c', 'brick', cx=8))
+add('pickup', pickup()); add('car_small', small_car()); add('box_truck', box_truck())
 add('roses', flower_patch('roses')); add('tulips', flower_patch('tulips'))
 COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
 add('cobble0', COB); add('brick0', BRK)
@@ -702,6 +760,7 @@ farmer(MALE).save('assets/characters/farmer_male.png'); farmer(FEMALE).save('ass
 farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_F).save('assets/characters/villager_female.png')
 farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
 farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
+farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')
