@@ -8,11 +8,11 @@ const TALK = 10, GIFT = { love: 80, like: 45, neutral: 20, dislike: -30 }, QUEST
 export const PERK_AT = 5;
 export const PEOPLE = {
   villager_male: { name: 'Hank', loves: ['cabbage'], likes: ['turnip'], dislikes: [],
-    perk: { id: 'bargain', text: 'Crops sell for 10% more' }, hello: ['Fine day for it.', 'Soil looks good this year.', 'Mind the path, friend.'] },
+    perk: { id: 'bargain', text: 'Crops sell for 10% more' }, hello: ['Hi!'] },
   villager_female: { name: 'Rosa', loves: ['turnip'], likes: ['carrot'], dislikes: [],
-    perk: { id: 'discount', text: 'Seeds cost 10% less' }, hello: ['Oh, hello there!', 'The flowers are lovely today.', 'Have you been to town yet?'] },
+    perk: { id: 'discount', text: 'Seeds cost 10% less' }, hello: ['What a beautiful day!'] },
   villager_child: { name: 'Pip', loves: ['carrot'], likes: [], dislikes: ['cabbage'],
-    perk: { id: 'green_thumb', text: 'Watering takes no energy' }, hello: ['Hi! Wanna race?', 'I found a bug this big!', 'Carrots are the best.'] },
+    perk: { id: 'green_thumb', text: 'Watering takes no energy' }, hello: ['How is your farm?'] },
 };
 // Rewards for reaching each heart level, once each (the perk comes at PERK_AT).
 export const REWARDS = { 2: { gold: 100 }, 4: { seeds: 5 }, 7: { gold: 300 }, 10: { gold: 1000 } };
