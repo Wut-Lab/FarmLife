@@ -299,9 +299,12 @@ export class World {
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     const v = this.villagerAhead();
-    if (v) return this.meet(v);
+    if (v) return v.role === 'shop' ? this.openShop(v) : this.meet(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
-    if (key === this.map.shop) { this.shop = true; return; }
+    if (key === this.map.shop) { // the shopkeeper sells, if this location has one
+      const keeper = this.villagers.find(v => v.role === 'shop');
+      return keeper ? this.say('Fredrick runs the shop. Talk to him outside.') : (this.shop = true);
+    }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
     if (!this.onFarm || !f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
@@ -489,6 +492,12 @@ export class World {
     });
   }
 
+  // Fredrick turns to you and opens his shop.
+  openShop(v) {
+    v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+    this.shop = v.walker.sheet; sfx('click');
+  }
+
   // Seed shop: buy seeds, sell crops.
   shopRows() {
     const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 56);
@@ -514,7 +523,9 @@ export class World {
   drawShop() {
     const g = this.g, r = this.shopRows();
     g.panel(r.x, r.y, 140, 96, '#3f2631ee');
-    g.text(`Seed Shop · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    const keeper = typeof this.shop === 'string' && this.shop; // opened by talking to the shopkeeper
+    if (keeper) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(keeper).draw(g, r.x - 22, r.y + 2); }
+    g.text(`${keeper ? "Fredrick's Seeds" : 'Seed Shop'} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
     SEEDS.forEach((s, i) => {
       const c = CROPS[s], [x, y, w, h] = r.buy[i];
       g.panel(x, y, w, h, '#5d7150cc');

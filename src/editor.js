@@ -2,6 +2,7 @@
 // point and the road exits, then export JSON or play-test (index.html?map=editor). Each location autosaves to localStorage.
 import { A } from './art-index.js';
 import { LOCATIONS } from './locations.js';
+import { ROLES } from './villagers.js';
 import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround, editorData, exitRows } from './map-data.js';
 
 const $ = s => document.querySelector(s);
@@ -11,7 +12,7 @@ const T = 32; // screen pixels per tile at zoom 1
 const ZMIN = 0.2, ZMAX = 6; // zoom limits; the slider runs on a log scale between them
 
 // ---------- map state, autosave, undo ----------
-const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)' };
+const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)', shopkeeper: 'Fredrick (shopkeeper)' };
 const sheets = Object.fromEntries(await Promise.all(Object.keys(NPCS).map(async k => {
   const im = new Image(); im.src = `assets/characters/${k}.png`; await im.decode(); return [k, im];
 })));
@@ -120,7 +121,7 @@ function setTool(t) {
 function opts() {
   const tip = TOOLS.find(t => t[0] === tool)[3];
   $('#opts').textContent = brush.npc && ['paint', 'rect'].includes(tool) ? `${brush.label}: click to set where their walk starts, or drag a Box to set the square they walk.`
-    : ['paint', 'rect', 'fill'].includes(tool) ? `${tip}. Brush: ${brush.label}` : tip;
+    + (ROLES[brush.npc] ? ' A Box of one tile makes them stand still.' : '') : ['paint', 'rect', 'fill'].includes(tool) ? `${tip}. Brush: ${brush.label}` : tip;
 }
 
 // ---------- editing ----------
@@ -199,7 +200,7 @@ function putNpc(sheet, x, y, size) {
   if (!inside(x, y)) return;
   const old = d.npcs.find(v => v.sheet === sheet);
   d.npcs = d.npcs.filter(v => v !== old && !(v.x === x && v.y === y));
-  d.npcs.push({ sheet, x, y, size: size ?? old?.size ?? 2 });
+  d.npcs.push({ sheet, x, y, size: size ?? old?.size ?? (ROLES[sheet] ? 0 : 2) });
 }
 // A villager's square must be walkable all the way round, like the game checks.
 const npcOk = v => { const s = solidOf(d); for (let j = 0; j <= v.size; j++) for (let i = 0; i <= v.size; i++) if (!inside(v.x + i, v.y + j) || s[(v.y + j) * d.W + v.x + i]) return false; return true; };
@@ -218,7 +219,7 @@ function apply(x, y, e) {
 function boxFill(x0, y0, x1, y1) {
   [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)]; [y0, y1] = [Math.min(y0, y1), Math.max(y0, y1)];
   if (brush.ground) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) setGround(x, y, brush); return; }
-  if (brush.npc) return putNpc(brush.npc, x0, y0, Math.max(1, Math.min(x1 - x0, y1 - y0)));
+  if (brush.npc) return putNpc(brush.npc, x0, y0, Math.min(x1 - x0, y1 - y0));
   const p = PREFABS[brush.prefab];
   if (brush.auto === 'fence') { for (let x = x0; x <= x1; x++) for (const y of new Set([y0, y1])) place(brush, x, y);
     for (let y = y0 + 1; y < y1; y++) for (const x of new Set([x0, x1])) place(brush, x, y); return; }

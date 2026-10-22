@@ -4,12 +4,15 @@ import { TILE, DIRS, Walker } from './engine.js';
 const SPEED = 24; // pixels per second, slower than the player
 const PAUSE = 1.2; // seconds standing at each corner
 
-// sheet, top-left tile of the square, side length in tiles.
+// sheet, top-left tile of the square, side length in tiles (0: stands on that tile, facing down).
 export const VILLAGERS = [
   { sheet: 'villager_male', x: 6, y: 15, size: 2 },
   { sheet: 'villager_female', x: 29, y: 15, size: 2 },
   { sheet: 'villager_child', x: 12, y: 15, size: 2 },
+  { sheet: 'shopkeeper', x: 21, y: 13, size: 0 }, // Fredrick, in front of his shop
 ];
+// What talking to someone does, if it isn't the usual chat (see support.js).
+export const ROLES = { shopkeeper: 'shop' };
 
 // Feet box shared by villagers and the player: [x, y, w, h] in pixels.
 export const feet = (x, y) => [x + 4, y + 11, 8, 5];
@@ -21,12 +24,13 @@ export class Villager {
     const s = size * TILE, x0 = x * TILE, y0 = y * TILE;
     this.corners = [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]]; // clockwise
     [this.x, this.y] = this.corners[0];
-    this.next = 1; this.wait = PAUSE;
+    this.next = 1; this.wait = PAUSE; this.still = !size; this.role = ROLES[sheet];
   }
 
   // blocked(x, y): true if the villager's feet can't stand at x, y (the player, mostly).
   update(dt, blocked) {
     if (this.wait > 0) { this.wait -= dt; return this.walker.update(dt, false); }
+    if (this.still) { this.walker.dir = DIRS.down; return this.walker.update(dt, false); } // back to facing out after a chat
     const [tx, ty] = this.corners[this.next], dx = tx - this.x, dy = ty - this.y, d = Math.hypot(dx, dy);
     this.walker.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? DIRS.left : DIRS.right) : (dy < 0 ? DIRS.up : DIRS.down);
     const step = Math.min(d, SPEED * dt), nx = this.x + (dx / d) * step, ny = this.y + (dy / d) * step;
