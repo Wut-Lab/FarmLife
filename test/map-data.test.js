@@ -52,3 +52,11 @@ test('locations keep their exits and villagers through the editor, and exits sit
     for (const side of Object.keys(m.exits)) assert.deepEqual(exitRows(m, side), ROAD, `${l.name} ${side}`);
   }
 });
+
+test('the general store has a door like the shop, and vehicles just block like houses', () => {
+  const d = blankMap(20, 20);
+  d.objects.push({ name: 'store', x: 2, y: 2 }, { name: 'pickup', x: 10, y: 2 });
+  const m = mapFromData(d);
+  assert.equal(m.store, '4,5'); assert.equal(m.door, null);
+  assert.equal(m.solid[3 * 20 + 10], 1); assert.equal(m.solid[2 * 20 + 10], 0); // pickup: bottom row solid, roof walk-behind
+});

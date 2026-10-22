@@ -11,7 +11,12 @@ export const VILLAGERS = [
   { sheet: 'villager_child', x: 12, y: 15, size: 2 },
 ];
 // What talking to someone does, if it isn't the usual chat (see support.js).
-export const ROLES = { shopkeeper: 'shop' };
+export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop' };
+// Shopkeepers: who they are, their shop page's title, and the building (map.shop / map.store) whose door sends you to them.
+export const KEEPERS = {
+  shopkeeper: { name: 'Fredrick', title: "Fredrick's Seeds", building: 'shop' },
+  storekeeper: { name: 'The storekeeper', title: 'General Store', building: 'store' },
+};
 
 // Feet box shared by villagers and the player: [x, y, w, h] in pixels.
 export const feet = (x, y) => [x + 4, y + 11, 8, 5];

@@ -6,7 +6,7 @@ import { LOCATIONS } from './locations.js';
 import { CROPS, SEEDS, Field } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
-import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps } from './villagers.js';
+import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, KEEPERS } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
 import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
@@ -320,9 +320,10 @@ export class World {
     const v = this.villagerAhead();
     if (v) return v.role === 'shop' ? this.openShop(v) : this.meet(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
-    if (key === this.map.shop) { // the shopkeeper sells, if this location has one
-      const keeper = this.villagers.find(v => v.role === 'shop');
-      return keeper ? this.say('Fredrick runs the shop. Talk to him outside.') : (this.shop = true);
+    const counter = Object.keys(KEEPERS).find(k => key === this.map[KEEPERS[k].building]);
+    if (counter) { // the keeper sells, if they're here; otherwise the door opens the shop
+      const keeper = this.villagers.find(v => v.walker.sheet === counter);
+      return keeper ? this.say(`${KEEPERS[counter].name} runs the ${KEEPERS[counter].building}. Talk to them outside.`) : (this.shop = counter);
     }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
     if (!this.onFarm || !f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
@@ -511,7 +512,7 @@ export class World {
     });
   }
 
-  // Fredrick turns to you and opens his shop.
+  // A shopkeeper turns to you and opens their shop.
   openShop(v) {
     v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
     this.shop = v.walker.sheet; sfx('click');
@@ -542,9 +543,9 @@ export class World {
   drawShop() {
     const g = this.g, r = this.shopRows();
     g.panel(r.x, r.y, 140, 96, '#3f2631ee');
-    const keeper = typeof this.shop === 'string' && this.shop; // opened by talking to the shopkeeper
-    if (keeper) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(keeper).draw(g, r.x - 22, r.y + 2); }
-    g.text(`${keeper ? "Fredrick's Seeds" : 'Seed Shop'} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    const keeper = typeof this.shop === 'string' && this.shop; // whose shop (true: an old-style shop with no keeper)
+    if (keeper && this.villagers.some(v => v.walker.sheet === keeper)) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(keeper).draw(g, r.x - 22, r.y + 2); }
+    g.text(`${KEEPERS[keeper]?.title ?? 'Seed Shop'} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
     SEEDS.forEach((s, i) => {
       const c = CROPS[s], [x, y, w, h] = r.buy[i];
       g.panel(x, y, w, h, '#5d7150cc');
@@ -591,7 +592,7 @@ export class World {
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, ...this.map.bin].includes(`${fx},${fy}`)) {
+    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin].includes(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }
