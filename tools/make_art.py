@@ -358,7 +358,7 @@ def sign():
     im.alpha_composite(ITEMS['carrot'].resize((12, 12), Image.BOX), (10, 7)); return outline(im)
 
 # ---------- buildings (96x96, sliced 3x3) ----------
-def building(roof, roof_l, roof_d, wall, wall_l, wall_d, awning=False):
+def building(roof, roof_l, roof_d, wall, wall_l, wall_d):
     im = new(96, 96)
     shape(im, lambda d: d.rectangle([4, 46, 91, 95]), wall, wall_l, wall_d)
     d = ImageDraw.Draw(im)
@@ -372,13 +372,45 @@ def building(roof, roof_l, roof_d, wall, wall_l, wall_d, awning=False):
         shape(im, lambda d, x=x: d.rectangle([x + 2, 62, x + 17, 75]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
         d.line([(x + 10, 62), (x + 10, 75)], C('#f6e7c1')); d.line([(x + 2, 68), (x + 17, 68)], C('#f6e7c1'))
         shape(im, lambda d, x=x: d.rectangle([x - 1, 78, x + 20, 81]), '#9a6436', '#c88a50', None)
-        if not awning:
-            for i in range(4): d.point((x + 2 + i * 5, 80), C(rnd.choice(['#f28fb8', '#f6d04d', '#ffffff'])))
-    if awning:
-        for i, x in enumerate(range(4, 92, 8)):
-            shape(im, lambda d, x=x: d.pieslice([x, 50, x + 8, 60], 0, 180), '#f28fb8' if i % 2 else '#fff3e6', None, '#c45e7a' if i % 2 else '#d8c8b8', 1)
+        for i in range(4): d.point((x + 2 + i * 5, 80), C(rnd.choice(['#f28fb8', '#f6d04d', '#ffffff'])))
     shape(im, lambda d: d.rounded_rectangle([38, 62, 57, 95], 3), '#8a5a3a', '#a87048', '#5f3b25')
     d.line([(47, 64), (47, 94)], C('#5f3b25')); d.point((53, 80), C('#f6d04d')); d.point((42, 80), C('#f6d04d'))
+    return outline(im)
+
+def stall():  # 96x96 seed stall: striped awning on posts, shelves of seed packets, a counter of seed crates, sacks at its feet
+    im = new(96, 96); d = ImageDraw.Draw(im); WOOD, WOOD_L, WOOD_D = '#a8744a', '#c48e5e', '#6f4426'
+    shape(im, lambda d: d.rectangle([10, 26, 85, 70]), '#8a5a36', '#9a6a42', '#5f3b25')  # back board
+    for y in (40, 56): shape(im, lambda d, y=y: d.rectangle([10, y, 85, y + 2]), WOOD, WOOD_L, WOOD_D, 1)  # shelves
+    PK = {k: packet(ITEMS[k]).crop((7, 4, 26, 30)).resize((10, 13), Image.BOX) for k in ITEMS}
+    for row, y in enumerate((27, 43)):
+        for i, x in enumerate(range(13, 82, 12)): im.alpha_composite(PK[('carrot', 'turnip', 'cabbage')[(i + row) % 3]], (x, y))
+    for x in (5, 85): shape(im, lambda d, x=x: d.rectangle([x, 12, x + 5, 92]), WOOD, WOOD_L, WOOD_D, 1)  # posts
+    # Striped awning, scalloped along the front edge.
+    for i, x in enumerate(range(0, 96, 8)):
+        top, top_l, top_d = ('#e86a8a', '#f28fb8', '#b8466a') if i % 2 else ('#fff3e6', '#ffffff', '#d8c8b8')
+        shape(im, lambda d, x=x: d.polygon([(x + 2, 6), (x + 10, 6), (x + 8, 22), (x, 22)] if x < 48 else [(x - 2, 6), (x + 6, 6), (x + 8, 22), (x, 22)]), top, top_l, None)
+        shape(im, lambda d, x=x: d.pieslice([x, 17, x + 8, 27], 0, 180), top, None, top_d, 1)
+    shape(im, lambda d: d.rectangle([2, 3, 93, 7]), '#b8466a', '#e86a8a', '#8a2e4a', 1)  # rail along the top
+    # Hanging sign with a sprout on it.
+    d.line([(38, 22), (38, 28)], C(WOOD_D)); d.line([(57, 22), (57, 28)], C(WOOD_D))
+    shape(im, lambda d: d.rounded_rectangle([33, 26, 62, 38], 2), '#e0b47a', '#f0cc98', '#a8744a', 1)
+    d.line([(47, 36), (47, 31)], C('#3e7a32'))
+    shape(im, lambda d: d.ellipse([41, 28, 47, 32]), '#6cb455', '#8fd16a', '#3e7a32', 1); shape(im, lambda d: d.ellipse([47, 28, 53, 32]), '#6cb455', '#8fd16a', '#3e7a32', 1)
+    # Counter with three crates of loose seed on top.
+    shape(im, lambda d: d.rectangle([4, 68, 91, 91]), WOOD, WOOD_L, WOOD_D)
+    for x in range(12, 90, 8): d.line([(x, 71), (x, 90)], C(WOOD_D))
+    shape(im, lambda d: d.rectangle([2, 64, 93, 69]), '#c48e5e', '#e0a96a', '#8a5a36', 1)
+    sr = random.Random(21)
+    for x, seed in ((10, ('#e0892f', '#f5ad4f')), (38, ('#e8d8a8', '#c8b480')), (66, ('#6a4a8a', '#8a6aaa'))):
+        shape(im, lambda d, x=x: d.rectangle([x, 56, x + 19, 65]), '#c88a50', '#e0a96a', '#8a5a36', 1)
+        for _ in range(30): d.point((x + sr.randrange(2, 18), sr.randrange(55, 59)), C(sr.choice(seed)))
+        d.line([(x + 1, 61), (x + 18, 61)], C('#8a5a36'))
+    # Burlap seed sacks leaning on the counter's front corners.
+    for x in (3, 76):
+        shape(im, lambda d, x=x: d.rounded_rectangle([x, 76, x + 16, 95], 5), '#d8bf8a', '#ead6a8', '#a88a5a')
+        shape(im, lambda d, x=x: d.rectangle([x + 4, 73, x + 12, 78]), '#c8ae78', '#ead6a8', '#a88a5a', 1)
+        d.line([(x + 3, 79), (x + 13, 79)], C('#8a6a3a')); d.line([(x + 8, 86), (x + 8, 90)], C('#3e7a32'))
+        for a, b in ((6, 85), (7, 86), (5, 84), (10, 85), (9, 86), (11, 84)): d.point((x + a, b), C('#6cb455'))
     return outline(im)
 
 def barn():  # 128x128 red gambrel barn with white trim, grey shingles behind the gable, grass tufts at its base
@@ -651,7 +683,7 @@ for k in range(3): add(f'fence{k}', fence(k))
 add('fence3', fence_v())
 add('sign', sign()); add('bin', bin_())
 add('house', building('#d9583b', '#f07a5a', '#a83a2a', '#c88a50', '#e0a96a', '#9a6436'))
-add('shop', building('#5c7fa8', '#7fa3c8', '#3f5a80', '#efe2c8', '#fff4dc', '#c8b898', awning=True))
+add('shop', stall())
 add('barn', barn())
 add('house_brown', cottage('#8a5a3a', '#a87050', '#64402a', '#5e4f5a', '#7a6a76', '#3f343e', '#efe2c8', '#fff4dc', '#b8a888', 'stone',
                            shutters=('#f28fb8', '#f9b4d0', '#c45e7a'), brick_base=True, smoke=True, cx=74))
