@@ -1,5 +1,6 @@
 import { Game } from './engine.js';
 import { Menu } from './scenes.js';
+import { STYLES } from './traveller.js';
 
 const game = new Game(document.getElementById('game'));
 await Promise.all([
@@ -13,6 +14,7 @@ await Promise.all([
     shopkeeper: 'assets/characters/shopkeeper.png',
     storekeeper: 'assets/characters/storekeeper.png',
     wanderer: 'assets/characters/wanderer.png',
+    ...Object.fromEntries(STYLES.map(k => [`traveller_${k}`, `assets/characters/traveller_${k}.png`])),
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),
   document.fonts?.load('bold 10px "Pixelify Sans"').catch(() => {}),

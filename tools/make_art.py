@@ -902,7 +902,7 @@ def eye(d, p, ex, out):
     d.point((ex, 10), C('#ffffff')); d.point((ex + 1, 10), C(p['eye']))
     d.line([(ex, 11), (ex + 1, 11)], C(p['eye'])); d.line([(ex, 12), (ex + 1, 12)], C(p['eye_l']))
 def farmer(p):
-    sheet = new(3 * S, 4 * S)
+    sheet = new(3 * S, 4 * S); SK, SKL, SKD = p.get('skin', (SKIN, SKIN_L, SKIN_D))
     for dir_ in range(4):
         for f in range(3):
             im = new(); step = (0, 1, -1)[f]
@@ -920,10 +920,10 @@ def farmer(p):
                 if side:
                     for k, off in enumerate((step * 2, -step * 2)):
                         shape(im, lambda d, off=off: d.rectangle([14 + off, 23, 17 + off, 28 - (1 if off < 0 else 0)]), p['pants'], None, p['pants_d'], 1)
-                        shape(im, lambda d, off=off: d.rectangle([14 + off, 28 - (1 if off < 0 else 0), 18 + off if dir_ == 2 else 17 + off, 30 - (1 if off < 0 else 0)]), '#5f3b25', None, None)
+                        shape(im, lambda d, off=off: d.rectangle([14 + off, 28 - (1 if off < 0 else 0), 18 + off if dir_ == 2 else 17 + off, 30 - (1 if off < 0 else 0)]), p.get('shoes', '#5f3b25'), None, None)
                     break
                 shape(im, lambda d: d.rectangle([lx, 23, lx + 2, 28 - max(0, lift)]), p['pants'], None, p['pants_d'], 1)
-                shape(im, lambda d: d.rectangle([lx, 28 - max(0, lift), lx + 2, 30 - max(0, lift)]), '#5f3b25', None, None)
+                shape(im, lambda d: d.rectangle([lx, 28 - max(0, lift), lx + 2, 30 - max(0, lift)]), p.get('shoes', '#5f3b25'), None, None)
             if p.get('robe'): wanderer_robe(im, d, dir_, step, p)
             # torso + arms
             tx0, tx1 = (11, 21) if not side else (12, 20)
@@ -949,13 +949,13 @@ def farmer(p):
                     else: shape(im, lambda d: d.rectangle([12, 17, 14, 24] if dir_ == 1 else [18, 17, 20, 24]), A_, Al, Ad, 1)
             for ax, sw in arms:
                 if p.get('tee'):  # short sleeves, bare forearms
-                    shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 23 + sw], 1), SKIN, SKIN_L, SKIN_D, 1)
+                    shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 23 + sw], 1), SK, SKL, SKD, 1)
                     shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 19 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
                     continue
                 shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 22 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
-                shape(im, lambda d: d.rectangle([ax, 22 + sw, ax + 2, 23 + sw]), SKIN, None, None)
+                shape(im, lambda d: d.rectangle([ax, 22 + sw, ax + 2, 23 + sw]), SK, None, None)
             # head
-            shape(im, lambda d: d.ellipse([8, 2, 24, 17]), SKIN, SKIN_L, SKIN_D, 1)
+            shape(im, lambda d: d.ellipse([8, 2, 24, 17]), SK, SKL, SKD, 1)
             d = ImageDraw.Draw(im)
             if dir_ == 0:
                 for ex, out in ((12, -1), (19, 2)): eye(d, p, ex, out)
@@ -1007,7 +1007,7 @@ def farmer(p):
                 xs = range(10, 23) if dir_ == 0 else range(8, 17) if dir_ == 1 else range(16, 25)
                 for y in range(13, 18):
                     for x in xs:
-                        if im.getpixel((x, y))[:3] in (C(SKIN)[:3], C(SKIN_D)[:3]) and (x + y) % 2 and not (dir_ == 0 and 14 <= x <= 17 and y == 14):
+                        if im.getpixel((x, y))[:3] in (C(SK)[:3], C(SKD)[:3]) and (x + y) % 2 and not (dir_ == 0 and 14 <= x <= 17 and y == 14):
                             im.putpixel((x, y), C(p['stubble']))
             if p.get('glasses') and dir_ != 3:  # thin round frames, arms back to the ears
                 F = C(p['glasses'])
@@ -1061,6 +1061,17 @@ STOREKEEPER = dict(hair='#8a3a26', hair_l='#aa5638', hair_d='#5e2418', shirt='#4
 WANDERER = dict(hair='#3a2a3a', hair_l='#4a3a4a', hair_d='#2a1a2a', shirt='#4a3a5a', shirt_l='#6a5a7e', shirt_d='#2e2238', accent='#c8a868', eye='#e8e0a0', eye_l='#e8e0a0',
                 pants='#4a3a5a', pants_d='#2e2238', long=False, sweater=True, robe=('#4a3a5a', '#6a5a7e', '#2e2238'), fringe=[], side=[])
 
+# Wilds travellers: a few body styles drawn in key colours that the game swaps for random ones (src/traveller.js keeps the same keys).
+KEY = dict(hair='#ff0001', hair_l='#ff0002', hair_d='#ff0003', shirt='#00ff01', shirt_l='#00ff02', shirt_d='#00ff03', accent='#00ff02',
+           pants='#0100ff', pants_l='#0200ff', pants_d='#0300ff', eye='#ff01ff', eye_l='#ff02ff', skin=('#01ffff', '#02ffff', '#03ffff'),
+           stache='#ff0001', stache_l='#ff0002', stache_d='#ff0003', tie='#00ff03', shoes='#fe0101')
+TRAVELLERS = {
+    'short': dict(KEY, long=False, fringe=MALE['fringe'], side=MALE['side']),
+    'long': dict(KEY, long=True, fringe=FEMALE['fringe'], side=FEMALE['side']),
+    'tail': dict(KEY, long=False, tail=True, sweater=True, fringe=VILLAGER_F['fringe'], side=VILLAGER_F['side']),
+    'bald': dict(KEY, long=False, bald=True, overalls=True, fringe=[], side=[]),
+    'cap': dict(KEY, long=False, tee=True, cap=('#00ff03', '#00ff02', '#00ff03'), fringe=VILLAGER_KID['fringe'], side=VILLAGER_KID['side']),
+}
 # ---------- assemble ----------
 cells, names = [], {}
 def add(name, im):
@@ -1116,6 +1127,7 @@ farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
 farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
 farmer(WANDERER).save('assets/characters/wanderer.png')  # hooded stranger, kept for a later event
+for k_, p_ in TRAVELLERS.items(): farmer(p_).save(f'assets/characters/traveller_{k_}.png')
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')

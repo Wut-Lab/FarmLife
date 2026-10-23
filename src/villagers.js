@@ -14,7 +14,7 @@ export const VILLAGERS = [
   { sheet: 'villager_child', x: 12, y: 15, size: 2 },
 ];
 // What talking to someone does, if it isn't the usual chat (see support.js).
-export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop', wanderer: 'stranger' };
+export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop', wanderer: 'stranger', traveller: 'traveller' };
 // The hooded stranger (kept for a later event) won't give a name yet; one of these, at random.
 export const STRANGER_LINES = ['...', 'The road goes further than you think.', 'Not yet. Not yet.', 'You have kind eyes, farmer.'];
 // Shopkeepers: who they are, their shop page's title, and the building (map.shop / map.store) whose door sends you to them.

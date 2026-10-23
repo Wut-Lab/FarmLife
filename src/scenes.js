@@ -13,6 +13,7 @@ import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen } from './store.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
+import { TRAVELLER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
@@ -313,6 +314,13 @@ export class World {
   freshen(id) {
     const m = this.maps[id] = { ...LOCATIONS[id].build(Date.now(), this.clock.seasonName), name: LOCATIONS[id].name, villagers: [] };
     m.digs = scatterDigs(m, DIG_SPOTS[id] ?? 0);
+    const spot = id === 'wilds' && Math.random() < TRAVELLER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // sometimes someone's out here
+    if (spot) {
+      const look = travellerLook(), v = new Villager({ sheet: 'traveller', ...spot });
+      this.g.images.traveller = paintTraveller(this.g.images, look);
+      Object.assign(v, { name: look.name, met: false });
+      m.villagers.push(v);
+    }
   }
   get villagers() { return this.map.villagers; }
 
@@ -362,6 +370,11 @@ export class World {
     if (v?.role === 'stranger') { // turns to you, says something cryptic
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       return this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
+    }
+    if (v?.role === 'traveller') { // introduces themself, then just chats
+      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+      const pick = a => a[Math.floor(Math.random() * a.length)], hi = !v.met; v.met = true;
+      return this.say(`${v.name}: ${hi ? `Oh, hello! I'm ${v.name}. ${pick(HELLOS)}` : pick(LINES)}`);
     }
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
