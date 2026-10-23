@@ -90,11 +90,11 @@ test('the road has a locked gate at the foot of a path down its right side', asy
 });
 const exitRowsOf = m => [...Array(m.H).keys()].filter(y => /^(path|cobble)/.test(m.ground[y * m.W + m.W - 1]));
 
-test('the road leads down to the blank area behind the gate, and back up', async () => {
+test('the road leads down to the area behind the gate, and back up', async () => {
   const { LOCATIONS } = await import('../src/locations.js');
   const { exitRows } = await import('../src/map-data.js');
   const road = LOCATIONS.road.build(), south = LOCATIONS.south.build();
   assert.equal(road.exits.down, 'south'); assert.equal(south.exits.up, 'road');
-  assert.deepEqual(exitRows(road, 'down'), [38]); assert.deepEqual(exitRows(south, 'up'), [38]);
-  assert.equal([south.W, south.H].join(), '40,30'); assert.equal(south.objects.length, 0);
+  assert.deepEqual(exitRows(road, 'down'), [38]); assert.deepEqual(exitRows(south, 'up'), [37, 38]);
+  assert.equal([south.W, south.H].join(), '40,30');
 });
