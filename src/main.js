@@ -14,6 +14,8 @@ await Promise.all([
     shopkeeper: 'assets/characters/shopkeeper.png',
     storekeeper: 'assets/characters/storekeeper.png',
     wanderer: 'assets/characters/wanderer.png',
+    minstrel: 'assets/characters/minstrel.png',
+    salesman: 'assets/characters/salesman.png',
     ...Object.fromEntries(STYLES.map(k => [`traveller_${k}`, `assets/characters/traveller_${k}.png`])),
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),

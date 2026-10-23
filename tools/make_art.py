@@ -978,6 +978,17 @@ def farmer(p):
                     continue
                 shape(im, lambda d: d.rounded_rectangle([ax, 16 + sw, ax + 2, 22 + sw], 1), p['shirt'], p['shirt_l'], p['shirt_d'], 1)
                 shape(im, lambda d: d.rectangle([ax, 22 + sw, ax + 2, 23 + sw]), SK, None, None)
+            if p.get('sequins'):  # glittering jacket: every few shirt pixels catch the light
+                px_ = im.load(); shirt_cols = {C(p['shirt'])[:3], C(p['shirt_d'])[:3], C(p['shirt_l'])[:3]}
+                for y in range(14, 26):
+                    for x in range(6, 27):
+                        if px_[x, y][3] and px_[x, y][:3] in shirt_cols and (x * 3 + y * 5 + dir_) % 7 == 0: px_[x, y] = C(p['sequins'] if (x + y) % 2 else '#ffffff')
+            if p.get('boa'):  # feather boa round the shoulders, hanging down the front
+                B, Bl, Bd = p['boa']
+                for bx in ((11, 14, 18, 21) if not side else (14, 18)):
+                    shape(im, lambda d, bx=bx: d.ellipse([bx - 2, 14, bx + 1, 17]), B, Bl, Bd, 1)
+                if dir_ == 0: shape(im, lambda d: d.ellipse([9, 17, 11, 21]), B, Bl, Bd, 1); shape(im, lambda d: d.ellipse([21, 17, 23, 21]), B, Bl, Bd, 1)  # ends hang over the shoulders
+                d = ImageDraw.Draw(im)
             # head
             shape(im, lambda d: d.ellipse([8, 2, 24, 17]), SK, SKL, SKD, 1)
             d = ImageDraw.Draw(im)
@@ -1019,6 +1030,13 @@ def farmer(p):
                 if dir_ == 1: pts = [(32 - x, y) for x, y in pts]
                 shape(im, lambda d: d.polygon(pts), H, Hl, Hd, 1)
             if p['long'] and dir_ == 3: shape(im, lambda d: d.rounded_rectangle([8, 10, 24, 23], 5), H, Hl, Hd)
+            if p.get('beanie'):  # knitted beanie pulled down over the ears, ribbed band
+                K, Kl, Kd = p['beanie']
+                shape(im, lambda d: d.chord([7, 0, 25, 17], 180, 360), K, Kl, Kd, 1)
+                shape(im, lambda d: d.rectangle([7, 6, 25, 9]), Kd, K, None, 1)
+                d = ImageDraw.Draw(im)
+                for x in range(8, 25, 2): d.line([(x, 6), (x, 9)], C(K))
+                d.point((16, 0), C(Kl))
             if p.get('cap'):  # baseball cap over the hair: crown, then the brim facing the way the head does
                 K, Kl, Kd = p['cap']
                 shape(im, lambda d: d.chord([7, 1, 25, 15], 180, 360), K, Kl, Kd, 1)
@@ -1033,6 +1051,14 @@ def farmer(p):
                     for x in xs:
                         if im.getpixel((x, y))[:3] in (C(SK)[:3], C(SKD)[:3]) and (x + y) % 2 and not (dir_ == 0 and 14 <= x <= 17 and y == 14):
                             im.putpixel((x, y), C(p['stubble']))
+            if p.get('shades') and dir_ != 3:  # big showy glasses: tinted lenses in thick gold frames, with little stars at the corners
+                F, L = p['shades']
+                for ex in ((12, 19) if dir_ == 0 else (10 if dir_ == 1 else 20,)):
+                    d.rectangle([ex - 2, 7, ex + 3, 12], C(F)); d.rectangle([ex - 1, 8, ex + 2, 11], C(L)); d.point((ex - 1, 8), C('#ffffff'))
+                if dir_ == 0:
+                    d.line([(15, 9), (16, 9)], C(F))
+                    for sx in (9, 23): d.point((sx, 6), C(F)); d.point((sx - 1, 7), C(F)); d.point((sx + 1, 7), C(F)); d.point((sx, 8), C(F))
+                else: d.line([(14, 9), (16, 9)] if dir_ == 1 else [(16, 9), (17, 9)], C(F))
             if p.get('glasses') and dir_ != 3:  # thin round frames, arms back to the ears
                 F = C(p['glasses'])
                 for ex in ((12, 19) if dir_ == 0 else (10 if dir_ == 1 else 20,)):
@@ -1096,6 +1122,76 @@ TRAVELLERS = {
     'bald': dict(KEY, long=False, bald=True, overalls=True, fringe=[], side=[]),
     'cap': dict(KEY, long=False, tee=True, cap=('#00ff03', '#00ff02', '#00ff03'), fringe=VILLAGER_KID['fringe'], side=VILLAGER_KID['side']),
 }
+# Random-event people: the wandering minstrel (big glasses, sequins, a feather boa) and the clothes salesman, who wears his own stock.
+MINSTREL = dict(MALE, hair='#7a5a3a', hair_l='#9a7650', hair_d='#553c24', shirt='#7a3ac8', shirt_l='#9a6ae8', shirt_d='#4e2888', accent='#f6d04d',
+                pants='#f4f2ee', pants_d='#c8c4bc', shades=('#f6d04d', '#e86a9a'), sequins='#f6d04d', boa=('#f8a8d0', '#ffd0e8', '#d878a8'))
+SALESMAN = dict(VILLAGER_KID, child=False, cap=None, hair='#5a3a28', hair_l='#7a5440', hair_d='#3a2418', shirt='#5aa85a', shirt_l='#7cc87a', shirt_d='#3a7a3e',
+                accent='#7cc87a', pants='#3f68a8', pants_l='#5f88c8', pants_d='#2c4a80', sweater=True, beanie=('#3f8a3a', '#5aa84e', '#2a6a2a'), shoes='#f4f2ee')
+
+# Event bits: music notes (one per primary colour), the macaw, and the salesman's clothes.
+def music_note(col):  # an eighth note: round head, stem, curling flag
+    im = new(); dk = '#2a1a2a'
+    shape(im, lambda d: d.ellipse([8, 20, 17, 27]), col, '#ffffff', None, 1)
+    shape(im, lambda d: d.rectangle([15, 6, 17, 24]), col, None, None)
+    shape(im, lambda d: d.polygon([(17, 6), (24, 11), (24, 17), (21, 13), (17, 12)]), col, None, None)
+    return outline(im)
+RED, YEL, GRN, BLU = ('#e0322c', '#f86a50', '#a01e1c'), ('#f6c62c', '#fde27a', '#c08a18'), ('#3aa84a', '#6ac86a', '#22783a'), ('#2a6ae0', '#5a9af6', '#1a44a0')
+def macaw(frame, flying=False):  # a scarlet macaw facing left: red body, yellow-green-blue wings, long blue tail, white face
+    im = new(); bob = frame if not flying else 0
+    if flying:
+        shape(im, lambda d: d.polygon([(18, 16), (30, 13), (31, 17), (20, 19)]), *BLU, 1)  # tail streams out behind
+        shape(im, lambda d: d.ellipse([9, 12, 22, 20]), *RED, 1)
+        up = frame == 0
+        wing = [(12, 14), (20, 14), (24, 2), (18, 4)] if up else [(12, 16), (20, 16), (26, 27), (18, 26)]
+        shape(im, lambda d: d.polygon(wing), *BLU, 1)
+        shape(im, lambda d: d.polygon([(12, 14), (20, 14), (21, 9), (15, 9)] if up else [(12, 16), (20, 16), (22, 21), (15, 21)]), *YEL, 1)
+        shape(im, lambda d: d.ellipse([3, 10, 11, 17]), *RED, 1)
+        d = ImageDraw.Draw(im); d.rectangle([5, 12, 7, 14], C('#ffffff')); d.point((6, 13), C('#1a1a1a'))
+        shape(im, lambda d: d.polygon([(3, 12), (0, 14), (2, 17), (4, 15)]), '#e8e0d0', '#ffffff', '#3a3434', 1)
+        return outline(im)
+    shape(im, lambda d: d.polygon([(17, 20), (21, 20), (24, 31), (20, 31)]), *BLU, 1)  # tail hangs down
+    shape(im, lambda d: d.polygon([(20, 26), (23, 26), (24, 31), (21, 31)]), *RED, 1)
+    shape(im, lambda d: d.ellipse([10, 10 + bob, 22, 23]), *RED, 1)  # body
+    shape(im, lambda d: d.polygon([(15, 13 + bob), (22, 14 + bob), (23, 22), (17, 22)]), *BLU, 1)  # folded wing: blue tips,
+    shape(im, lambda d: d.polygon([(15, 13 + bob), (22, 14 + bob), (22, 18), (16, 18)]), *GRN, 1)  # green middle,
+    shape(im, lambda d: d.polygon([(15, 13 + bob), (21, 14 + bob), (20, 16 + bob), (15, 16 + bob)]), *YEL, 1)  # yellow shoulder
+    shape(im, lambda d: d.ellipse([7, 4 + bob, 16, 13 + bob]), *RED, 1)  # head
+    d = ImageDraw.Draw(im); d.rectangle([9, 7 + bob, 12, 10 + bob], C('#ffffff')); d.point((10, 8 + bob), C('#1a1a1a'))
+    shape(im, lambda d: d.polygon([(8, 7 + bob), (4, 8 + bob), (3, 12 + bob), (6, 13 + bob), (8, 11 + bob)]), '#e8e0d0', '#ffffff', '#8a8478', 1)  # hooked beak
+    d = ImageDraw.Draw(im); d.line([(5, 12 + bob), (7, 12 + bob)], C('#3a3434'))
+    d.line([(13, 23), (13, 25)], C('#6a6a6a')); d.line([(17, 23), (17, 25)], C('#6a6a6a'))  # feet
+    return outline(im)
+def beanie():  # green knit beanie
+    im = new()
+    shape(im, lambda d: d.chord([5, 6, 27, 34], 180, 360), '#3f8a3a', '#5aa84e', '#2a6a2a')
+    shape(im, lambda d: d.rounded_rectangle([4, 17, 28, 23], 2), '#2a6a2a', '#3f8a3a', None, 1)
+    d = ImageDraw.Draw(im)
+    for x in range(6, 27, 3): d.line([(x, 18), (x, 22)], C('#3f8a3a'))
+    for x in range(9, 24, 4): d.line([(x, 9), (x, 15)], C('#5aa84e'))
+    shape(im, lambda d: d.ellipse([13, 3, 19, 8]), '#5aa84e', '#7cc87a', '#2a6a2a', 1)
+    return outline(im)
+def longsleeve():  # green long-sleeved t-shirt, laid flat
+    im = new(); G = ('#5aa85a', '#7cc87a', '#3a7a3e')
+    shape(im, lambda d: d.polygon([(10, 6), (4, 10), (1, 25), (6, 26), (9, 13)]), *G, 1)  # sleeves
+    shape(im, lambda d: d.polygon([(22, 6), (28, 10), (31, 25), (26, 26), (23, 13)]), *G, 1)
+    shape(im, lambda d: d.rounded_rectangle([8, 5, 24, 28], 2), *G)
+    d = ImageDraw.Draw(im); d.arc([12, 2, 20, 9], 0, 180, C('#3a7a3e')); d.line([(9, 26), (23, 26)], C('#3a7a3e'))
+    return outline(im)
+def jeans():  # blue jeans: waistband, fly seam, two legs, light stitching
+    im = new(); J = ('#3f68a8', '#5f88c8', '#2c4a80')
+    shape(im, lambda d: d.polygon([(8, 4), (24, 4), (26, 29), (18, 29), (16, 13), (14, 29), (6, 29)]), *J)
+    d = ImageDraw.Draw(im)
+    d.line([(8, 7), (24, 7)], C('#2c4a80')); d.point((16, 5), C('#f6d04d')); d.line([(16, 8), (16, 12)], C('#2c4a80'))
+    d.line([(10, 9), (12, 11)], C('#e8c070')); d.line([(22, 9), (20, 11)], C('#e8c070'))
+    return outline(im)
+def white_sneakers():  # plain white sneaker, grey sole line
+    im = new()
+    shape(im, lambda d: d.polygon([(5, 15), (12, 14), (17, 17), (25, 19), (29, 22), (29, 25), (5, 25)]), '#f4f2ee', '#ffffff', '#c8c4bc', 1)
+    shape(im, lambda d: d.rounded_rectangle([4, 24, 30, 27], 2), '#dcd8d0', '#ffffff', '#a8a49c', 1)
+    d = ImageDraw.Draw(im)
+    for k in range(3): d.line([(12 + k * 3, 16 + k), (14 + k * 3, 18 + k)], C('#c8c4bc'))
+    return outline(im)
+
 # ---------- assemble ----------
 cells, names = [], {}
 def add(name, im):
@@ -1142,6 +1238,9 @@ add('dandelions', dandelions()); add('rock_small', rock('small')); add('rock_med
 add('stone_house', stone_house())
 for st in range(4): add(f'wheat{st}', crop('wheat', st))
 add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
+for name, col in (('note_red', '#e0322c'), ('note_yellow', '#f6c62c'), ('note_blue', '#2a6ae0')): add(name, music_note(col))
+add('bird0', macaw(0)); add('bird1', macaw(1)); add('bird_fly0', macaw(0, True)); add('bird_fly1', macaw(1, True))
+add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))
@@ -1153,6 +1252,7 @@ farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
 farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
 farmer(WANDERER).save('assets/characters/wanderer.png')  # hooded stranger, kept for a later event
+farmer(MINSTREL).save('assets/characters/minstrel.png'); farmer(SALESMAN).save('assets/characters/salesman.png')
 for k_, p_ in TRAVELLERS.items(): farmer(p_).save(f'assets/characters/traveller_{k_}.png')
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')

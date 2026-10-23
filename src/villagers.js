@@ -14,13 +14,14 @@ export const VILLAGERS = [
   { sheet: 'villager_child', x: 12, y: 15, size: 2 },
 ];
 // What talking to someone does, if it isn't the usual chat (see support.js).
-export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop', wanderer: 'stranger', traveller: 'traveller' };
+export const ROLES = { shopkeeper: 'shop', storekeeper: 'shop', wanderer: 'stranger', traveller: 'traveller', minstrel: 'minstrel', salesman: 'shop' };
 // The hooded stranger won't give a name; one of these, at random, as their shop opens.
 export const STRANGER_LINES = ['...', 'The road goes further than you think.', 'Not yet. Not yet.', 'You have kind eyes, farmer.', '..... .... ..', ' The sun hurts sometimes....'];
 // Shopkeepers: who they are, their shop page's title, and the building (map.shop / map.store) whose door sends you to them.
 export const KEEPERS = {
   shopkeeper: { name: 'Fredrick', title: "Fredrick's Seeds", building: 'shop' },
   storekeeper: { name: 'Bella', title: 'General Store', building: 'store' },
+  salesman: { name: 'Clothes salesman', title: 'Wandering Threads' }, // some days, by Fredrick's shop (events.js); sells the GOODS marked seller: 'salesman'
   wanderer: { name: 'Hooded stranger', title: 'Curious Wares', stock: ['wheat'], noBuying: true }, // turns up in the Wilds now and then
 };
 

@@ -6,11 +6,12 @@ import { LOCATIONS } from './locations.js';
 
 const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves from the old layout are dropped
 import { CROPS, SEEDS, Field, aCrop, nCrops, inSeason } from './crops.js';
-import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
+import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName, songPlaying } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS, STRANGER_LINES } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
-import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen } from './store.js';
+import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen, goodsOf } from './store.js';
+import { Events, MINSTREL_LINES } from './events.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
 import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
@@ -191,6 +192,7 @@ export class World {
     this.scatterDigs();
     this.shop = false;
     this.open = false; this.pick = -1;
+    this.events = new Events(); // today's random events
     this.clock.on('overnight', () => {
       const k = this.clock, next = k.day >= DAYS_PER_SEASON ? (k.season + 1) % SEASONS.length : k.season;
       this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs();
@@ -201,6 +203,7 @@ export class World {
     this.clock.on('season', k => { this.withered = this.field.wither(k.season); });
     this.clock.on('newDay', ({ passedOut }) => {
       this.map = this.maps.farm; Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
+      this.events.newDay();
       const saved = writeSave(this.slot, this.snapshot());
       this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : ''));
     });
@@ -275,6 +278,7 @@ export class World {
     if (!this.open && (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act))) this.act();
     this.clock.update(dt * 1000);
     this.schedule();
+    this.events.update(this, dt);
     if (this.toastT > 0) this.toastT -= dt;
     if (this.banner) this.banner.t += dt;
     if (this.open) return this.player.update(dt, false);
@@ -325,6 +329,9 @@ export class World {
     if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
   }
   get villagers() { return this.map.villagers; }
+  // The minstrel's song while you're near him; the region's music otherwise.
+  song(near) { if (near !== songPlaying('minstrel')) playMusic(near ? 'minstrel' : undefined); }
+  found(msg) { sfx('coin'); this.say(msg); }
 
   // Send scheduled people somewhere new when their rule changes (wanderers pick a new spot each hour).
   // Awake, they walk there; waking up or going to bed, they just appear or vanish. Talking to someone holds them up:
@@ -374,6 +381,10 @@ export class World {
       this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
       return this.openShop(v);
     }
+    if (v?.role === 'minstrel') { // stops to sing you a line
+      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+      return this.say(`Wandering minstrel: ${MINSTREL_LINES[Math.floor(Math.random() * MINSTREL_LINES.length)]}`);
+    }
     if (v?.role === 'traveller') { // introduces themself, then just chats
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       const pick = a => a[Math.floor(Math.random() * a.length)], hi = !v.met; v.met = true;
@@ -394,7 +405,9 @@ export class World {
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
       if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
-      sfx('harvest'); f.act(key); return this.say(`Harvested ${aCrop(p.crop)}!`);
+      sfx('harvest'); f.act(key);
+      if (Math.random() < this.bonus('extra') && this.inv.add(p.crop)) return this.say(`Harvested ${aCrop(p.crop)}, and a bonus one!`); // the salesman's clothes
+      return this.say(`Harvested ${aCrop(p.crop)}!`);
     }
     if (held === 'seeds') {
       if (p) return this.say(`Something is already growing here.`);
@@ -593,7 +606,7 @@ export class World {
   }
 
   // Equipment: what's worn, and what it adds up to.
-  bonus(kind) { return Object.values(this.worn).reduce((b, id) => (kind === 'speed' ? b * (GOODS[id]?.speed ?? 1) : b + (GOODS[id]?.energy ?? 0)), kind === 'speed' ? 1 : 0); }
+  bonus(kind) { return Object.values(this.worn).reduce((b, id) => (kind === 'speed' ? b * (GOODS[id]?.speed ?? 1) : b + (GOODS[id]?.[kind] ?? 0)), kind === 'speed' ? 1 : 0); }
   wear(slot, id) {
     if (slot) { if (id) this.worn[slot] = id; else delete this.worn[slot]; }
     this.clock.max = MAX_ENERGY + this.bonus('energy');
@@ -676,7 +689,7 @@ export class World {
     this.clock.update(dt * 1000);
     if (this.toastT > 0) this.toastT -= dt;
     this.player.update(dt, false);
-    if (this.shop === 'storekeeper') return this.storeUpdate(inp);
+    if (goodsOf(this.shop).length) return this.storeUpdate(inp);
     this.shopSeeds().forEach((s, i) => {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
       const c = CROPS[s];
@@ -690,7 +703,7 @@ export class World {
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
   drawShop() {
-    if (this.shop === 'storekeeper') return this.drawStore();
+    if (goodsOf(this.shop).length) return this.drawStore();
     const g = this.g, r = this.shopRows();
     g.panel(r.x, r.y, 140, r.h, '#3f2631ee');
     const keeper = typeof this.shop === 'string' && this.shop; // whose shop (true: an old-style shop with no keeper)
@@ -708,15 +721,14 @@ export class World {
     g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
   }
 
-  // General store: Bella's goods, each bought once.
+  // Goods shops (Bella's general store, the clothes salesman): each thing bought once.
   storeRows() {
-    const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 59);
-    const n = Object.keys(GOODS).length;
-    return { x, y, h: 38 + n * 26, buy: Object.keys(GOODS).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 20 + n * 26, 64, 14] };
+    const g = this.g, n = goodsOf(this.shop).length, h = 38 + n * 26, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - h / 2);
+    return { x, y, h, buy: goodsOf(this.shop).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 20 + n * 26, 64, 14] };
   }
   storeUpdate(inp) {
     const r = this.storeRows();
-    Object.entries(GOODS).forEach(([id, it], i) => {
+    goodsOf(this.shop).map(id => [id, GOODS[id]]).forEach(([id, it], i) => {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
       if (this.gear[id]) return this.say(`You already have the ${it.name}.`);
       if (this.gold < it.price) return this.say(`Not enough gold for the ${it.name}.`);
@@ -724,16 +736,17 @@ export class World {
       sfx('coin'); this.gold -= it.price; this.gear[id] = true;
       if (!it.slot) return this.say(`Bought the ${it.name}! It's in your bag.`);
       const on = !this.worn[it.slot]; if (on) this.wear(it.slot, id);
-      this.say(`Bought the ${it.name}! ` + (on ? 'You put them on.' : 'Wear them from Pause > Equipment.'));
+      const them = it.them ? 'them' : 'it';
+      this.say(`Bought the ${it.name}! ` + (on ? `You put ${them} on.` : `Wear ${them} from Pause > Equipment.`));
     });
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
   drawStore() {
     const g = this.g, r = this.storeRows();
     g.panel(r.x, r.y, 140, r.h, '#3f2631ee');
-    if (this.villagers.some(v => v.walker.sheet === 'storekeeper')) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker('storekeeper').draw(g, r.x - 22, r.y + 2); }
-    g.text(`${KEEPERS.storekeeper.title} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
-    Object.entries(GOODS).forEach(([id, it], i) => {
+    if (this.villagers.some(v => v.walker.sheet === this.shop)) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(this.shop).draw(g, r.x - 22, r.y + 2); }
+    g.text(`${KEEPERS[this.shop].title} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    goodsOf(this.shop).map(id => [id, GOODS[id]]).forEach(([id, it], i) => {
       const [x, y, w, h] = r.buy[i], own = this.gear[id];
       g.panel(x, y, w, h, own ? '#5d715066' : '#5d7150cc');
       g.tile(it.icon, x + 2, y + 4);
@@ -777,6 +790,7 @@ export class World {
         if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
         if (this.map.digs?.has(`${x},${y}`)) g.tile('dig_spot', x * TILE - cx, y * TILE - cy);
       }
+    this.events.drawGround(this, cx, cy);
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
     if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin].includes(`${fx},${fy}`) || this.map.digs?.has(`${fx},${fy}`)) {
@@ -792,6 +806,7 @@ export class World {
       else if (o.villager) o.villager.draw(g, cx, cy);
       else o.tiles.forEach((row, j) => row.forEach((n, k) => g.tile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
     }
+    this.events.drawAbove(this, cx, cy);
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
     if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }

@@ -44,7 +44,7 @@ const SIZES = {
   taxi: { w: 3, h: 2, solid: 1 }, suv: { w: 3, h: 2, solid: 1 }, rock_large: { w: 2, h: 2, solid: 1 }, stone_house: { w: 5, h: 4, solid: 3 },
 };
 const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips', 'dandelions', 'rock_small']);
-const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
+const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', 'beanie', 'longsleeve', 'jeans', 'white_sneakers', 'note_red', 'note_yellow', 'note_blue', 'bird0', 'bird1', 'bird_fly0', 'bird_fly1', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
 export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep|wildcool|wildwarm)\d+$/.test(n);
 export const isPaved = n => /^(path|cobbleb?|brickb?)\d+$/.test(n);
 // Rows where a road reaches the map's left or right edge: walking off there takes you through that side's exit.

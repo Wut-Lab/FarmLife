@@ -66,11 +66,11 @@ export class Game {
     this.scene.draw(c);
   }
 
-  // Draw a named 32x32 tile from assets/art/world.png into a 16-unit logical tile.
-  tile(name, x, y) {
+  // Draw a named 32x32 tile from assets/art/world.png into a 16-unit logical tile (or `size` units).
+  tile(name, x, y, size = TILE) {
     const i = A[name];
     this.ctx.drawImage(this.images.art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32,
-      Math.round(x * 2) / 2, Math.round(y * 2) / 2, TILE, TILE);
+      Math.round(x * 2) / 2, Math.round(y * 2) / 2, size, size);
   }
 
   text(str, x, y, { size = 8, color = '#fff8e8', align = 'left', shadow = '#3f2631', bold = false } = {}) {

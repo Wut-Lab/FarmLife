@@ -54,11 +54,18 @@ const TRACKS = [
     melody: [79, 81, 83, 0, 86, 0, 83, 0, 81, 79, 81, 0, 76, 0, 0, 0, 79, 81, 83, 0, 86, 0, 88, 86, 83, 0, 81, 0, 79, 0, 0, 0],
     bass: [43, 0, 50, 0, 47, 0, 50, 0, 48, 0, 52, 0, 45, 0, 52, 0, 43, 0, 50, 0, 47, 0, 50, 0, 50, 0, 54, 0, 43, 0, 50, 0] },
 ];
+// Songs that only play for a reason (not picked at random): the wandering minstrel's.
+const SONGS = {
+  minstrel: { name: "The Minstrel's Song", bpm: 132,
+    melody: [76, 0, 76, 79, 81, 0, 79, 76, 74, 0, 72, 74, 76, 0, 0, 0, 77, 0, 77, 76, 74, 0, 72, 74, 76, 79, 76, 74, 72, 0, 0, 0],
+    bass: [48, 55, 52, 55, 45, 52, 48, 52, 41, 48, 45, 48, 43, 50, 47, 50, 41, 48, 45, 48, 43, 50, 47, 50, 48, 55, 52, 55, 48, 0, 43, 0] },
+};
 let timer = null, step = 0, nextAt = 0, track = null;
-export function playMusic() {
+// Start a song: by name from SONGS, or one of the region tracks at random.
+export function playMusic(song) {
   stopMusic();
   if (!ensure()) return;
-  track = TRACKS[Math.floor(Math.random() * TRACKS.length)];
+  track = SONGS[song] ?? TRACKS[Math.floor(Math.random() * TRACKS.length)];
   step = 0; nextAt = ctx.currentTime + 0.1;
   const len = 60 / track.bpm / 2;
   timer = setInterval(() => {
@@ -72,3 +79,4 @@ export function playMusic() {
 }
 export function stopMusic() { clearInterval(timer); timer = null; }
 export const musicName = () => track?.name ?? '';
+export const songPlaying = song => !!track && track === SONGS[song];
