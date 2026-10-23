@@ -3,7 +3,7 @@
 import { A } from './art-index.js';
 import { LOCATIONS } from './locations.js';
 import { ROLES } from './villagers.js';
-import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround, editorData, exitRows } from './map-data.js';
+import { PREFABS, EDITOR_KEY, BLOB_SETS, blankMap, blobTile, dataFromMap, solidOf, grassTile, isGround, editorData, exitRows, retile } from './map-data.js';
 
 const $ = s => document.querySelector(s);
 const art = new Image(); art.src = 'assets/art/world.png'; await art.decode();
@@ -142,30 +142,7 @@ function setGround(x, y, b) {
   if (b.tile) d.ground[k] = b.tile; // a hand-picked tile stays exactly as painted
 }
 const isGrass = (x, y) => fam(d.ground[y * d.W + x]) === 'grass';
-// Autotiling. Paths and paving join each other (no border between them); shallow water joins deep; wildflowers join wildflowers; off-map counts as joined.
-// Dirt paths and soil use their 9/3-piece sets, everything in BLOB_SETS its 47-piece set.
-const PAVED = /^(path|cobbleb?|brickb?)\d+$/;
-function joins(f, n) {
-  if (f === 'path' || f === 'cobbleb' || f === 'brickb') return PAVED.test(n);
-  if (f === 'shallow') return /^(shallow|deep)\d+$/.test(n);
-  if (f === 'wildcool' || f === 'wildwarm') return /^wild(cool|warm)\d+$/.test(n); // the two meadows blend into each other
-  return fam(n) === f;
-}
-function retileAround(x, y, r = 1) {
-  for (let j = y - r; j <= y + r; j++) for (let i = x - r; i <= x + r; i++) {
-    if (!inside(i, j)) continue;
-    const n = d.ground[j * d.W + i], f = fam(n), same = (a, b) => !inside(a, b) || joins(f, d.ground[b * d.W + a]);
-    if (BLOB_SETS.includes(f)) {
-      const bits = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
-      d.ground[j * d.W + i] = blobTile(f, bits.reduce((m, [a, b], k) => (same(i + a, j + b) ? m | (1 << k) : m), 0));
-      continue;
-    }
-    if (!/^(path|soil)\d$/.test(n)) continue;
-    const col = !same(i - 1, j) && same(i + 1, j) ? 0 : same(i - 1, j) && !same(i + 1, j) ? 2 : 1;
-    if (f === 'soil') d.ground[j * d.W + i] = 'soil' + col;
-    else d.ground[j * d.W + i] = 'path' + ((!same(i, j - 1) ? 0 : !same(i, j + 1) ? 2 : 1) * 3 + col);
-  }
-}
+const retileAround = (x, y, r = 1) => retile(d, x, y, r);
 // Object footprint when the cursor is at (x, y): cursor marks the bottom row, centred.
 function footprint(b, x, y) {
   const p = PREFABS[b.prefab]; return { name: b.prefab, x: x - ((p.w - 1) >> 1), y: y - p.h + 1, w: p.w, h: p.h };

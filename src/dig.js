@@ -10,7 +10,7 @@ export const PLANTS = {
   roses: { name: 'Roses', icon: 'roses', walk: true },
   tulips: { name: 'Tulips', icon: 'tulips', walk: true },
 };
-export const DIG_SPOTS = { farm: 3, road: 2, town: 3 }; // loose earth that turns up each morning
+export const DIG_SPOTS = { farm: 3, road: 2, town: 3, wilds: 6 }; // loose earth that turns up each morning
 export const DIG_ENERGY = 2;
 
 // Tiles on `map` for n new spots of loose earth: grass, walkable, nothing on it, away from the edges.

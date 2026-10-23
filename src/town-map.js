@@ -234,7 +234,7 @@ export const TOWN = {
     {"name":"car_small","x":19,"y":21},
   ],
   block: Array(1200).fill(0),
-  spawn: { x: 1, y: 16 }, name: 'Town', exits: { left: 'road' },
+  spawn: { x: 1, y: 16 }, name: 'Town', exits: { left: 'road', right: 'wilds' },
   npcs: [
     {sheet:'shopkeeper',x:15,y:9,size:0}, // in front of the shop (y 8 is inside it)
     {sheet:'villager_female',x:22,y:9,size:2},

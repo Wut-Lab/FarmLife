@@ -301,12 +301,18 @@ export class World {
     if (f.t >= 2 * FADE) this.fade = null;
   }
   travel(id, side) {
+    if (LOCATIONS[id].fresh) this.freshen(id);
     this.map = this.maps[id];
     this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
     // Line up with the road on the side you came in; if the row you were on isn't road there, use the nearest road row.
     const rows = exitRows(this.map, side === 'right' ? 'left' : 'right'), row = Math.floor((this.y + 13) / TILE);
     if (rows.length && !rows.includes(row)) this.y = rows.reduce((a, b) => (Math.abs(b - row) < Math.abs(a - row) ? b : a)) * TILE - 4;
     this.banner = { text: this.map.name, t: 0 }; playMusic(); // each region picks its music on entry
+  }
+  // A generated place is made anew for each visit, with its own loose earth to dig.
+  freshen(id) {
+    const m = this.maps[id] = { ...LOCATIONS[id].build(Date.now(), this.clock.seasonName), name: LOCATIONS[id].name, villagers: [] };
+    m.digs = scatterDigs(m, DIG_SPOTS[id] ?? 0);
   }
   get villagers() { return this.map.villagers; }
 

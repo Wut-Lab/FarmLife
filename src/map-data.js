@@ -8,6 +8,31 @@ export const TILE = 16;
 export const EDITOR_KEY = 'farmlife-editor-maps'; // { [location id]: data }
 const OLD_EDITOR_KEY = 'farmlife-editor-map'; // a single farm map, from before locations
 
+// Autotiling (the editor's brushes and generated maps). Paths and paving join each other (no border between them); shallow water joins deep; wildflowers join wildflowers; off-map counts as joined.
+// Dirt paths and soil use their 9/3-piece sets, everything in BLOB_SETS its 47-piece set.
+const fam = n => n.replace(/\d+$/, '');
+function joins(f, n) {
+  if (f === 'path' || f === 'cobbleb' || f === 'brickb') return isPaved(n);
+  if (f === 'shallow') return /^(shallow|deep)\d+$/.test(n);
+  if (f === 'wildcool' || f === 'wildwarm') return /^wild(cool|warm)\d+$/.test(n); // the two meadows blend into each other
+  return fam(n) === f;
+}
+export function retile(d, x, y, r = 1) {
+  const inside = (i, j) => i >= 0 && j >= 0 && i < d.W && j < d.H;
+  for (let j = y - r; j <= y + r; j++) for (let i = x - r; i <= x + r; i++) {
+    if (!inside(i, j)) continue;
+    const n = d.ground[j * d.W + i], f = fam(n), same = (a, b) => !inside(a, b) || joins(f, d.ground[b * d.W + a]);
+    if (BLOB_SETS.includes(f)) {
+      const bits = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+      d.ground[j * d.W + i] = blobTile(f, bits.reduce((m, [a, b], k) => (same(i + a, j + b) ? m | (1 << k) : m), 0));
+      continue;
+    }
+    if (!/^(path|soil)\d$/.test(n)) continue;
+    const col = !same(i - 1, j) && same(i + 1, j) ? 0 : same(i - 1, j) && !same(i + 1, j) ? 2 : 1;
+    if (f === 'soil') d.ground[j * d.W + i] = 'soil' + col;
+    else d.ground[j * d.W + i] = 'path' + ((!same(i, j - 1) ? 0 : !same(i, j + 1) ? 2 : 1) * 3 + col);
+  }
+}
 // Multi-tile objects: size in tiles and how many bottom rows block movement (default: all rows);
 // cols overrides that per column, e.g. an open patio you can walk behind; door is the door's column (default: middle).
 const SIZES = {

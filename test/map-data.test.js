@@ -60,3 +60,20 @@ test('the general store has a door like the shop, and vehicles just block like h
   assert.equal(m.store, '4,5'); assert.equal(m.door, null);
   assert.equal(m.solid[3 * 20 + 10], 1); assert.equal(m.solid[2 * 20 + 10], 0); // pickup: bottom row solid, roof walk-behind
 });
+
+test('the wilds: town-sized, joined to the town road, all reachable, different each seed', async () => {
+  const { LOCATIONS } = await import('../src/locations.js');
+  const { exitRows } = await import('../src/map-data.js');
+  const { findPath } = await import('../src/villagers.js');
+  const town = LOCATIONS.town.build(), seen = new Set();
+  for (let seed = 1; seed <= 40; seed++) {
+    const m = LOCATIONS.wilds.build(seed, ['Spring', 'Summer', 'Fall', 'Winter'][seed % 4]), rows = exitRows(m, 'left');
+    assert.equal(m.W, town.W); assert.equal(m.H, town.H);
+    for (const r of exitRows(town, 'right').filter(r => town.ground[r * town.W + town.W - 1].startsWith('cobble'))) assert.ok(rows.includes(r), `seed ${seed} row ${r}`);
+    const reach = new Set();
+    findPath(m, [0, rows[0]], (x, y) => { reach.add(y * m.W + x); return false; });
+    for (let i = 0; i < m.W * m.H; i++) if (!m.solid[i]) assert.ok(reach.has(i) || i === rows[0] * m.W, `seed ${seed} tile ${i % m.W},${Math.floor(i / m.W)} shut in`);
+    seen.add(m.ground.join() + m.objects.length);
+  }
+  assert.equal(seen.size, 40);
+});
