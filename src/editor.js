@@ -66,7 +66,7 @@ const patch = f => [[blobTile(f, 2 | 4 | 32), blobTile(f, 8 | 4 | 64)], [blobTil
 const AUTO = [
   { id: 'grass', label: 'Grass', icon: [['grass1']], ground: true, auto: 'grass' },
   { id: 'path', label: 'Path (auto)', icon: [['path4']], ground: true, auto: 'path' },
-  { id: 'soil', label: 'Field soil (auto)', icon: [['soil1']], ground: true, auto: 'soil' },
+  { id: 'soil', label: 'Field soil (auto)', icon: patch('soil'), ground: true, auto: 'soil' },
   { id: 'cobble0', label: 'Cobble', icon: [['cobble0']], ground: true, tile: 'cobble0' },
   { id: 'cobbleb', label: 'Cobble (border)', icon: patch('cobbleb'), ground: true, auto: 'cobbleb' },
   { id: 'brick0', label: 'Brick', icon: [['brick0']], ground: true, tile: 'brick0' },
@@ -77,7 +77,7 @@ const AUTO = [
   { id: 'wildwarm', label: 'Wildflowers (warm)', icon: patch('wildwarm'), ground: true, auto: 'wildwarm' },
 ];
 const brushes = [...AUTO,
-  ...Object.keys(A).filter(n => isGround(n) && /^(grass|path|soil)\d+$/.test(n)).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
+  ...Object.keys(A).filter(n => isGround(n) && /^(grass|path)\d+$/.test(n)).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
   { id: 'fence', label: 'Fence (auto)', icon: [['fence0', 'fence2'], ['fence3', null]], prefab: 'fence1', auto: 'fence' },
   ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name })),
   ...Object.entries(NPCS).map(([k, label]) => ({ id: k, label, npc: k }))];
@@ -150,7 +150,7 @@ function setGround(x, y, b) {
   const k = y * d.W + x;
   if (b.auto === 'grass') d.ground[k] = isGrass(x, y) ? d.ground[k] : grassTile(Math.random());
   else if (BLOB_SETS.includes(b.auto)) d.ground[k] = b.auto + '0';
-  else d.ground[k] = b.auto === 'path' ? 'path4' : b.auto === 'soil' ? 'soil1' : b.tile;
+  else d.ground[k] = b.auto === 'path' ? 'path4' : b.tile;
   // Deep water gets a ring of shallows so it never meets land directly.
   if (b.auto === 'deep') for (let j = y - 1; j <= y + 1; j++) for (let i = x - 1; i <= x + 1; i++)
     if (inside(i, j) && !/^(shallow|deep)\d+$/.test(d.ground[j * d.W + i])) d.ground[j * d.W + i] = 'shallow0';

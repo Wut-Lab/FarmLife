@@ -26,9 +26,11 @@ export function scatterDigs(map, n, rand = Math.random) {
 }
 
 // What a spot of loose earth turns up: { gold } | { seeds, n } | { item: crop } | { plant } | {} (nothing).
-export function digFind(rand = Math.random) {
-  const r = rand(), pick = a => a[Math.floor(rand() * a.length)];
-  if (r < 0.3) return { gold: 10 + Math.floor(rand() * 41) };
+// A better shovel (level 2+) never turns up just dirt and finds more gold; level 3 sometimes finds rare wheat seeds.
+export function digFind(rand = Math.random, level = 1) {
+  const r = rand() * (level >= 2 ? 0.85 : 1), pick = a => a[Math.floor(rand() * a.length)];
+  if (level >= 3 && rand() < 0.15) return { seeds: 'wheat', n: 1 + Math.floor(rand() * 2) };
+  if (r < 0.3) return { gold: (10 + Math.floor(rand() * 41)) * (level >= 2 ? 2 : 1) };
   if (r < 0.55) return { seeds: pick(COMMON), n: 1 + Math.floor(rand() * 3) };
   if (r < 0.7) return { item: pick(COMMON) };
   if (r < 0.85) return { plant: pick(['roses', 'tulips', 'shrub_small', 'shrub_flower']) };

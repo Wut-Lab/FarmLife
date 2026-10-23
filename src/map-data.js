@@ -9,7 +9,7 @@ export const EDITOR_KEY = 'farmlife-editor-maps'; // { [location id]: data }
 const OLD_EDITOR_KEY = 'farmlife-editor-map'; // a single farm map, from before locations
 
 // Autotiling (the editor's brushes and generated maps). Paths and paving join each other (no border between them); shallow water joins deep; wildflowers join wildflowers; off-map counts as joined.
-// Dirt paths and soil use their 9/3-piece sets, everything in BLOB_SETS its 47-piece set.
+// Dirt paths use their 9-piece set, everything in BLOB_SETS (tilled soil too) its 47-piece set.
 const fam = n => n.replace(/\d+$/, '');
 function joins(f, n) {
   if (f === 'path' || f === 'cobbleb' || f === 'brickb') return isPaved(n);
@@ -27,10 +27,9 @@ export function retile(d, x, y, r = 1) {
       d.ground[j * d.W + i] = blobTile(f, bits.reduce((m, [a, b], k) => (same(i + a, j + b) ? m | (1 << k) : m), 0));
       continue;
     }
-    if (!/^(path|soil)\d$/.test(n)) continue;
+    if (!/^path\d$/.test(n)) continue;
     const col = !same(i - 1, j) && same(i + 1, j) ? 0 : same(i - 1, j) && !same(i + 1, j) ? 2 : 1;
-    if (f === 'soil') d.ground[j * d.W + i] = 'soil' + col;
-    else d.ground[j * d.W + i] = 'path' + ((!same(i, j - 1) ? 0 : !same(i, j + 1) ? 2 : 1) * 3 + col);
+    d.ground[j * d.W + i] = 'path' + ((!same(i, j - 1) ? 0 : !same(i, j + 1) ? 2 : 1) * 3 + col);
   }
 }
 // Multi-tile objects: size in tiles and how many bottom rows block movement (default: all rows);
@@ -44,8 +43,8 @@ const SIZES = {
   taxi: { w: 3, h: 2, solid: 1 }, suv: { w: 3, h: 2, solid: 1 }, rock_large: { w: 2, h: 2, solid: 1 }, stone_house: { w: 5, h: 4, solid: 3 },
 };
 const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips', 'dandelions', 'rock_small']);
-const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', 'berry_bush_bare', 'berries', 'pinecone', 'stone', 'stick', 'beanie', 'longsleeve', 'jeans', 'white_sneakers', 'note_red', 'note_yellow', 'note_blue', 'bird0', 'bird1', 'bird_fly0', 'bird_fly1', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
-export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep|wildcool|wildwarm)\d+$/.test(n);
+const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', 'basket', 'basket_copper', 'basket_gold', 'hoe_copper', 'hoe_gold', 'can_copper', 'can_gold', 'shovel_copper', 'shovel_gold', 'berry_bush_bare', 'berries', 'pinecone', 'stone', 'stick', 'beanie', 'longsleeve', 'jeans', 'white_sneakers', 'note_red', 'note_yellow', 'note_blue', 'bird0', 'bird1', 'bird_fly0', 'bird_fly1', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
+export const isGround = n => /^(grass|path|soil(wet)?|cobbleb?|brickb?|shallow|deep|wildcool|wildwarm)\d+$/.test(n);
 export const isPaved = n => /^(path|cobbleb?|brickb?)\d+$/.test(n);
 // Where a road reaches a map's edge: rows on the left/right edges, columns on the top/bottom ('up'/'down').
 // Walking off the edge there takes you through that side's exit.
@@ -53,7 +52,7 @@ export const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 export const exitRows = (m, side) => side === 'up' || side === 'down'
   ? [...Array(m.W).keys()].filter(x => isPaved(m.ground[(side === 'up' ? 0 : m.H - 1) * m.W + x]))
   : [...Array(m.H).keys()].filter(y => isPaved(m.ground[y * m.W + (side === 'left' ? 0 : m.W - 1)]));
-export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep', 'wildcool', 'wildwarm']; // 47-piece autotile sets drawn by tools/make_art.py
+export const BLOB_SETS = ['soil', 'cobbleb', 'brickb', 'shallow', 'deep', 'wildcool', 'wildwarm']; // 47-piece autotile sets drawn by tools/make_art.py
 
 // Blob autotiles: neighbour bits N, E, S, W, NE, SE, SW, NW. A corner only counts when both sides next to it do,
 // which leaves 47 distinct masks; a set's tile number is the mask's position in this sorted list (same as make_art.py).

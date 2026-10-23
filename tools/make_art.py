@@ -70,7 +70,15 @@ def path(j, k):
                 elif y > 0 and px[x, y - 1] not in map(C, DIRT): px[x, y] = C('#b98050')
     return im
 
-def soil(part):  # 0 left end, 1 middle, 2 right end of a plot row: drawn as one 3-tile row, then cut
+def soil_tex(base, dark, specks, seed):  # tilled earth that repeats seamlessly: furrows every 8 px, so they line up tile to tile
+    r = random.Random(seed); im = new(fill=C(base)); px = im.load()
+    for y in (3, 11, 19, 27):
+        for x in range(S):
+            if (x + y) % 5: px[x, y] = C(dark)
+            px[x, (y + 1) % S] = shade(C(base), 14)
+    for _ in range(70): px[r.randrange(S), r.randrange(S)] = C(r.choice(specks))
+    return im
+def soil(part):  # (old 3-piece plot row, no longer used: tilled soil is the blob set 'soil' now)
     row = new(3 * S, S)
     for i in range(3): row.alpha_composite(grass(0), (i * S, 0))
     shape(row, lambda d: d.rounded_rectangle([3, 5, 3 * S - 4, 28], 6), '#8a5a3a', '#a06c45', '#6b4229')
@@ -382,8 +390,8 @@ def water_tex(base, light, glint):
     return im
 def blob_tile(m, top, under, edge):
     """One piece of a set: `top` fills the connected area, `under` shows where it ends. edge: 'kerb' (paving) or 'shore'/'deep' (water)."""
-    inset = 3 if edge == 'kerb' else 4
-    wave = (lambda t: 0) if edge == 'kerb' else (lambda t: round(math.sin(t / S * 4 * math.pi + 0.6)))  # period 16: edges line up tile to tile
+    inset = 3 if edge in ('kerb', 'soil') else 4
+    wave = (lambda t: 0) if edge in ('kerb', 'soil') else (lambda t: round(math.sin(t / S * 4 * math.pi + 0.6)))  # period 16: edges line up tile to tile
     def cut(x, y):
         if (not m & N_ and y < inset + wave(x)) or (not m & S_ and y > S - 1 - inset - wave(x)) or \
            (not m & W_ and x < inset + wave(y)) or (not m & E_ and x > S - 1 - inset - wave(y)): return True
@@ -404,6 +412,7 @@ def blob_tile(m, top, under, edge):
         c = tp[x, y]
         if edge == 'kerb':
             c = OUT if near(x, y, 1) else (KERB[1] if (x + y) % 7 == 0 else KERB[0]) if near(x, y, 3) else c
+        elif edge == 'soil': c = C('#5e3a24') if near(x, y, 1) else shade(c, -10) if near(x, y, 2) else c  # dark rim where the field meets grass
         elif edge == 'shore': c = C('#e2f6f2') if near(x, y, 1) else C('#9edcea') if near(x, y, 2) else c
         else: c = C('#5aa6d0') if near(x, y, 1) else C('#4892c2') if near(x, y, 2) else c
         px[x, y] = c
@@ -1256,6 +1265,27 @@ def gate():
     shape(im, lambda d: d.ellipse([13, 2, 18, 7]), '#f6c62c', '#fde27a', '#c08a18', 1)  # warning lamp
     return outline(im)
 
+# Tool levels: the same tools with their metal (or the can's body) in copper, then gold; the forage basket in three weaves.
+TIERS = {'copper': ('#c87a4a', '#f0a878', '#8a4a2a', '#a8603a'), 'gold': ('#e8b830', '#fde27a', '#a87818', '#c89a28')}  # base, light, dark, mid
+METAL = {'#9aa7b8': 0, '#d6e0ea': 1, '#6a7688': 2, '#7fb3d8': 0, '#b9dcf2': 1, '#4f80aa': 2, '#5c8fbf': 3}
+def tier(im, name):
+    im = im.copy(); px = im.load(); ramp = TIERS[name]; src = {C(c)[:3]: i for c, i in METAL.items()}
+    for y in range(im.height):
+        for x in range(im.width):
+            i = src.get(px[x, y][:3])
+            if i is not None and px[x, y][3]: px[x, y] = C(ramp[i])
+    return im
+def basket(level):  # a woven forage basket with a handle; better ones have copper bands, then gold trim
+    im = new(); W_, Wl, Wd = '#c8a060', '#e8c888', '#8a6a38'
+    d = ImageDraw.Draw(im); d.arc([8, 4, 24, 22], 180, 360, C(Wd), 3); d.arc([9, 5, 23, 21], 180, 360, C(Wl), 1)  # handle
+    shape(im, lambda d: d.polygon([(5, 13), (27, 13), (24, 28), (8, 28)]), W_, Wl, Wd)
+    d = ImageDraw.Draw(im)
+    for y in (17, 21, 25): d.line([(7, y), (25, y)], C(Wd))
+    for x in range(9, 25, 4): d.line([(x, 14), (x + (1 if x > 16 else -1), 27)], C(Wd))
+    band = {2: TIERS['copper'], 3: TIERS['gold']}.get(level)
+    if band: shape(im, lambda d: d.rectangle([5, 13, 27, 15]), band[0], band[1], band[2], 1); shape(im, lambda d: d.rectangle([7, 26, 25, 28]), band[0], band[1], band[2], 1)
+    return outline(im)
+
 # ---------- assemble ----------
 cells, names = [], {}
 def add(name, im):
@@ -1265,7 +1295,6 @@ def add(name, im):
 for k in range(3): add(f'grass{k}', grass(k))
 for j in range(3):
     for k in range(3): add(f'path{j * 3 + k}', path(j, k))
-for k in range(3): add(f'soil{k}', soil(k))
 for kind in ('carrot', 'turnip', 'cabbage'):
     for s in range(4): add(f'{kind}{s}', crop(kind, s))
     add(f'{kind}_item', ITEMS[kind]); add(f'{kind}_packet', packet(ITEMS[kind]))
@@ -1288,6 +1317,8 @@ add('roses', flower_patch('roses')); add('tulips', flower_patch('tulips'))
 COB, BRK, SHAL, DEEP = cobble_tex(), brick_tex(), water_tex('#6cc4d8', '#86d2e2', '#c4eef4'), water_tex('#3a82b4', '#327aa8', '#6eb0d8')
 add('cobble0', COB); add('brick0', BRK)
 blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))
+SOIL, SOILWET = soil_tex('#8a5a3a', '#704630', ['#7a4c30', '#9a6844'], 3), soil_tex('#5e3a26', '#4a2c1c', ['#523220', '#6e4630'], 3)
+blob_set('soil', SOIL, grass(0), 'soil'); blob_set('soilwet', SOILWET, grass(0), 'soil')  # tilled fields join in every direction; wet = watered
 blob_set('shallow', SHAL, grass(0), 'shore'); blob_set('deep', DEEP, SHAL, 'deep')
 add('shovel', shovel()); add('shoes', shoes())
 add('sneakers', sneakers()); add('dig_spot', dig_spot())
@@ -1305,6 +1336,8 @@ add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
 for name, col in (('note_red', '#e0322c'), ('note_yellow', '#f6c62c'), ('note_blue', '#2a6ae0')): add(name, music_note(col))
 add('bird0', macaw(0)); add('bird1', macaw(1)); add('bird_fly0', macaw(0, True)); add('bird_fly1', macaw(1, True))
 add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone()); add('stick', stick()); add('gate', gate()); add('gate_open', gate_open())
+for t in ('copper', 'gold'): add(f'hoe_{t}', tier(hoe(), t)); add(f'can_{t}', tier(can(), t)); add(f'shovel_{t}', tier(shovel(), t))
+add('basket', basket(1)); add('basket_copper', basket(2)); add('basket_gold', basket(3))
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)

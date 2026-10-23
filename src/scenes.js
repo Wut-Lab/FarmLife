@@ -1,7 +1,7 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS, DAYS_PER_SEASON } from './clock.js';
-import { editorMaps, exitRows, isPaved, OPPOSITE, PREFABS } from './map-data.js';
+import { editorMaps, exitRows, isPaved, OPPOSITE, PREFABS, retile } from './map-data.js';
 import { LOCATIONS } from './locations.js';
 
 const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves from the old layout are dropped
@@ -14,6 +14,7 @@ import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen, goodsOf } from './store.js';
 import { Events, MINSTREL_LINES } from './events.js';
 import { GATES } from './unlocks.js';
 import { Quests } from './quests.js';
+import { UPGRADES, START_LEVELS, MAX_LEVEL, toolIcon, toolName, costText, area } from './upgrades.js';
 import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
@@ -199,8 +200,11 @@ export class World {
     this.open = false; this.pick = -1;
     this.events = new Events(); // today's random events
     this.quests = new Quests();
+    this.levels = { ...START_LEVELS }; this.upgrading = null; // tool levels, and the one Bella has overnight: { tool, level }
+    this.tilled = []; this.storeTab = 'goods'; // farm tiles the hoe has turned into new plots
     this.clock.on('overnight', () => {
       this.quests.tick(0, true);
+      if (this.upgrading) { const { tool, level } = this.upgrading; this.levels[tool] = level; this.upgradeNews = ` Bella finished your ${toolName(tool, level)}!`; this.upgrading = null; }
       const k = this.clock, next = k.day >= DAYS_PER_SEASON ? (k.season + 1) % SEASONS.length : k.season;
       this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs();
       this.paid = this.binValue(this.inv.emptyBin()); this.withered = 0;
@@ -212,7 +216,7 @@ export class World {
       this.map = this.maps.farm; Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
       this.events.newDay();
       const saved = writeSave(this.slot, this.snapshot());
-      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + this.openGates() + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : ''));
+      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + this.openGates() + (this.upgradeNews ?? '') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : '')); this.upgradeNews = '';
     });
     if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
     playMusic(); // one of two tracks, picked at random each time you enter
@@ -222,14 +226,16 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state,
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
   }
   restore(s) {
     Object.assign(this.clock, s.clock);
+    if (s.layout === FARM_LAYOUT) for (const key of s.tilled ?? []) this.tillTile(key); // new plots first, so their crops have somewhere to go
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
+    Object.assign(this, { levels: { ...START_LEVELS, ...s.levels }, upgrading: s.upgrading ?? null });
     this.inv.slots = s.slots; this.inv.sel = s.sel;
     Object.assign(this, { gold: s.gold, seeds: { ...this.seeds, ...s.seeds }, seed: s.seed, gear: s.gear ?? {}, worn: s.worn ?? (s.gear?.shoes ? { shoes: 'shoes' } : {}) });
     this.moved = s.layout === FARM_LAYOUT && s.moved || { gone: [], put: [] }; // plants moved on an older farm layout don't carry over
@@ -362,12 +368,52 @@ export class World {
     return news;
   }
   // Pick up forage (pinecones, stones) you walk over.
+  // With the forage basket, anything within its reach (1-3 tiles) too.
   gather() {
-    const k = `${Math.floor((this.x + 8) / TILE)},${Math.floor((this.y + 13) / TILE)}`, id = this.map.forage?.get(k);
-    if (!id) return;
-    if (!this.inv.add(id)) { if (this.toast !== 'Your bag is full.' || this.toastT <= 0) this.say('Your bag is full.'); return; }
-    this.map.forage.delete(k); sfx('harvest'); this.say(`Picked up a ${FORAGE[id].name.toLowerCase()}.`);
+    if (!this.map.forage?.size) return;
+    const tx = Math.floor((this.x + 8) / TILE), ty = Math.floor((this.y + 13) / TILE), reach = this.busy('basket') ? 0 : this.levels.basket;
+    for (const [k, id] of this.map.forage) {
+      const [x, y] = k.split(',').map(Number);
+      if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) > reach) continue;
+      if (!this.inv.add(id)) { if (this.toast !== 'Your bag is full.' || this.toastT <= 0) this.say('Your bag is full.'); return; }
+      this.map.forage.delete(k); sfx('harvest'); this.say(`Picked up a ${FORAGE[id].name.toLowerCase()}.`);
+    }
   }
+  busy(tool) { return this.upgrading?.tool === tool; } // Bella has it today
+  // Turn a farm tile into a new plot of tilled soil, joined up with the soil around it.
+  tillTile(key) {
+    const m = this.maps.farm, [x, y] = key.split(',').map(Number);
+    if (this.field.has(key)) return;
+    m.ground[y * m.W + x] = 'soil0'; retile(m, x, y, 1);
+    m.plots.push(key); this.field.plots.set(key, null);
+    if (!this.tilled.includes(key)) this.tilled.push(key);
+    this.mini = null;
+  }
+  tillable(key) {
+    const m = this.map, [x, y] = key.split(',').map(Number);
+    if (!this.onFarm || x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1 || this.field.has(key)) return false;
+    return m.ground[y * m.W + x].startsWith('grass') && !m.solid[y * m.W + x] && ![m.door, ...m.bin].includes(key) && !m.forage?.has(key) && !m.digs?.has(key)
+      && !m.objects.some(o => o.tiles.some((row, j) => row.some((_, i) => `${o.x / TILE + i},${o.y / TILE + j}` === key)));
+  }
+  // The hoe (level 2+) tills grass into new plots; level 3 does 3 tiles at once for the energy of one.
+  till(key) {
+    const lv = this.levels.hoe, keys = area('hoe', lv, key.split(',').map(Number), this.dirVec()).map(([x, y]) => `${x},${y}`).filter(k => this.tillable(k));
+    if (!keys.length) return false;
+    if (!this.clock.useEnergy(2)) { sfx('nope'); this.say('Too tired. Sleep at your front door.'); return true; }
+    keys.forEach(k => this.tillTile(k)); sfx('dig');
+    this.say(keys.length > 1 ? `Tilled ${keys.length} new plots.` : 'Tilled a new plot.');
+    return true;
+  }
+  // The watering can (level 2+) waters every planted, dry plot in its area for the energy of one.
+  water(key) {
+    const f = this.field, keys = area('can', this.levels.can, key.split(',').map(Number), this.dirVec()).map(([x, y]) => `${x},${y}`).filter(k => f.get(k) && !f.get(k).wet);
+    if (!keys.length) return false;
+    if (!this.clock.useEnergy(this.support.has('green_thumb') ? 0 : 1)) { sfx('nope'); this.say('Too tired. Sleep at your front door.'); return true; }
+    keys.forEach(k => f.act(k)); sfx('water');
+    this.say(`Watered ${keys.length} plot${keys.length > 1 ? 's' : ''}.`);
+    return true;
+  }
+  dirVec() { return [[0, 1], [-1, 0], [1, 0], [0, -1]][this.player.dir]; }
   // Pick a berry bush you're facing (it's bare until morning).
   pickBerries(o) {
     const n = pickBush(o);
@@ -462,6 +508,9 @@ export class World {
       return keeper ? this.say(`${KEEPERS[counter].name} runs the ${KEEPERS[counter].building}. Talk to them outside.`) : (this.shop = counter);
     }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
+    if (UPGRADES[held] && this.busy(held)) return this.say(`Bella has your ${toolName(held, this.levels[held])} until tomorrow morning.`);
+    if (held === 'hoe' && this.levels.hoe >= 2 && this.till(key)) return;
+    if (held === 'can' && this.levels.can >= 2 && this.onFarm && this.water(key)) return;
     if (held === 'shovel') return this.dig(key);
     if (PLANTS[held]) return this.replant(key, held);
     if (FORAGE[held]?.energy) return this.eat(held);
@@ -703,9 +752,9 @@ export class World {
     const m = this.map, tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (m.digs?.has(key)) {
       if (!this.clock.useEnergy(DIG_ENERGY)) return tired();
-      const f = digFind(); m.digs.delete(key); sfx('dig');
+      const f = digFind(Math.random, this.levels.shovel); m.digs.delete(key); sfx('dig');
       if (f.gold) { this.gold += f.gold; sfx('coin'); return this.say(`Found some old coins! (+${f.gold}g)`); }
-      if (f.seeds) { this.seeds[f.seeds] += f.n; return this.say(`Found ${f.n} ${CROPS[f.seeds].name} seeds!`); }
+      if (f.seeds) { this.seeds[f.seeds] += f.n; return this.say(`Found ${f.n} ${CROPS[f.seeds].name} seed${f.n > 1 ? 's' : ''}!`); }
       if (f.item) return this.say(this.inv.add(f.item) ? `Found ${aCrop(f.item)}, growing wild!` : 'Found something, but your bag is full.');
       if (f.plant) return this.say(this.inv.add(f.plant) ? `Found ${PLANTS[f.plant].name}! Plant it on your farm.` : 'Found something, but your bag is full.');
       return this.say('Just dirt this time.');
@@ -792,14 +841,24 @@ export class World {
   }
 
   // Goods shops (Bella's general store, the clothes salesman): each thing bought once.
+  // Bella's has two pages: goods, and tool upgrades (T or tap a tab to switch).
+  storeList() {
+    return this.shop === 'storekeeper' && this.storeTab === 'tools' ? Object.keys(UPGRADES).map(tool => ({ tool })) : goodsOf(this.shop).map(id => ({ id }));
+  }
   storeRows() {
-    const g = this.g, n = goodsOf(this.shop).length, h = 38 + n * 26, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - h / 2);
-    return { x, y, h, buy: goodsOf(this.shop).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 20 + n * 26, 64, 14] };
+    const g = this.g, list = this.storeList(), tabs = this.shop === 'storekeeper', rh = tabs && this.storeTab === 'tools' ? 25 : 26;
+    const w = 160, top = tabs ? 30 : 16, n = list.length, h = top + 22 + n * rh, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    return { x, y, w, h, tabs: tabs && [[x + 4, y + 14, 74, 12], [x + 82, y + 14, 74, 12]], buy: list.map((_, i) => [x + 4, y + top + i * rh, w - 8, rh - 2]),
+      close: [x + w / 2 - 32, y + top + 4 + n * rh, 64, 14] };
   }
   storeUpdate(inp) {
     const r = this.storeRows();
-    goodsOf(this.shop).map(id => [id, GOODS[id]]).forEach(([id, it], i) => {
+    if (r.tabs) for (const [i, tab] of ['goods', 'tools'].entries()) if (inp.tapIn(...r.tabs[i]) && this.storeTab !== tab) { this.storeTab = tab; return sfx('click'); }
+    if (r.tabs && inp.hit('KeyT', 'Tab')) { this.storeTab = this.storeTab === 'goods' ? 'tools' : 'goods'; return sfx('click'); }
+    this.storeList().forEach((row, i) => {
       if (!inp.hit('Digit' + (i + 1)) && !inp.tapIn(...r.buy[i])) return;
+      if (row.tool) return this.upgrade(row.tool);
+      const id = row.id, it = GOODS[id];
       if (this.gear[id]) return this.say(`You already have the ${it.name}.`);
       if (this.gold < it.price) return this.say(`Not enough gold for the ${it.name}.`);
       if (id === 'shovel' && !this.inv.add('shovel')) return this.say('Your bag is full.');
@@ -811,13 +870,41 @@ export class World {
     });
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
+  // Buy the next level of a tool: the basket's first level is bought outright; upgrades stay with Bella overnight.
+  upgrade(tool) {
+    const lv = this.levels[tool], u = UPGRADES[tool], cost = u.cost[lv];
+    if (lv >= MAX_LEVEL) return this.say(`Your ${toolName(tool, lv)} is as good as it gets.`);
+    if (tool === 'shovel' && !this.gear.shovel) return this.say('Buy the shovel first.');
+    if (this.upgrading) return this.say(`Bella is still working on your ${toolName(this.upgrading.tool, this.upgrading.level)}.`);
+    const short = Object.entries(cost).find(([k, n]) => (k === 'gold' ? this.gold : this.inv.count(k)) < n);
+    if (short) return this.say(`You need ${costText(cost)}.`);
+    for (const [k, n] of Object.entries(cost)) if (k === 'gold') this.gold -= n; else this.inv.take(k, n);
+    sfx('coin');
+    if (lv === 0) { this.levels[tool] = 1; return this.say(`Bought the ${u.name}! It picks up forage near you as you walk.`); }
+    this.upgrading = { tool, level: lv + 1 };
+    this.say(`Bella will have your ${toolName(tool, lv + 1)} ready tomorrow morning.`);
+  }
   drawStore() {
     const g = this.g, r = this.storeRows();
-    g.panel(r.x, r.y, 140, r.h, '#3f2631ee');
+    g.panel(r.x, r.y, r.w, r.h, '#3f2631ee');
     if (this.villagers.some(v => v.walker.sheet === this.shop)) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(this.shop).draw(g, r.x - 22, r.y + 2); }
-    g.text(`${KEEPERS[this.shop].title} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
-    goodsOf(this.shop).map(id => [id, GOODS[id]]).forEach(([id, it], i) => {
-      const [x, y, w, h] = r.buy[i], own = this.gear[id];
+    g.text(`${KEEPERS[this.shop].title} · ${this.gold}g`, r.x + r.w / 2, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
+    if (r.tabs) for (const [i, [tab, label]] of [['goods', 'Goods'], ['tools', 'Tool upgrades (T)']].entries()) {
+      g.panel(...r.tabs[i], this.storeTab === tab ? '#e86a9a' : '#5d715099'); g.text(label, r.tabs[i][0] + 37, r.tabs[i][1] + 3, { size: 5, align: 'center' });
+    }
+    this.storeList().forEach((row, i) => {
+      const [x, y, w, h] = r.buy[i];
+      if (row.tool) {
+        const lv = this.levels[row.tool], max = lv >= MAX_LEVEL, away = this.busy(row.tool), next = max ? lv : lv + 1;
+        g.panel(x, y, w, h, max || away ? '#5d715066' : '#5d7150cc');
+        g.tile(toolIcon(row.tool, next), x + 2, y + 4);
+        g.text(`${i + 1}. ${toolName(row.tool, next)}${lv === 0 ? '' : max ? ' (best)' : ''}`, x + 21, y + 2, { size: 6 });
+        g.text(UPGRADES[row.tool].about[next - 1], x + 21, y + 10, { size: 5, color: '#dcebc6' });
+        g.text(max ? 'Fully upgraded' : away ? 'At Bella\'s until morning' : row.tool === 'shovel' && !this.gear.shovel ? 'Buy the shovel first' : costText(UPGRADES[row.tool].cost[lv]),
+          x + 21, y + 17, { size: 5, color: max || away ? '#dcebc6' : '#fff3a8' });
+        return;
+      }
+      const it = GOODS[row.id], own = this.gear[row.id];
       g.panel(x, y, w, h, own ? '#5d715066' : '#5d7150cc');
       g.tile(it.icon, x + 2, y + 4);
       g.text(`${i + 1}. ${it.name}`, x + 21, y + 4, { size: 6 });
@@ -840,8 +927,9 @@ export class World {
     g.panel(x, y, 18, 18, i === this.pick ? '#e86a9add' : undefined);
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
-    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? FORAGE[s.id]?.icon ?? CROPS[s.id].item;
-    g.tile(icon, x + 1, y + 1);
+    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : (UPGRADES[s.id] && toolIcon(s.id, this.levels[s.id])) ?? TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? FORAGE[s.id]?.icon ?? CROPS[s.id].item;
+    if (this.busy(s.id)) g.ctx.globalAlpha = 0.3; // at Bella's today
+    g.tile(icon, x + 1, y + 1); g.ctx.globalAlpha = 1;
     const n = s.id === 'seeds' ? this.seeds[SEEDS[this.seed]] : s.n;
     if (n !== undefined) g.text(String(n), x + 17, y + 11, { size: 5, align: 'right' });
   }
@@ -854,9 +942,8 @@ export class World {
     const x0 = Math.max(0, Math.floor(cx / TILE)), y0 = Math.max(0, Math.floor(cy / TILE));
     for (let y = y0; y < Math.min(H, y0 + g.h / TILE + 2); y++)
       for (let x = x0; x < Math.min(W, x0 + g.w / TILE + 2); x++) {
-        g.tile(ground[y * W + x], x * TILE - cx, y * TILE - cy);
-        const p = this.onFarm && this.field.get(`${x},${y}`);
-        if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx, y * TILE - cy + 3, 16, 11); }
+        const p = this.onFarm && this.field.get(`${x},${y}`), n = ground[y * W + x];
+        g.tile(p?.wet && n.startsWith('soil') ? 'soilwet' + n.slice(4) : n, x * TILE - cx, y * TILE - cy); // watered soil is darker, and still joins up
         if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
         if (this.map.digs?.has(`${x},${y}`)) g.tile('dig_spot', x * TILE - cx, y * TILE - cy);
         const fo = this.map.forage?.get(`${x},${y}`);
@@ -952,7 +1039,7 @@ export class World {
     // Hotbar, top left, with the held item's name under it.
     for (let i = 0; i < HOTBAR; i++) this.drawSlot(i);
     const h = this.inv.held;
-    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? PLANTS[h.id]?.name ?? FORAGE[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
+    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : (UPGRADES[h.id] && toolName(h.id, this.levels[h.id])) ?? TOOLS[h.id]?.name ?? PLANTS[h.id]?.name ?? FORAGE[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
     // Bag grid.
     if (this.open) {
       const [bx, by] = this.slotRect(HOTBAR);
