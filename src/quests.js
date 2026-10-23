@@ -2,7 +2,7 @@
 // Talking to the giver asks; talking again with the items hands them in. Some quests open a gate (see unlocks.js).
 export const QUESTS = {
   pinecones: {
-    giver: 'shopkeeper', item: 'pinecone', n: 5, gold: 5,
+    giver: 'shopkeeper', item: 'pinecone', n: 5, gold: 5, title: 'Pinecones for Fredrick', goal: n => `Bring Fredrick 5 pinecones (${n}/5).`,
     ask: "I was hoping to go gather some pinecones, this morning. But, they blocked off my usual place, down on the road and now I'm too busy. Can you help me out?",
     remind: n => `Any luck with those pinecones? (${n}/5)`,
     thanks: 'Great! Thank you! I hope they finish what they are doing soon, so I can get out there tomorrow morning.',
@@ -30,4 +30,8 @@ export class Quests {
     for (const [id, s] of Object.entries(this.state)) if (s.step === 'done' && !s.open && (night || minutes >= (QUESTS[id].opensAt ?? 0))) s.open = true;
   }
   isOpen(id) { return !!this.state[id]?.open; }
+  // The quest log: [{ title, text, done }] for every quest you've been asked, newest first.
+  log(count) {
+    return Object.entries(this.state).reverse().map(([id, s]) => ({ title: QUESTS[id].title, done: s.step === 'done', text: s.step === 'done' ? 'Done!' : QUESTS[id].goal(Math.min(count(QUESTS[id].item), QUESTS[id].n)) }));
+  }
 }

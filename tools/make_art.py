@@ -1420,6 +1420,7 @@ sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))
 import os; os.makedirs('assets/art', exist_ok=True)
 sheet.save('assets/art/world.png')
+cells[names['turnip_item' if 'turnip_item' in names else 'carrot_item']].save('assets/art/icon.png')  # the browser tab icon
 farmer(MALE).save('assets/characters/farmer_male.png'); farmer(FEMALE).save('assets/characters/farmer_female.png')
 farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_F).save('assets/characters/villager_female.png')
 farmer(VILLAGER_KID).save('assets/characters/villager_child.png')

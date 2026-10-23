@@ -149,7 +149,9 @@ const CONTROLS = [
   ['Bag', 'I, or tap Bag; tap 2 slots to swap'],
   ['Sleep', 'Use on your front door'],
   ['Villagers', 'Use to talk; hold a crop to gift it'],
-  ['Forage', 'Walk over pinecones and stones; Use on berry bushes'],
+  ['Forage', 'Walk over it; Use on berry bushes'],
+  ['Tools', "Upgrade at Bella's store (T: Tool upgrades)"],
+  ['Strays', 'Use to pet cats and dogs in the Wilds'],
   ['Eat', 'Use while holding berries'],
   ['Pause', 'Esc / P, or tap II'],
   ['Help', '? key, or tap ?'],
@@ -648,6 +650,7 @@ export class World {
       { label: 'Resume', go: () => { this.menu = null; } },
       { label: 'Equipment', go: () => this.openMenu('equipment') },
       { label: 'Friends', go: () => this.openMenu('friends') },
+      { label: 'Quests', go: () => this.openMenu('quests') },
       { label: 'Controls', go: () => this.openMenu('controls') },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Quit to title', go: () => { stopMusic(); this.g.go(new SaveSelect()); } },
@@ -674,8 +677,8 @@ export class World {
     return [{ label: 'Back', go: () => (this.back ? this.openMenu(this.back) : (this.menu = null)) }];
   }
   menuLayout() {
-    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : this.menu === 'equipment' ? 2 : 0;
-    const w = this.menu === 'friends' ? 170 : this.menu === 'equipment' ? 180 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : this.menu === 'equipment' ? 2 : this.menu === 'quests' ? 2 * Math.max(1, this.quests.log(() => 0).length) : 0;
+    const w = this.menu === 'friends' || this.menu === 'quests' ? 170 : this.menu === 'equipment' ? 180 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
     const rows = items.map((it, i) => ({ ...it, r: [x + 6, y + 18 + lines * 9 + i * 18, w - 12, 16] }));
     return { x, y, w, h, rows, top: y + 18 };
   }
@@ -701,7 +704,7 @@ export class World {
     const g = this.g, { x, y, w, h, rows, top } = this.menuLayout();
     g.ctx.fillStyle = '#0b142888'; g.ctx.fillRect(0, 0, g.w, g.h);
     g.panel(x, y, w, h, '#3f2631f2');
-    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends', equipment: 'Equipment' }[this.menu];
+    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends', equipment: 'Equipment', quests: 'Quests' }[this.menu];
     g.text(title, x + w / 2, y + 5, { size: 8, align: 'center', color: '#fff3a8' });
     if (this.menu === 'pause') g.text(`Saved this morning · ♪ ${musicName()}`, x + w / 2, y + h + 3, { size: 5, align: 'center', color: '#e2f0d4' });
     if (this.menu === 'friends') Object.entries(PEOPLE).forEach(([id, who], i) => {
@@ -716,6 +719,11 @@ export class World {
       const on = Object.values(this.worn).map(id => GOODS[id].about);
       this.wrap(on.length ? on.join(' ') : 'Buy clothes at the General Store, then wear them here.', w - 16, 5).slice(0, 2)
         .forEach((l, i) => g.text(l, x + 8, top + i * 9, { size: 5, color: on.length ? '#86cf5e' : '#dcebc6' }));
+    }
+    if (this.menu === 'quests') {
+      const log = this.quests.log(id => this.inv.count(id));
+      if (!log.length) g.text('No quests yet. Keep talking to people in town!', x + 8, top + 4, { size: 5, color: '#dcebc6' });
+      log.forEach((q, i) => { g.text(q.title, x + 8, top + i * 18, { size: 6, color: '#fff3a8' }); g.text(q.text, x + 8, top + i * 18 + 8, { size: 5, color: q.done ? '#86cf5e' : '#e2f0d4' }); });
     }
     if (this.menu === 'controls') CONTROLS.forEach(([k, v], i) => {
       g.text(k, x + 8, top + i * 9, { size: 5, color: '#fff3a8' });
