@@ -7,6 +7,8 @@ export const CROPS = {
   spinach: { name: 'Spinach', days: 4, price: 60,  seed: 25, season: 0, some: true, stages: ['spinach0', 'spinach1', 'spinach2', 'spinach3'], item: 'spinach_item', packet: 'spinach_packet' },
   tomato:  { name: 'Tomato',  days: 7, price: 110, seed: 45, season: 1, plural: 'tomatoes', stages: ['tomato0', 'tomato1', 'tomato2', 'tomato3'], item: 'tomato_item', packet: 'tomato_packet' },
   arugula: { name: 'Arugula', days: 4, price: 55,  seed: 22, season: 2, some: true, stages: ['arugula0', 'arugula1', 'arugula2', 'arugula3'], item: 'arugula_item', packet: 'arugula_packet' },
+  // Rare crops (rare: true) aren't sold at the seed shop; wheat comes from the robed stranger in the Wilds.
+  wheat:   { name: 'Wheat',   days: 5, price: 80,  seed: 35, rare: true, some: true, stages: ['wheat0', 'wheat1', 'wheat2', 'wheat3'], item: 'wheat_item', packet: 'wheat_packet' },
   peas:    { name: 'Peas',    days: 5, price: 70,  seed: 30, season: 3, some: true, plural: 'peas', stages: ['peas0', 'peas1', 'peas2', 'peas3'], item: 'peas_item', packet: 'peas_packet' },
 };
 export const SEEDS = Object.keys(CROPS);

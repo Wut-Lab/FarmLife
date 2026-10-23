@@ -1,5 +1,6 @@
 // The shovel: loose earth to dig for finds, and small plants you can dig up and replant on your farm.
-import { SEEDS } from './crops.js';
+import { CROPS, SEEDS } from './crops.js';
+const COMMON = SEEDS.filter(c => !CROPS[c].rare);
 
 // Plants the shovel can move (single-tile objects); walk: you can walk over them.
 export const PLANTS = {
@@ -28,8 +29,8 @@ export function scatterDigs(map, n, rand = Math.random) {
 export function digFind(rand = Math.random) {
   const r = rand(), pick = a => a[Math.floor(rand() * a.length)];
   if (r < 0.3) return { gold: 10 + Math.floor(rand() * 41) };
-  if (r < 0.55) return { seeds: pick(SEEDS), n: 1 + Math.floor(rand() * 3) };
-  if (r < 0.7) return { item: pick(SEEDS) };
+  if (r < 0.55) return { seeds: pick(COMMON), n: 1 + Math.floor(rand() * 3) };
+  if (r < 0.7) return { item: pick(COMMON) };
   if (r < 0.85) return { plant: pick(['roses', 'tulips', 'shrub_small', 'shrub_flower']) };
   return {};
 }

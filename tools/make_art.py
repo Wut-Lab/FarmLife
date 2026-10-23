@@ -95,6 +95,7 @@ def crop(kind, stage):
         shape(im, lambda d: d.ellipse([11, 19, 21, 25]), '#7a4c30', '#946039', '#5c3822', 1); sprouts(im, 2, 4, 4)
     elif stage == 1: sprouts(im, 3, 7, 4)
     elif kind in SEASONAL: seasonal_crop(im, kind, stage)
+    elif kind == 'wheat': wheat_crop(im, stage)
     elif kind == 'cabbage':
         r = 6 if stage == 2 else 9
         shape(im, lambda d: d.ellipse([16 - r - 3, 24 - r, 16 + r + 3, 26]), '#4f9e3a', '#6cbf4a', '#3e7a2e')
@@ -148,6 +149,23 @@ def seasonal_item(kind):
     else:
         shape(im, lambda d: d.rounded_rectangle([7, 12, 25, 20], 4), '#7cc84e', '#a8e078', '#4f9030')
         for x in (11, 16, 21): shape(im, lambda d, x=x: d.ellipse([x - 2, 14, x + 2, 18]), '#a8e078', '#d0f0a0', '#6aa83c', 1)
+    return outline(im)
+
+# Wheat (sold by the robed stranger): a clump of stalks that turn gold, with heavy grain heads.
+def wheat_crop(im, stage):  # stalks fanning out from one clump; gold with grain heads when ripe
+    d = ImageDraw.Draw(im); ripe = stage == 3; stalk = '#d8a838' if ripe else '#6aa83c'
+    tops = ((6, 9), (16, 4), (26, 9)) if ripe else ((10, 14), (16, 12), (22, 14))
+    for x, y in tops: d.line([(16, 26), (x, y + 4)], C(stalk))
+    if ripe:
+        for x, y in tops: shape(im, lambda d, x=x, y=y: d.ellipse([x - 2, y - 2, x + 2, y + 6]), '#f2c84a', '#fbe48a', '#b8862a', 1)
+    else:
+        for x, y in tops: d.point((x, y + 3), C('#8cc85a'))
+def wheat_item():
+    im = new(); d = ImageDraw.Draw(im)
+    for x, top in ((11, 7), (16, 5), (21, 7)):
+        d.line([(16, 26), (x, top + 6)], C('#d8a838'))
+        shape(im, lambda d, x=x, top=top: d.ellipse([x - 3, top, x + 3, top + 9]), '#f2c84a', '#fbe48a', '#b8862a', 1)
+    shape(im, lambda d: d.rectangle([13, 19, 19, 21]), '#a8744a', '#c48e5e', '#6f4426', 1)  # tied bundle
     return outline(im)
 
 # ---------- CC0 items ----------
@@ -1116,6 +1134,8 @@ for name, cols in WILD.items():
     for i, m in enumerate(BLOB): add(f'{name}{i}', wild_tile(m, cols, 61 if name == 'wildcool' else 62))  # same blooms in every piece; edges only thin them out
 add('dandelions', dandelions()); add('rock_small', rock('small')); add('rock_medium', rock('medium')); add('rock_large', rock('large'))
 add('stone_house', stone_house())
+for st in range(4): add(f'wheat{st}', crop('wheat', st))
+add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))

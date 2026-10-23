@@ -74,7 +74,7 @@ export class Support {
   // Each night: new day's talk and gift, quests count down, and some villagers ask for something new.
   // Quests only ask for crops that grow in `season` (the season of the coming day).
   overnight(rand = Math.random, season) {
-    const crops = SEEDS.filter(c => season === undefined ? CROPS[c].season === undefined : inSeason(c, season));
+    const crops = SEEDS.filter(c => !CROPS[c].rare).filter(c => season === undefined ? CROPS[c].season === undefined : inSeason(c, season));
     for (const [id, p] of Object.entries(this.people)) {
       p.talked = p.gifted = false;
       if (p.quest && --p.quest.days <= 0) p.quest = null;

@@ -13,7 +13,7 @@ import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen } from './store.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
-import { TRAVELLER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
+import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
@@ -321,6 +321,8 @@ export class World {
       Object.assign(v, { name: look.name, met: false });
       m.villagers.push(v);
     }
+    const hood = id === 'wilds' && Math.random() < STRANGER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // and, rarely, the hooded stranger
+    if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
   }
   get villagers() { return this.map.villagers; }
 
@@ -369,7 +371,8 @@ export class World {
     const v = this.villagerAhead();
     if (v?.role === 'stranger') { // turns to you, says something cryptic
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
-      return this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
+      this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
+      return this.openShop(v);
     }
     if (v?.role === 'traveller') { // introduces themself, then just chats
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
@@ -661,8 +664,8 @@ export class World {
     for (let i = 1; i <= SEEDS.length; i++) if (this.seeds[SEEDS[(this.seed + i) % SEEDS.length]]) { this.seed = (this.seed + i) % SEEDS.length; return; }
     this.seed = (this.seed + 1) % SEEDS.length;
   }
-  // Seed shop: buy seeds (year-round ones and this season's), sell crops.
-  shopSeeds() { return SEEDS.filter(c => inSeason(c, this.clock.season)); }
+  // Seed shop: buy seeds (year-round ones and this season's, or the keeper's own stock), sell crops.
+  shopSeeds() { return KEEPERS[this.shop]?.stock ?? SEEDS.filter(c => !CROPS[c].rare && inSeason(c, this.clock.season)); }
   shopRows() {
     const g = this.g, n = this.shopSeeds().length, h = 38 + n * 20, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - h / 2);
     return { x, y, h, buy: this.shopSeeds().map((_, i) => [x + 4, y + 16 + i * 20, 132, 18]), sell: [x + 4, y + 18 + n * 20, 64, 14], close: [x + 72, y + 18 + n * 20, 64, 14] };

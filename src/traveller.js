@@ -1,6 +1,7 @@
 // Travellers: one-off people you might meet in the Wilds, made up on the spot. A random name, body style and colours.
 // The body sheets (assets/characters/traveller_<style>.png, drawn by tools/make_art.py) use key colours that get swapped here.
 export const TRAVELLER_CHANCE = 0.6; // chance someone is out in the Wilds when you walk in
+export const STRANGER_CHANCE = 0.25; // chance the hooded stranger (and their shop) is there too
 export const STYLES = ['short', 'long', 'tail', 'bald', 'cap'];
 export const NAMES = [
   'Juniper', 'Rowan', 'Hazel', 'Wren', 'Ash', 'Briar', 'Clover', 'Fern', 'Sorrel', 'Linden', 'Marigold', 'Basil', 'Sage', 'Thistle',
