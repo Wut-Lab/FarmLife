@@ -495,7 +495,7 @@ for (const [k, side] of Object.entries(SIDE)) {
   sel.onchange = e => { snap(); d.exits[side] = e.target.value || undefined; changed(); };
 }
 $('#export').onclick = () => {
-  const name = (prompt('File name', 'hub') ?? '').trim().replace(/\.json$/i, '');
+  const name = (prompt(`Export ${LOCATIONS[loc].name} as`, `hub_${loc}`) ?? '').trim().replace(/\.json$/i, '');
   if (!name) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], { type: 'application/json' }));
