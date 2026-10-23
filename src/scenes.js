@@ -235,7 +235,7 @@ export class World {
   snapshot() {
     const k = this.clock, here = Object.keys(this.maps).find(id => this.maps[id] === this.map);
     return {
-      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(),
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(), world: this.worldSave(),
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy }, at: { minutes: k.minutes, map: here, x: this.x, y: this.y },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -253,6 +253,7 @@ export class World {
     this.quests = new Quests(s.quests);
     this.pets = s.pets ?? []; this.homePets();
     if (s.wilds) this.freshen('wilds', s.wilds);
+    if (s.world) this.worldLoad(s.world);
     if (s.at && this.maps[s.at.map]) { this.clock.minutes = s.at.minutes; this.map = this.maps[s.at.map]; this.x = s.at.x; this.y = s.at.y; this.schedule(true); }
     this.wear();
     this.support = new Support(s.support);
@@ -407,6 +408,19 @@ export class World {
     const m = this.maps.wilds;
     return this.wilds && { ...this.wilds, forage: [...(m.forage ?? [])], pets: m.villagers.filter(v => v.role === 'pet').map(v => ({
       look: v.look, trust: v.trust, fed: v.fed, lastPet: v.lastPet, met: v.met, x: Math.round(v.corners[0][0] / TILE), y: Math.round(v.corners[0][1] / TILE), size: v.still ? 0 : 1 })) };
+  }
+  // What's lying around today on every map: loose earth, forage, picked berry bushes (so reloading doesn't re-roll them).
+  worldSave() { // the Wilds only once built: they're re-made from their seed
+    return Object.fromEntries(Object.entries(this.maps).filter(([id]) => !LOCATIONS[id].fresh || this.wilds).map(([id, m]) => [id, { digs: [...(m.digs ?? [])], forage: [...(m.forage ?? [])],
+      bare: m.objects.filter(o => o.tiles[0][0] === 'berry_bush_bare').map(o => `${o.x},${o.y}`) }]));
+  }
+  worldLoad(world) {
+    for (const [id, w] of Object.entries(world)) {
+      const m = this.maps[id], open = key => { const [x, y] = key.split(',').map(Number); return x >= 0 && y >= 0 && x < m.W && y < m.H && !m.solid[y * m.W + x]; };
+      if (!m) continue;
+      m.digs = new Set(w.digs.filter(open)); m.forage = new Map(w.forage.filter(([key]) => open(key)));
+      for (const o of m.objects) if (w.bare.includes(`${o.x},${o.y}`) && o.tiles[0][0] === 'berry_bush') pickBush(o, () => 0);
+    }
   }
   get absDay() { const k = this.clock; return ((k.year - 1) * SEASONS.length + k.season) * DAYS_PER_SEASON + k.day; } // days since the game began
   get villagers() { return this.map.villagers; }
