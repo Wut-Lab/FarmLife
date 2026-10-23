@@ -1,7 +1,7 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS, DAYS_PER_SEASON } from './clock.js';
-import { editorMaps, exitRows, isPaved, OPPOSITE } from './map-data.js';
+import { editorMaps, exitRows, isPaved, OPPOSITE, PREFABS } from './map-data.js';
 import { LOCATIONS } from './locations.js';
 
 const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves from the old layout are dropped
@@ -13,6 +13,7 @@ import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen, goodsOf } from './store.js';
 import { Events, MINSTREL_LINES } from './events.js';
 import { GATES } from './unlocks.js';
+import { Quests } from './quests.js';
 import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
@@ -197,7 +198,9 @@ export class World {
     this.shop = false;
     this.open = false; this.pick = -1;
     this.events = new Events(); // today's random events
+    this.quests = new Quests();
     this.clock.on('overnight', () => {
+      this.quests.tick(0, true);
       const k = this.clock, next = k.day >= DAYS_PER_SEASON ? (k.season + 1) % SEASONS.length : k.season;
       this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs();
       this.paid = this.binValue(this.inv.emptyBin()); this.withered = 0;
@@ -209,7 +212,7 @@ export class World {
       this.map = this.maps.farm; Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
       this.events.newDay();
       const saved = writeSave(this.slot, this.snapshot());
-      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : ''));
+      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + this.openGates() + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : ''));
     });
     if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
     playMusic(); // one of two tracks, picked at random each time you enter
@@ -219,7 +222,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved,
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -232,6 +235,7 @@ export class World {
     this.moved = s.layout === FARM_LAYOUT && s.moved || { gone: [], put: [] }; // plants moved on an older farm layout don't carry over
     for (const key of this.moved.gone) this.unplant(key);
     for (const [key, id] of this.moved.put) this.plant(key, id);
+    this.quests = new Quests(s.quests);
     this.wear();
     this.support = new Support(s.support);
     this.say('Welcome back!');
@@ -285,6 +289,7 @@ export class World {
     this.clock.update(dt * 1000);
     this.schedule();
     this.events.update(this, dt);
+    this.quests.tick(this.clock.minutes); this.openGates();
     if (this.toastT > 0) this.toastT -= dt;
     if (this.banner) this.banner.t += dt;
     if (this.open) return this.player.update(dt, false);
@@ -344,6 +349,18 @@ export class World {
     if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
   }
   get villagers() { return this.map.villagers; }
+  // Swing open any gate whose unlock has been earned; returns its news (for the morning message), or ''.
+  openGates() {
+    let news = '';
+    for (const [id, g] of Object.entries(GATES)) {
+      const m = this.maps[id];
+      if (!m?.gates.length || !g.open(this)) continue;
+      for (const o of m.objects) if (o.tiles[0][0] === 'gate_0') o.tiles = PREFABS.gate_open.tiles;
+      for (const k of m.gates) { const [x, y] = k.split(',').map(Number); m.solid[y * m.W + x] = 0; }
+      m.gates = []; news += ` ${g.opened}`;
+    }
+    return news;
+  }
   // Pick up forage (pinecones, stones) you walk over.
   gather() {
     const k = `${Math.floor((this.x + 8) / TILE)},${Math.floor((this.y + 13) / TILE)}`, id = this.map.forage?.get(k);
@@ -426,6 +443,13 @@ export class World {
       const pick = a => a[Math.floor(Math.random() * a.length)], hi = !v.met; v.met = true;
       return this.say(`${v.name}: ${hi ? `Oh, hello! I'm ${v.name}. ${pick(HELLOS)}` : pick(LINES)}`);
     }
+    const q = v && this.quests.talk(v.walker.sheet, id => this.inv.count(id), (id, n) => this.inv.take(id, n));
+    if (q?.lines) { // a quest conversation
+      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+      if (q.gold) { this.gold += q.gold; sfx('coin'); }
+      this.talk = { id: v.walker.sheet, name: KEEPERS[v.walker.sheet]?.name ?? PEOPLE[v.walker.sheet]?.name, lines: q.lines }; return;
+    }
+    if (q?.remind) this.say(`${KEEPERS[v.walker.sheet]?.name ?? PEOPLE[v.walker.sheet]?.name}: ${q.remind}`);
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     if (this.map.gates?.includes(key)) { const g = GATES[this.mapId]; if (g && !g.open(this)) return this.say(g.locked); }
@@ -531,11 +555,11 @@ export class World {
     return out;
   }
   drawTalk() {
-    const g = this.g, { id, lines } = this.talk, who = PEOPLE[id], w = Math.min(g.w - 16, 220), x = Math.round(g.w / 2 - w / 2);
+    const g = this.g, { id, lines } = this.talk, who = PEOPLE[id], w = Math.min(g.w - 16, 220), x = Math.round(g.w / 2 - w / 2); // who: villagers with hearts
     const paras = lines.map(l => this.wrap(l, w - 12, 6)), h = 26 + paras.flat().length * 8 + (paras.length - 1) * 4, y = g.h - h - 34;
     g.panel(x, y, w, h, '#3f2631f2');
-    g.text(who.name, x + 6, y + 4, { size: 7, color: '#fff3a8' });
-    drawHearts(g, x + w - 6 - MAX_HEARTS * 6, y + 6, this.support.hearts(id));
+    g.text(this.talk.name ?? who.name, x + 6, y + 4, { size: 7, color: '#fff3a8' });
+    if (who) drawHearts(g, x + w - 6 - MAX_HEARTS * 6, y + 6, this.support.hearts(id));
     let ty = y + 16;
     for (const p of paras) { for (const l of p) { g.text(l, x + 6, ty, { size: 6 }); ty += 8; } ty += 4; }
     g.text('Tap or press Space', x + w - 6, y + h - 9, { size: 5, align: 'right', color: '#dcebc6' });

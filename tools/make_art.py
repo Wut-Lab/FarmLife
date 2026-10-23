@@ -1237,6 +1237,11 @@ def stone():  # a grey stone for gathering (smaller and rounder than the map's r
     d = ImageDraw.Draw(im); d.line([(13, 17), (17, 21)], C('#6a6a72')); d.point((20, 16), C('#e0e0e6'))
     return outline(im)
 
+def gate_open():  # the same gate swung open: posts stand, the gate folds back flat against the right post, the board is gone
+    im = new(S, 2 * S)
+    for x in (3, 26): shape(im, lambda d, x=x: d.rectangle([x, 26, x + 3, 62]), '#9a6436', '#b07440', '#6f4426', 1)
+    shape(im, lambda d: d.rectangle([22, 36, 25, 60]), '#c88a50', '#e0a96a', '#9a6436', 1)  # gate seen edge-on
+    return outline(im)
 # The gate to a locked area: posts and a plank gate (bottom tile), with a striped "under construction" board on top.
 def gate():
     im = new(S, 2 * S)
@@ -1299,7 +1304,7 @@ for st in range(4): add(f'wheat{st}', crop('wheat', st))
 add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
 for name, col in (('note_red', '#e0322c'), ('note_yellow', '#f6c62c'), ('note_blue', '#2a6ae0')): add(name, music_note(col))
 add('bird0', macaw(0)); add('bird1', macaw(1)); add('bird_fly0', macaw(0, True)); add('bird_fly1', macaw(1, True))
-add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone()); add('stick', stick()); add('gate', gate())
+add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone()); add('stick', stick()); add('gate', gate()); add('gate_open', gate_open())
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)

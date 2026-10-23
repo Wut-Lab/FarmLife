@@ -86,7 +86,7 @@ test('the road has a locked gate at the foot of a path down its right side', asy
   assert.ok(m.solid[28 * m.W + 38] && m.solid[27 * m.W + 38]);
   for (let y = 18; y < m.H; y++) assert.ok(m.ground[y * m.W + 38].startsWith('path'), `row ${y}`);
   assert.deepEqual(exitRowsOf(m), [15, 16, 17]); // the new path doesn't make a new exit
-  assert.equal(GATES.road.locked, 'Under Construction'); assert.equal(GATES.road.open(), false);
+  assert.equal(GATES.road.locked, 'Under Construction'); assert.equal(GATES.road.open({ quests: { isOpen: () => false } }), false);
 });
 const exitRowsOf = m => [...Array(m.H).keys()].filter(y => /^(path|cobble)/.test(m.ground[y * m.W + m.W - 1]));
 
