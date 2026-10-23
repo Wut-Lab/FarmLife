@@ -1032,11 +1032,11 @@ def farmer(p):
             if p['long'] and dir_ == 3: shape(im, lambda d: d.rounded_rectangle([8, 10, 24, 23], 5), H, Hl, Hd)
             if p.get('beanie'):  # knitted beanie pulled down over the ears, ribbed band
                 K, Kl, Kd = p['beanie']
-                shape(im, lambda d: d.chord([7, 0, 25, 17], 180, 360), K, Kl, Kd, 1)
+                shape(im, lambda d: d.chord([7, 1, 25, 18], 180, 360), K, Kl, Kd, 1)  # top row left free so the outline closes over it
                 shape(im, lambda d: d.rectangle([7, 6, 25, 9]), Kd, K, None, 1)
                 d = ImageDraw.Draw(im)
                 for x in range(8, 25, 2): d.line([(x, 6), (x, 9)], C(K))
-                d.point((16, 0), C(Kl))
+                d.point((16, 2), C(Kl))
             if p.get('cap'):  # baseball cap over the hair: crown, then the brim facing the way the head does
                 K, Kl, Kd = p['cap']
                 shape(im, lambda d: d.chord([7, 1, 25, 15], 180, 360), K, Kl, Kd, 1)

@@ -14,8 +14,8 @@ test('each day rolls every event at its chance', () => {
   assert.deepEqual(Object.keys(rollDay(rand)), Object.keys(CHANCES));
   assert.deepEqual(rollDay(() => 0.99), { minstrel: false, bird: false, salesman: false });
 });
-test('the salesman sells four clothes, each worth +0.5% bonus crops; Bella keeps her goods', () => {
+test('the salesman sells four clothes, each worth +0.5% bonus peas; Bella keeps her goods', () => {
   assert.deepEqual(goodsOf('salesman'), ['beanie', 'longsleeve', 'jeans', 'white_sneakers']);
-  assert.ok(goodsOf('salesman').every(id => GOODS[id].extra === 0.005 && GOODS[id].slot));
+  assert.ok(goodsOf('salesman').every(id => GOODS[id].extra === 0.005 && GOODS[id].extraCrop === 'peas' && GOODS[id].slot));
   assert.deepEqual(goodsOf('storekeeper'), ['shoes', 'sneakers', 'shovel']);
 });

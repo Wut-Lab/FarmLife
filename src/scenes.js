@@ -406,7 +406,8 @@ export class World {
     if (f.isRipe(p)) {
       if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
       sfx('harvest'); f.act(key);
-      if (Math.random() < this.bonus('extra') && this.inv.add(p.crop)) return this.say(`Harvested ${aCrop(p.crop)}, and a bonus one!`); // the salesman's clothes
+      const extra = Object.values(this.worn).reduce((n, id) => n + (GOODS[id]?.extraCrop === p.crop ? GOODS[id].extra : 0), 0); // the salesman's clothes: bonus peas
+      if (Math.random() < extra && this.inv.add(p.crop)) return this.say(`Harvested ${aCrop(p.crop)}, and a bonus one!`); // the salesman's clothes
       return this.say(`Harvested ${aCrop(p.crop)}!`);
     }
     if (held === 'seeds') {
