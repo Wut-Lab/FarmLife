@@ -1341,7 +1341,8 @@ add('basket', basket(1)); add('basket_copper', basket(2)); add('basket_gold', ba
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 # Wilds pets: cats and dogs drawn in key colours that the game swaps for a random coat (src/pets.js keeps the same keys).
 # coat (base, light, dark), markings (tabby stripes or patches), white-ish belly/paws, eyes.
-PET_KEY = dict(coat=('#ff1001', '#ff1002', '#ff1003'), mark='#10ff01', belly='#0110ff', eye='#ff10ff')
+PET_KEY = dict(coat=('#ff1001', '#ff1002', '#ff1003'), mark='#10ff01', belly='#0110ff', belly_d='#0110fe', eye='#ff10ff')
+PET_BIB = [1.5, 2, 2.5, 3, 3.5, 3.5, 3, 2]  # half-width of the chest bib, row by row down from the neck
 def pet(kind):
     from PIL import ImageOps
     B, Bl, Bd = PET_KEY['coat']; dog = kind != 'cat'; sheet = new(3 * S, 4 * S)
@@ -1378,13 +1379,15 @@ def pet(kind):
                         shape(im, lambda d: d.ellipse([7, 9, 11, 18]), Bd, None, None); shape(im, lambda d: d.ellipse([21, 9, 25, 18]), Bd, None, None)
                     else:
                         shape(im, lambda d: tri(d, [(10, 11), (11, 3), (15, 9)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(17, 9), (21, 3), (22, 11)]), B, Bl, Bd, 1)
-                    shape(im, lambda d: d.ellipse([12, 13, 20, 19]), B, Bl, None)
+                    shape(im, lambda d: d.ellipse([12, 14, 20, 20]), PET_KEY['belly'], None, PET_KEY['belly_d'], 1)  # muzzle, shaded underneath
                     d = ImageDraw.Draw(im)
                     for ex in (12, 19): d.point((ex, 12), C('#ffffff')); d.point((ex, 13), C('#1a1018')); d.point((ex + (1 if ex < 16 else -1), 13), C(PET_KEY['eye']))
-                    d.rectangle([15, 14, 17, 15], C('#2a1a2a'))
+                    d.rectangle([15, 15, 17, 16], C('#2a1a2a')); d.point((15, 15), C('#6a5a62'))  # nose, with a shine
+                    d.point((16, 17), C('#3a2a2a')); d.point((15, 18), C('#3a2a2a')); d.point((17, 18), C('#3a2a2a'))  # mouth
                 else:
                     shape(im, lambda d: d.ellipse([9, 9, 23, 20]), B, Bl, Bd)
                     shape(im, lambda d: tri(d, [(10, 12), (10, 5), (14, 10)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(18, 10), (22, 5), (22, 12)]), B, Bl, Bd, 1)
+                    shape(im, lambda d: d.ellipse([13, 15, 19, 18]), PET_KEY['belly'], None, None)  # muzzle
                     d = ImageDraw.Draw(im)
                     for ex in (12, 18): d.point((ex, 13), C(PET_KEY['eye'])); d.point((ex + 1, 13), C(PET_KEY['eye'])); d.point((ex, 14), C(PET_KEY['eye'])); d.point((ex + 1, 14), C('#2a1a2a'))
                     d.point((16, 16), C('#e88a9a')); d.point((15, 17), C('#5a3a3a')); d.point((17, 17), C('#5a3a3a'))
@@ -1402,11 +1405,16 @@ def pet(kind):
                 d.line([(16, 25), (16 + wag, 21), (17 + wag, 14)] if not dog else [(16, 24), (16 + wag * 2, 19)], C(Bd), 2)  # tail up
             # Markings and pale bits, over the coat only: tabby stripes for cats, a patch for dogs; belly, chest and paws.
             px = im.load(); side = dir_ in (1, 2)
+            def pale(x, y):  # paws, a rounded bib on the chest, the belly and (dogs) the lower jaw
+                if y >= 28: return True
+                if dir_ == 0: return 0 <= y - 19 < len(PET_BIB) and abs(x - 15.5) <= PET_BIB[y - 19]
+                if side: return (x - 15) ** 2 / 30 + (y - 26.5) ** 2 / 4 < 1 or (x - 21) ** 2 / 3 + (y - 22) ** 2 / 8 < 1 or (dog and (x - 28) ** 2 / 8 + (y - 18.5) ** 2 / 2.5 < 1)
+                return False
             for y in range(S):
                 for x in range(S):
                     if px[x, y][:3] + (255,) not in coat: continue
-                    if (y >= 28) or (dir_ == 0 and ((11 <= x <= 20 and 19 <= y <= 24) or (dog and 12 <= x <= 20 and 15 <= y <= 19))) or (side and y >= 24 and 10 <= x <= 20) or (side and dog and x >= 26 and y >= 17):
-                        px[x, y] = C(PET_KEY['belly'])
+                    if pale(x, y):
+                        px[x, y] = C(PET_KEY['belly'] if all(pale(x + a, y + b) for a, b in ((1, 0), (0, 1))) else PET_KEY['belly_d'])  # shaded on its lower right edge
                     elif not dog and (x + (y if side else 0)) % 4 == 0 and px[x, y] != C(Bd) and y < 26 and not (dir_ == 0 and 10 < y < 18 and 11 < x < 21):
                         px[x, y] = C(PET_KEY['mark'])
                     elif dog and ((side and (x - 13) ** 2 + (y - 18) ** 2 < 12) or (dir_ == 3 and (x - 18) ** 2 + (y - 21) ** 2 < 10) or (dir_ == 0 and (x - 19) ** 2 + (y - 11) ** 2 < 6)):

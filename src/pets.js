@@ -24,8 +24,8 @@ export function petLook(rand = Math.random) {
   // Pattern: cats are tabby, tuxedo or plain; dogs are patched, white-chested or plain.
   const pattern = pick(what === 'cat' ? ['tabby', 'tuxedo', 'plain'] : ['patched', 'white-chested', 'plain']);
   const mark = pattern === 'tabby' ? (dark ? Bl : Bd) : pattern === 'patched' ? (dark || coat === 'grey' ? WHITE : Bd) : B;
-  const belly = pattern === 'plain' ? B : WHITE;
-  const swap = { '#ff1001': B, '#ff1002': Bl, '#ff1003': Bd, '#10ff01': mark, '#0110ff': belly, '#ff10ff': pick(EYES[what]) };
+  const [belly, bellyD] = pattern === 'plain' || coat === 'white' ? [Bl, B] : [WHITE, '#d4cabc']; // plain coats are just lighter underneath
+  const swap = { '#ff1001': B, '#ff1002': Bl, '#ff1003': Bd, '#10ff01': mark, '#0110ff': belly, '#0110fe': bellyD, '#ff10ff': pick(EYES[what]) };
   const about = `${coat}${pattern === 'plain' ? '' : ` ${pattern}`} ${what}`.replace('white white-chested', 'white');
   return { kind, name: pick(NAMES), about, swap };
 }

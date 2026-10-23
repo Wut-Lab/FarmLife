@@ -8,7 +8,7 @@ test('a made-up pet has a kind, a name and a full coat swap', () => {
     const p = petLook(rand);
     assert.ok(p.kind in KINDS && NAMES.includes(p.name));
     assert.match(p.about, new RegExp(`${KINDS[p.kind]}$`));
-    assert.equal(Object.keys(p.swap).length, 6);
+    assert.equal(Object.keys(p.swap).length, 7);
     for (const c of Object.values(p.swap)) assert.match(c, /^#[0-9a-f]{6}$/);
   }
 });
