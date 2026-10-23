@@ -11,6 +11,7 @@ export class Inventory {
   constructor() {
     this.slots = [{ id: 'hoe' }, { id: 'can' }, { id: 'seeds' }, ...Array(HOTBAR - LOCKED + BAG + BIN).fill(null)];
     this.sel = 0;
+    this.canBin = id => !TOOLS[id]; // what may go in the shipping bin (the game allows only crops)
   }
   get held() { return this.slots[this.sel]; }
   get carried() { return this.slots.slice(0, HOTBAR + BAG); }
@@ -48,8 +49,8 @@ export class Inventory {
   // Swap any two non-tool slots (hotbar or bag). Tools can't go in the shipping bin.
   swap(a, b) {
     if (a < LOCKED || b < LOCKED) return false;
-    const binned = i => i >= HOTBAR + BAG;
-    if ((binned(a) && TOOLS[this.slots[b]?.id]) || (binned(b) && TOOLS[this.slots[a]?.id])) return false;
+    const binned = i => i >= HOTBAR + BAG, no = s => s && !this.canBin(s.id);
+    if ((binned(a) && no(this.slots[b])) || (binned(b) && no(this.slots[a]))) return false;
     [this.slots[a], this.slots[b]] = [this.slots[b], this.slots[a]];
     return true;
   }

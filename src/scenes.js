@@ -8,7 +8,8 @@ import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicNam
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
 import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
-import { GOODS, STORE_HOURS, storeOpen } from './store.js';
+import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen } from './store.js';
+import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
@@ -181,10 +182,14 @@ export class World {
     this.gold = 200;
     this.seeds = { carrot: 5, turnip: 0, cabbage: 0 };
     this.gear = {}; // things bought at the general store: id -> true
+    this.worn = {}; // equipment slot -> id from GOODS
+    this.moved = { gone: [], put: [] }; // farm plants moved with the shovel: tiles dug up, and [tile, plant] planted
+    this.inv.canBin = id => !!CROPS[id]; // only crops go in the shipping bin
+    this.scatterDigs();
     this.shop = false;
     this.open = false; this.pick = -1;
     this.clock.on('overnight', () => {
-      this.field.overnight(); this.support.overnight();
+      this.field.overnight(); this.support.overnight(); this.scatterDigs();
       this.paid = this.binValue(this.inv.emptyBin());
       this.gold += this.paid;
     });
@@ -202,7 +207,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear,
+      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -211,7 +216,11 @@ export class World {
     Object.assign(this.clock, s.clock);
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     this.inv.slots = s.slots; this.inv.sel = s.sel;
-    Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed, gear: s.gear ?? {} });
+    Object.assign(this, { gold: s.gold, seeds: s.seeds, seed: s.seed, gear: s.gear ?? {}, worn: s.worn ?? (s.gear?.shoes ? { shoes: 'shoes' } : {}) });
+    this.moved = s.moved ?? { gone: [], put: [] };
+    for (const key of this.moved.gone) this.unplant(key);
+    for (const [key, id] of this.moved.put) this.plant(key, id);
+    this.wear();
     this.support = new Support(s.support);
     this.say('Welcome back!');
   }
@@ -267,7 +276,7 @@ export class World {
     const moving = d.x !== 0 || d.y !== 0;
     if (moving) {
       this.player.dir = Math.abs(d.x) > Math.abs(d.y) ? (d.x < 0 ? DIRS.left : DIRS.right) : (d.y < 0 ? DIRS.up : DIRS.down);
-      const sp = SPEED * (this.gear.shoes ? 1.2 : 1), nx = this.x + d.x * sp * dt, ny = this.y + d.y * sp * dt; // running shoes: a little faster
+      const sp = SPEED * this.bonus('speed'), nx = this.x + d.x * sp * dt, ny = this.y + d.y * sp * dt; // running shoes: a little faster
       if (!this.blocked(nx, this.y)) this.x = nx;
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
@@ -349,8 +358,9 @@ export class World {
       return keeper ? this.say(`${KEEPERS[counter].name} runs the ${KEEPERS[counter].building}. Talk to them outside.`) : (this.shop = counter);
     }
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
-    if (held === 'shovel') return this.say('Nothing to dig up here yet.');
-    if (!this.onFarm || !f.has(key)) return held && !TOOLS[held] && this.say(`That's a ${CROPS[held].name}.`);
+    if (held === 'shovel') return this.dig(key);
+    if (PLANTS[held]) return this.replant(key, held);
+    if (!this.onFarm || !f.has(key)) return CROPS[held] && this.say(`That's a ${CROPS[held].name}.`);
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
       if (!this.inv.add(p.crop)) return this.say('Your bag is full.');
@@ -463,10 +473,19 @@ export class World {
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     if (this.menu === 'pause') return [
       { label: 'Resume', go: () => { this.menu = null; } },
+      { label: 'Equipment', go: () => this.openMenu('equipment') },
       { label: 'Friends', go: () => this.openMenu('friends') },
       { label: 'Controls', go: () => this.openMenu('controls') },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Quit to title', go: () => { stopMusic(); this.g.go(new SaveSelect()); } },
+    ];
+    if (this.menu === 'equipment') return [
+      ...Object.entries(WEAR_SLOTS).map(([slot, label]) => {
+        const opts = [null, ...Object.keys(GOODS).filter(id => GOODS[id].slot === slot && this.gear[id])], cur = this.worn[slot] ?? null;
+        return { label, value: cur ? GOODS[cur].short : opts.length > 1 ? 'None' : 'Nothing yet',
+          adj: d => this.wear(slot, opts[(opts.indexOf(cur) + d + opts.length) % opts.length]) };
+      }),
+      { label: 'Back', go: () => this.openMenu('pause') },
     ];
     if (this.menu === 'settings') {
       const vol = (k, label) => ({ label, value: settings[k] ? `${settings[k] * 10}%` : 'Off', adj: d => { settings[k] = clamp(settings[k] + d, 0, 10); saveSettings(); } });
@@ -482,8 +501,8 @@ export class World {
     return [{ label: 'Back', go: () => (this.back ? this.openMenu(this.back) : (this.menu = null)) }];
   }
   menuLayout() {
-    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : 0;
-    const w = this.menu === 'friends' ? 170 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : this.menu === 'equipment' ? 2 : 0;
+    const w = this.menu === 'friends' ? 170 : this.menu === 'equipment' ? 180 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
     const rows = items.map((it, i) => ({ ...it, r: [x + 6, y + 18 + lines * 9 + i * 18, w - 12, 16] }));
     return { x, y, w, h, rows, top: y + 18 };
   }
@@ -509,7 +528,7 @@ export class World {
     const g = this.g, { x, y, w, h, rows, top } = this.menuLayout();
     g.ctx.fillStyle = '#0b142888'; g.ctx.fillRect(0, 0, g.w, g.h);
     g.panel(x, y, w, h, '#3f2631f2');
-    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends' }[this.menu];
+    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends', equipment: 'Equipment' }[this.menu];
     g.text(title, x + w / 2, y + 5, { size: 8, align: 'center', color: '#fff3a8' });
     if (this.menu === 'pause') g.text(`Saved this morning · ♪ ${musicName()}`, x + w / 2, y + h + 3, { size: 5, align: 'center', color: '#e2f0d4' });
     if (this.menu === 'friends') Object.entries(PEOPLE).forEach(([id, who], i) => {
@@ -520,6 +539,11 @@ export class World {
       g.text(q ? `Wants ${q.n} ${CROPS[q.item].name}${q.n > 1 ? "s" : ""} · ${q.gold}g · ${q.days}d left` : 'No request right now', x + 8, yy + 8, { size: 5 });
       g.text(`${n >= PERK_AT ? 'Perk' : `Perk at ${PERK_AT} hearts`}: ${who.perk.text}`, x + 8, yy + 15, { size: 5, color: n >= PERK_AT ? '#86cf5e' : '#dcebc6' });
     });
+    if (this.menu === 'equipment') {
+      const on = Object.values(this.worn).map(id => GOODS[id].about);
+      this.wrap(on.length ? on.join(' ') : 'Buy clothes at the General Store, then wear them here.', w - 16, 5).slice(0, 2)
+        .forEach((l, i) => g.text(l, x + 8, top + i * 9, { size: 5, color: on.length ? '#86cf5e' : '#dcebc6' }));
+    }
     if (this.menu === 'controls') CONTROLS.forEach(([k, v], i) => {
       g.text(k, x + 8, top + i * 9, { size: 5, color: '#fff3a8' });
       g.text(v, x + 52, top + i * 9, { size: 5 });
@@ -534,6 +558,62 @@ export class World {
         g.text('>', rx + rw - 8, ry + 4, { size: 6, align: 'center', color: '#fff3a8' });
       }
     });
+  }
+
+  // Equipment: what's worn, and what it adds up to.
+  bonus(kind) { return Object.values(this.worn).reduce((b, id) => (kind === 'speed' ? b * (GOODS[id]?.speed ?? 1) : b + (GOODS[id]?.energy ?? 0)), kind === 'speed' ? 1 : 0); }
+  wear(slot, id) {
+    if (slot) { if (id) this.worn[slot] = id; else delete this.worn[slot]; }
+    this.clock.max = MAX_ENERGY + this.bonus('energy');
+    this.clock.energy = Math.min(this.clock.energy, this.clock.max);
+  }
+
+  // The shovel: loose earth turns up finds; small plants come up so you can replant them on your farm.
+  scatterDigs() { for (const [id, n] of Object.entries(DIG_SPOTS)) if (this.maps[id]) this.maps[id].digs = scatterDigs(this.maps[id], n); }
+  plantAt(key, map = this.map) {
+    return map.objects.find(o => `${o.x / TILE},${o.y / TILE}` === key && o.tiles.length === 1 && o.tiles[0].length === 1 && PLANTS[o.tiles[0][0]]);
+  }
+  unplant(key, map = this.maps.farm) {
+    const o = this.plantAt(key, map); if (!o) return null;
+    const [x, y] = key.split(',').map(Number);
+    map.objects.splice(map.objects.indexOf(o), 1); map.solid[y * map.W + x] = 0;
+    return o.tiles[0][0];
+  }
+  plant(key, id, map = this.maps.farm) {
+    const [x, y] = key.split(',').map(Number);
+    map.objects.push({ x: x * TILE, y: y * TILE, base: (y + 1) * TILE, tiles: [[id]] });
+    if (!PLANTS[id].walk) map.solid[y * map.W + x] = 1;
+  }
+  dig(key) {
+    const m = this.map, tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
+    if (m.digs?.has(key)) {
+      if (!this.clock.useEnergy(DIG_ENERGY)) return tired();
+      const f = digFind(); m.digs.delete(key); sfx('dig');
+      if (f.gold) { this.gold += f.gold; sfx('coin'); return this.say(`Found some old coins! (+${f.gold}g)`); }
+      if (f.seeds) { this.seeds[f.seeds] += f.n; return this.say(`Found ${f.n} ${CROPS[f.seeds].name} seeds!`); }
+      if (f.item) return this.say(this.inv.add(f.item) ? `Found a wild ${CROPS[f.item].name}!` : 'Found something, but your bag is full.');
+      if (f.plant) return this.say(this.inv.add(f.plant) ? `Found ${PLANTS[f.plant].name}! Plant it on your farm.` : 'Found something, but your bag is full.');
+      return this.say('Just dirt this time.');
+    }
+    const o = this.plantAt(key);
+    if (!o) return this.say('Nothing to dig up here. Look for loose earth.');
+    if (!this.onFarm) return this.say("That isn't yours to dig up. Try the plants on your farm.");
+    const id = o.tiles[0][0];
+    if (!this.inv.add(id)) return this.say('Your bag is full.');
+    if (!this.clock.useEnergy(DIG_ENERGY)) { this.inv.take(id, 1); return tired(); }
+    this.unplant(key); sfx('dig');
+    const put = this.moved.put.findIndex(([k]) => k === key);
+    if (put >= 0) this.moved.put.splice(put, 1); else this.moved.gone.push(key);
+    this.say(`Dug up the ${PLANTS[id].name}. Plant it anywhere on your farm.`);
+  }
+  replant(key, id) {
+    const m = this.map, [x, y] = key.split(',').map(Number);
+    if (!this.onFarm) return this.say('Plant it on your farm.');
+    const taken = this.field.has(key) || [m.door, ...m.bin].includes(key) || m.objects.some(o => o.tiles.some((row, j) => row.some((_, i) => `${o.x / TILE + i},${o.y / TILE + j}` === key)));
+    if (x < 0 || y < 0 || x >= m.W || y >= m.H || taken || m.solid[y * m.W + x] || !m.ground[y * m.W + x].startsWith('grass')) return this.say('It needs an open patch of grass.');
+    this.inv.take(id, 1); this.plant(key, id); sfx('plant');
+    this.moved.put.push([key, id]);
+    this.say(`Planted the ${PLANTS[id].name}.`);
   }
 
   // Why a keeper's shop is closed right now, or '' if it's open (only the general store keeps hours).
@@ -591,8 +671,9 @@ export class World {
 
   // General store: Bella's goods, each bought once.
   storeRows() {
-    const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 46);
-    return { x, y, buy: Object.keys(GOODS).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 72, 64, 14] };
+    const g = this.g, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - 59);
+    const n = Object.keys(GOODS).length;
+    return { x, y, h: 38 + n * 26, buy: Object.keys(GOODS).map((_, i) => [x + 4, y + 16 + i * 26, 132, 24]), close: [x + 38, y + 20 + n * 26, 64, 14] };
   }
   storeUpdate(inp) {
     const r = this.storeRows();
@@ -602,13 +683,15 @@ export class World {
       if (this.gold < it.price) return this.say(`Not enough gold for the ${it.name}.`);
       if (id === 'shovel' && !this.inv.add('shovel')) return this.say('Your bag is full.');
       sfx('coin'); this.gold -= it.price; this.gear[id] = true;
-      this.say(id === 'shoes' ? 'Bought Running Shoes! You walk a little faster now.' : `Bought the ${it.name}! It's in your bag.`);
+      if (!it.slot) return this.say(`Bought the ${it.name}! It's in your bag.`);
+      const on = !this.worn[it.slot]; if (on) this.wear(it.slot, id);
+      this.say(`Bought the ${it.name}! ` + (on ? 'You put them on.' : 'Wear them from Pause > Equipment.'));
     });
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
   drawStore() {
     const g = this.g, r = this.storeRows();
-    g.panel(r.x, r.y, 140, 90, '#3f2631ee');
+    g.panel(r.x, r.y, 140, r.h, '#3f2631ee');
     if (this.villagers.some(v => v.walker.sheet === 'storekeeper')) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker('storekeeper').draw(g, r.x - 22, r.y + 2); }
     g.text(`${KEEPERS.storekeeper.title} · ${this.gold}g`, r.x + 70, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
     Object.entries(GOODS).forEach(([id, it], i) => {
@@ -635,7 +718,7 @@ export class World {
     g.panel(x, y, 18, 18, i === this.pick ? '#e86a9add' : undefined);
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
-    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? CROPS[s.id].item;
+    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? CROPS[s.id].item;
     g.tile(icon, x + 1, y + 1);
     const n = s.id === 'seeds' ? this.seeds[SEEDS[this.seed]] : s.n;
     if (n !== undefined) g.text(String(n), x + 17, y + 11, { size: 5, align: 'right' });
@@ -653,10 +736,11 @@ export class World {
         const p = this.onFarm && this.field.get(`${x},${y}`);
         if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx, y * TILE - cy + 3, 16, 11); }
         if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
+        if (this.map.digs?.has(`${x},${y}`)) g.tile('dig_spot', x * TILE - cx, y * TILE - cy);
       }
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin].includes(`${fx},${fy}`)) {
+    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin].includes(`${fx},${fy}`) || this.map.digs?.has(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }
@@ -738,11 +822,11 @@ export class World {
     g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
     g.text(`${this.gold}g`, x + w - 4, y + 12, { size: 7, align: 'right', color: '#fff3a8' });
     g.panel(x + 4, y + 24, w - 8, 5, '#24361a');
-    g.panel(x + 4, y + 24, (w - 8) * k.energy / MAX_ENERGY, 5, '#86cf5e');
+    g.panel(x + 4, y + 24, (w - 8) * Math.min(1, k.energy / k.max), 5, '#86cf5e');
     // Hotbar, top left, with the held item's name under it.
     for (let i = 0; i < HOTBAR; i++) this.drawSlot(i);
     const h = this.inv.held;
-    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
+    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? PLANTS[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
     // Bag grid.
     if (this.open) {
       const [bx, by] = this.slotRect(HOTBAR);

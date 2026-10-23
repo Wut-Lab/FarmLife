@@ -165,6 +165,21 @@ def shoes():  # a running shoe from the side: red upper, white sole and laces, a
     for k in range(3): d.line([(12 + k * 3, 14 + k), (14 + k * 3, 17 + k)], C('#ffffff'))
     d.line([(7, 21), (14, 21), (22, 19)], C('#ffd84a'), 1)
     return outline(im)
+def sneakers():  # a low, light trainer: pale blue mesh upper, thin white sole, mint stripe
+    im = new()
+    shape(im, lambda d: d.polygon([(5, 16), (12, 15), (17, 18), (25, 20), (29, 22), (29, 25), (5, 25)]), '#9fd4ee', '#d2eefa', '#5f9cc0', 1)
+    shape(im, lambda d: d.rounded_rectangle([4, 24, 30, 27], 2), '#ffffff', '#ffffff', '#c8c4ba', 1)
+    d = ImageDraw.Draw(im)
+    for k in range(3): d.point((13 + k * 3, 18 + k), C('#ffffff')); d.point((14 + k * 3, 19 + k), C('#ffffff'))
+    d.line([(8, 22), (16, 22), (24, 21)], C('#6fe0b0'), 1)
+    return outline(im)
+def dig_spot():  # loose earth: a low mound of dark soil with a crack and a few pebbles
+    im = new()
+    shape(im, lambda d: d.ellipse([7, 15, 25, 26]), '#7a4f2c', '#9a6a40', '#55361e', 1)
+    d = ImageDraw.Draw(im)
+    d.line([(12, 19), (15, 21), (14, 23)], C('#3f2716')); d.line([(18, 18), (20, 21)], C('#3f2716'))
+    for x, y in ((10, 22), (21, 23), (17, 17)): d.point((x, y), C('#c8b89a'))
+    return outline(im)
 
 # ---------- trees, props ----------
 def canopy(im, cols, cx, cy, r):
@@ -852,6 +867,7 @@ add('cobble0', COB); add('brick0', BRK)
 blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'kerb', (C('#8a3c2c'), C('#7a3426')))
 blob_set('shallow', SHAL, grass(0), 'shore'); blob_set('deep', DEEP, SHAL, 'deep')
 add('shovel', shovel()); add('shoes', shoes())
+add('sneakers', sneakers()); add('dig_spot', dig_spot())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))

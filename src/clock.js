@@ -14,6 +14,7 @@ export class Clock {
     this.season = 0;    // index into SEASONS
     this.year = 1;
     this.energy = MAX_ENERGY;
+    this.max = MAX_ENERGY; // raised by things you wear
     this.paused = false;
     this._acc = 0;
     this._listeners = {};
@@ -58,7 +59,7 @@ export class Clock {
     }
     this.minutes = DAY_START;
     this._acc = 0;
-    this.energy = passedOut ? Math.floor(MAX_ENERGY / 2) : MAX_ENERGY;
+    this.energy = passedOut ? Math.floor(this.max / 2) : this.max;
     this._emit('newDay', { clock: this, passedOut });
   }
 
