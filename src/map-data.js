@@ -88,7 +88,7 @@ export function mapFromData(d) {
   return out;
 }
 
-// The game's map (e.g. buildFarm()) -> editor data, so an existing map can be opened and changed.
+// The game's map (e.g. a location's build()) -> editor data, so an existing map can be opened and changed.
 export function dataFromMap(m) {
   const d = { W: m.W, H: m.H, ground: m.ground.slice(), objects: [], block: Array(m.W * m.H).fill(0),
     spawn: { x: Math.round(m.spawn.x / TILE), y: Math.round(m.spawn.y / TILE) },

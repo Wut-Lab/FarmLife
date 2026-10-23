@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFarm } from '../src/farm-map.js';
+import { LOCATIONS } from '../src/locations.js';
 import { PREFABS, BLOB, blobTile, blankMap, mapFromData, dataFromMap } from '../src/map-data.js';
 
 test('the farm survives a round trip through editor data', () => {
-  const farm = buildFarm(), back = mapFromData(dataFromMap(farm));
+  const farm = LOCATIONS.farm.build(), back = mapFromData(dataFromMap(farm));
   assert.deepEqual(back.ground, farm.ground);
   assert.deepEqual([...back.solid], [...farm.solid]);
   assert.deepEqual(back.plots.sort(), farm.plots.slice().sort());
@@ -43,13 +43,13 @@ test('blob autotiles: 47 pieces, deep water blocks', () => {
   assert.equal(m.solid[4], 1); assert.equal(m.solid[0], 0);
 });
 
-test('locations keep their exits and villagers through the editor, and exits sit on the road', async () => {
-  const { LOCATIONS, ROAD } = await import('../src/locations.js');
+test('locations keep their exits and villagers through the editor, and every exit has a road', async () => {
+  const { LOCATIONS } = await import('../src/locations.js');
   const { exitRows } = await import('../src/map-data.js');
   for (const l of Object.values(LOCATIONS)) {
     const m = l.build(), back = mapFromData(dataFromMap(m));
     assert.deepEqual(back.exits, m.exits); assert.deepEqual(back.npcs, m.npcs ?? []);
-    for (const side of Object.keys(m.exits)) assert.deepEqual(exitRows(m, side), ROAD, `${l.name} ${side}`);
+    for (const side of Object.keys(m.exits)) assert.ok(exitRows(m, side).length, `${l.name} ${side}`);
   }
 });
 

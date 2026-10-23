@@ -3,6 +3,8 @@ import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS, DAYS_PER_SEASON } from './clock.js';
 import { editorMaps, exitRows, isPaved } from './map-data.js';
 import { LOCATIONS } from './locations.js';
+
+const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves from the old layout are dropped
 import { CROPS, SEEDS, Field, aCrop, nCrops, inSeason } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
@@ -209,7 +211,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved,
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -219,7 +221,7 @@ export class World {
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     this.inv.slots = s.slots; this.inv.sel = s.sel;
     Object.assign(this, { gold: s.gold, seeds: { ...this.seeds, ...s.seeds }, seed: s.seed, gear: s.gear ?? {}, worn: s.worn ?? (s.gear?.shoes ? { shoes: 'shoes' } : {}) });
-    this.moved = s.moved ?? { gone: [], put: [] };
+    this.moved = s.layout === FARM_LAYOUT && s.moved || { gone: [], put: [] }; // plants moved on an older farm layout don't carry over
     for (const key of this.moved.gone) this.unplant(key);
     for (const [key, id] of this.moved.put) this.plant(key, id);
     this.wear();

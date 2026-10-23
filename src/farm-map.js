@@ -1,72 +1,151 @@
-// The farm: a hand-placed layout with a seeded scatter of flowers and trees.
-import { TILE } from './engine.js';
-import { ROAD, paveRoad } from './locations.js';
-
-function rng(seed) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function buildFarm(seed = 7) {
-  const W = 40, H = 30, rand = rng(seed);
-  const ground = [], solid = new Uint8Array(W * H), objects = [];
-  const at = (x, y) => y * W + x;
-  for (let i = 0; i < W * H; i++) {
-    const r = rand();
-    ground.push(r < 0.06 ? 'grass2' : r < 0.18 ? 'grass1' : 'grass0');
-  }
-  const used = new Uint8Array(W * H);
-  const free = (x, y, w, h) => {
-    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++)
-      if (i < 0 || j < 0 || i >= W || j >= H || used[at(i, j)]) return false;
-    return true;
-  };
-  // tiles: rows of tile names; solidRows: how many bottom rows block movement
-  const place = (x, y, tiles, solidRows = tiles.length) => {
-    const h = tiles.length, w = tiles[0].length;
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      used[at(x + i, y + j)] = 1;
-      if (j >= h - solidRows) solid[at(x + i, y + j)] = 1;
-    }
-    objects.push({ x: x * TILE, y: y * TILE, base: (y + h) * TILE, tiles });
-  };
-
-  // Path (3 rows high so its grass edges line up), house, field and fence.
-  for (let x = 3; x < 37; x++) for (let j = 0; j < 3; j++) {
-    const col = x === 3 ? 0 : 1; // runs straight into the stone road
-    ground[at(x, 15 + j)] = 'path' + (j * 3 + col);
-    used[at(x, 15 + j)] = 1;
-  }
-  // Stone road off the right edge, toward town.
-  paveRoad(ground, W, H, (x, y) => x >= 37 && ROAD.includes(y));
-  for (const y of ROAD) for (let x = 37; x < W; x++) used[at(x, y)] = 1;
-  place(17, 10, [['house_0', 'house_1', 'house_2'], ['house_3', 'house_4', 'house_5'], ['house_6', 'house_7', 'house_8']]);
-  place(25, 12, [['bin_0', 'bin_1']]); // shipping bin
-  const plots = [];
-  for (let y = 20; y < 26; y += 2) for (let x = 6; x < 16; x++) {
-    plots.push(`${x},${y}`);
-    ground[at(x, y)] = 'soil' + (x === 6 ? 0 : x === 15 ? 2 : 1);
-  }
-  for (let y = 20; y < 26; y++) for (let x = 5; x < 17; x++) used[at(x, y)] = 1;
-  place(5, 19, [['fence0', ...Array(10).fill('fence1'), 'fence2']]);
-
-  // Border of tall trees, then scattered trees, shrubs and mushrooms.
-  const tall = () => { const r = rand(); return r < 0.25 ? [['tree_orange_0'], ['tree_orange_1']] : r < 0.45 ? [['pine_0'], ['pine_1']] : [['tree_green_0'], ['tree_green_1']]; };
-  for (let x = 0; x < W; x++) { if (free(x, 0, 1, 2)) place(x, 0, tall(), 1); if (free(x, H - 2, 1, 2)) place(x, H - 2, tall(), 1); }
-  for (let y = 2; y < H - 2; y += 1) { if (free(0, y, 1, 2)) place(0, y, tall(), 1); if (free(W - 1, y, 1, 2)) place(W - 1, y, tall(), 1); }
-  for (let n = 0; n < 40; n++) {
-    const x = 2 + Math.floor(rand() * (W - 4)), y = 2 + Math.floor(rand() * (H - 4));
-    const r = rand();
-    if (r < 0.1) { if (free(x - 1, y - 1, 4, 4)) place(x, y, [['oak_0', 'oak_1'], ['oak_2', 'oak_3']], 1); continue; }
-    if (r < 0.2) { if (free(x - 1, y - 1, 3, 4)) place(x, y, [['pine_0'], ['pine_1']], 1); continue; }
-    if (r < 0.3) { if (free(x - 1, y - 1, 4, 3)) place(x, y, [['shrub_large_0', 'shrub_large_1']]); continue; }
-    const kind = r < 0.4 ? 'shrub_flower' : r < 0.8 ? 'tree' : 'mushrooms';
-    if (free(x - 1, y - 1, 3, 3)) place(x, y, [[kind]], kind === 'mushrooms' ? 0 : 1);
-  }
-
-  return { W, H, ground, solid, objects, plots, door: '18,12', shop: null, bin: ['25,12', '26,12'], name: 'Farm', exits: { right: 'road' }, spawn: { x: 18 * TILE, y: 13 * TILE } };
-}
+// The farm, as built in the map editor (exported from the editor as JSON). Data for mapFromData.
+export const FARM = {
+  W: 40, H: 30,
+  ground: [
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass2","grass0","grass0","grass0","grass0","grass0","grass1","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass2","grass0",
+    "grass1","grass0","grass1","grass2","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass1","grass1","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass2","grass0","grass2","grass1","grass1","grass0","grass1","grass0",
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass2","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass1","cobbleb20","cobbleb31","cobbleb26","grass1","grass0","grass0","grass1",
+    "grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass2","grass0","cobbleb24","cobbleb46","cobbleb45","cobbleb31","cobbleb31","cobbleb31","cobbleb31",
+    "grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass1","grass0","grass1","grass0","grass1","grass0","grass0","grass0","grass0","grass2","grass0","grass2","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass2","grass1","cobbleb24","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46",
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","cobbleb24","cobbleb46","cobbleb44","cobbleb38","cobbleb38","cobbleb38","cobbleb38",
+    "grass0","grass0","grass0","grass0","grass0","grass2","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","path0","path1","path1","path1","path1","path1","path1","path1","cobbleb31","cobble0","cobbleb31","cobbleb31","cobbleb31","cobbleb31","cobbleb31","cobbleb31","cobbleb33","cobbleb46","cobbleb42","grass0","grass0","grass0","grass0",
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass1","grass0","grass0","grass0","grass0","path3","path4","path4","path4","path4","path4","path4","cobble0","path4","path4","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb46","cobbleb42","grass0","grass0","grass0","grass1",
+    "grass1","grass0","grass0","grass0","grass0","grass2","grass0","grass1","grass0","grass0","grass1","grass0","grass2","grass0","grass0","grass2","grass0","path3","path4","path4","path7","path7","path7","path7","path7","cobble0","path7","path7","cobbleb38","cobbleb38","cobbleb38","cobbleb38","cobbleb38","cobbleb38","cobbleb38","cobbleb34","grass2","grass0","grass1","grass0",
+    "grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","path3","path4","path5","grass1","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0",
+    "grass0","grass0","grass1","grass1","grass1","grass1","grass0","grass2","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","path6","path4","path5","grass0","grass0","grass0","grass0","grass2","grass0","grass2","grass0","grass1","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0",
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass1","grass1","grass0","grass1","grass0","grass0","grass1","grass0","grass0","path3","path8","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","soil0","soil1","soil1","soil1","soil1","soil1","soil2","grass0","grass0","grass0","grass0","grass0",
+    "grass0","grass1","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","path0","path5","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0",
+    "grass0","grass0","grass0","grass2","grass1","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass1","grass0","grass1","path6","path4","path2","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","soil0","soil1","soil1","soil1","soil1","soil1","soil2","grass0","grass0","grass0","grass0","grass0",
+    "grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","path3","path5","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass2","grass0","grass0",
+    "grass0","grass0","grass0","grass1","grass0","grass0","grass1","grass0","grass1","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","path0","path7","path8","grass1","grass0","grass0","grass1","grass0","grass1","grass2","grass0","grass0","shallow2","shallow22","shallow31","shallow26","grass0","grass0","grass1","grass1","grass0","grass0","grass0",
+    "grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","path0","path1","path1","path1","path2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","shallow24","shallow46","shallow45","shallow26","grass0","grass0","grass0","grass0","grass2","grass0",
+    "grass0","grass1","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","path3","path4","path4","path4","path4","path1","path2","grass2","path0","path2","grass2","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","shallow16","shallow38","shallow41","shallow42","grass0","grass2","grass0","grass0","grass0","grass0",
+    "grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","path0","path4","path4","path4","path4","path5","grass0","path3","path1","path4","path5","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","shallow16","shallow34","grass0","shallow4","grass0","grass0","grass0","grass0",
+    "shallow26","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","path3","path4","path4","path7","path7","path4","path1","path7","path7","path7","path8","grass0","grass0","grass1","grass0","grass0","grass0","grass1","grass1","grass2","grass0","grass1","grass0","grass0","grass0","shallow2","shallow9","grass0","grass0","grass0","grass1",
+    "shallow45","shallow26","grass0","grass0","grass0","grass0","grass0","grass0","grass0","path3","path4","path5","grass0","grass1","path6","path8","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass1","grass1","grass0","grass1","grass0","grass2","grass0",
+    "shallow46","shallow45","shallow31","shallow31","shallow26","grass0","grass0","grass0","grass0","path3","path4","path5","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0",
+    "shallow46","shallow46","shallow46","shallow46","shallow45","shallow31","shallow31","shallow26","grass2","path3","path4","path5","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass1","grass0","grass0","grass0",
+    "deep31","deep31","deep31","deep31","deep26","shallow46","shallow46","shallow45","shallow26","path3","path4","path5","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass1","grass0","grass0","grass0",
+    "deep46","deep46","deep46","deep46","deep45","deep26","shallow46","shallow46","shallow42","path3","path4","path5","grass0","grass1","grass0","grass2","grass0","grass0","grass0","grass1","grass1","grass0","grass0","grass0","grass1","grass0","grass0","grass1","grass0","grass2","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0",
+    "deep46","deep46","deep46","deep46","deep46","deep42","shallow46","shallow46","shallow42","path3","path4","path5","grass0","grass0","grass0","grass0","grass0","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0",
+    "deep46","deep46","deep46","deep46","deep46","deep45","deep26","shallow46","shallow42","path3","path4","path5","grass0","grass1","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass2","grass2","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0",
+    "deep46","deep46","deep46","deep46","deep46","deep46","deep42","shallow46","shallow42","path6","path4","path4","path2","grass1","grass0","grass0","grass2","grass0","grass1","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0",
+    "deep46","deep46","deep46","deep46","deep46","deep46","deep42","shallow46","shallow45","shallow26","path6","path4","path5","grass0","grass0","grass2","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass1","grass0",
+    "deep46","deep46","deep46","deep46","deep46","deep46","deep45","deep31","deep26","shallow45","shallow26","path3","path4","path2","grass0","grass0","grass0","grass1","grass2","grass0","grass0","grass1","grass0","grass0","grass1","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass0","grass1","grass0","grass0","grass0",
+  ],
+  objects: [
+    {"name":"house","x":27,"y":2},
+    {"name":"sign","x":32,"y":4},
+    {"name":"bin","x":30,"y":4},
+    {"name":"shrub_large","x":24,"y":4},
+    {"name":"shrub_flower","x":26,"y":4},
+    {"name":"oak","x":22,"y":3},
+    {"name":"tree","x":21,"y":4},
+    {"name":"tree","x":25,"y":1},
+    {"name":"tree","x":21,"y":1},
+    {"name":"tree_green","x":22,"y":0},
+    {"name":"pine","x":24,"y":2},
+    {"name":"pine","x":26,"y":1},
+    {"name":"pine","x":19,"y":0},
+    {"name":"pine","x":19,"y":4},
+    {"name":"pine","x":18,"y":4},
+    {"name":"shrub_large","x":16,"y":5},
+    {"name":"shrub_small","x":16,"y":6},
+    {"name":"shrub_small","x":15,"y":7},
+    {"name":"pine","x":21,"y":9},
+    {"name":"tree","x":20,"y":9},
+    {"name":"oak","x":23,"y":10},
+    {"name":"pine","x":33,"y":0},
+    {"name":"pine","x":34,"y":0},
+    {"name":"pine","x":32,"y":2},
+    {"name":"oak","x":36,"y":0},
+    {"name":"shrub_large","x":38,"y":1},
+    {"name":"mushrooms","x":39,"y":0},
+    {"name":"tree","x":35,"y":0},
+    {"name":"tree","x":30,"y":1},
+    {"name":"tree","x":29,"y":0},
+    {"name":"pine","x":0,"y":17},
+    {"name":"pine","x":1,"y":15},
+    {"name":"pine","x":3,"y":18},
+    {"name":"oak","x":5,"y":20},
+    {"name":"shrub_large","x":7,"y":21},
+    {"name":"shrub_small","x":5,"y":16},
+    {"name":"tree","x":6,"y":15},
+    {"name":"shrub_small","x":9,"y":17},
+    {"name":"shrub_small","x":15,"y":18},
+    {"name":"shrub_small","x":17,"y":14},
+    {"name":"tree","x":20,"y":20},
+    {"name":"pine","x":21,"y":19},
+    {"name":"pine","x":12,"y":25},
+    {"name":"pine","x":13,"y":23},
+    {"name":"pine","x":15,"y":28},
+    {"name":"pine","x":16,"y":28},
+    {"name":"pine","x":17,"y":27},
+    {"name":"shrub_small","x":18,"y":29},
+    {"name":"shrub_small","x":12,"y":20},
+    {"name":"barn","x":36,"y":9},
+    {"name":"fence0","x":36,"y":6},
+    {"name":"fence1","x":37,"y":6},
+    {"name":"fence1","x":38,"y":6},
+    {"name":"fence2","x":39,"y":6},
+    {"name":"fence0","x":27,"y":10},
+    {"name":"fence1","x":28,"y":10},
+    {"name":"fence1","x":29,"y":10},
+    {"name":"fence2","x":30,"y":10},
+    {"name":"fence0","x":32,"y":10},
+    {"name":"fence1","x":33,"y":10},
+    {"name":"fence1","x":34,"y":10},
+    {"name":"fence2","x":35,"y":10},
+    {"name":"mushrooms","x":34,"y":18},
+    {"name":"mushrooms","x":29,"y":16},
+    {"name":"mushrooms","x":36,"y":15},
+    {"name":"mushrooms","x":23,"y":20},
+    {"name":"mushrooms","x":17,"y":11},
+    {"name":"mushrooms","x":15,"y":16},
+    {"name":"mushrooms","x":3,"y":17},
+    {"name":"mushrooms","x":4,"y":17},
+    {"name":"mushrooms","x":1,"y":7},
+    {"name":"mushrooms","x":32,"y":5},
+    {"name":"mushrooms","x":28,"y":0},
+    {"name":"mushrooms","x":38,"y":22},
+    {"name":"pine","x":39,"y":28},
+    {"name":"pine","x":38,"y":28},
+    {"name":"pine","x":37,"y":27},
+    {"name":"pine","x":36,"y":27},
+    {"name":"shrub_small","x":36,"y":29},
+    {"name":"shrub_large","x":34,"y":28},
+    {"name":"shrub_large","x":31,"y":27},
+    {"name":"tree_green","x":30,"y":24},
+    {"name":"pine","x":29,"y":23},
+    {"name":"pine","x":31,"y":23},
+    {"name":"oak","x":28,"y":28},
+    {"name":"oak","x":32,"y":18},
+    {"name":"shrub_large","x":1,"y":6},
+    {"name":"shrub_large","x":4,"y":6},
+    {"name":"shrub_small","x":3,"y":6},
+    {"name":"oak","x":5,"y":7},
+    {"name":"pine","x":4,"y":2},
+    {"name":"pine","x":0,"y":1},
+    {"name":"pine","x":0,"y":3},
+    {"name":"pine","x":5,"y":1},
+    {"name":"pine","x":6,"y":1},
+    {"name":"pine","x":6,"y":4},
+    {"name":"pine","x":3,"y":0},
+    {"name":"oak","x":2,"y":10},
+    {"name":"shrub_large","x":12,"y":0},
+    {"name":"tree_green","x":10,"y":4},
+    {"name":"tree","x":13,"y":3},
+    {"name":"mushrooms","x":12,"y":9},
+    {"name":"mushrooms","x":14,"y":6},
+    {"name":"mushrooms","x":9,"y":14},
+    {"name":"pine","x":9,"y":12},
+    {"name":"pine","x":27,"y":18},
+    {"name":"pine","x":21,"y":25},
+    {"name":"pine","x":25,"y":23},
+    {"name":"tree","x":25,"y":28},
+    {"name":"oak","x":13,"y":12},
+  ],
+  block: Array(1200).fill(0),
+  spawn: { x: 28, y: 5 }, name: 'Farm', exits: { right: 'road' },
+  npcs: [],
+};

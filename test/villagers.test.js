@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFarm } from '../src/farm-map.js';
 import { LOCATIONS } from '../src/locations.js';
 import { Villager, spawnVillagers, fits, planRoute } from '../src/villagers.js';
 import { SCHEDULES, activity } from '../src/schedule.js';
 
-test('every farm villager fits', () => assert.equal(spawnVillagers(LOCATIONS.farm.build()).length, 3));
+test('every placed villager fits', () => assert.equal(Object.values(LOCATIONS).reduce((n, l) => n + spawnVillagers(l.build()).length, 0), 5));
 test('Fredrick fits in town', () => assert.ok(spawnVillagers(LOCATIONS.town.build()).some(v => v.role === 'shop')));
 
 test('a villager walks its square and comes back', () => {

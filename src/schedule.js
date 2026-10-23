@@ -15,9 +15,9 @@ export const SCHEDULES = {
     { hour: 21, act: 'sleep' },
   ],
   storekeeper: [ // Bella
-    { hour: 6, act: 'move', map: 'town', x: 5, y: 14, size: 0 }, // next to the store until it opens (store.js)
+    { hour: 6, act: 'move', map: 'town', x: 12, y: 14, size: 0 }, // next to the store (right side) until it opens (store.js)
     { hour: 8, act: 'move', map: 'town', x: 9, y: 15, size: 0 }, // in front of the store, just right of the door
-    { hour: 20, act: 'move', map: 'town', x: 5, y: 14, size: 0 }, // closed: next to it again
+    { hour: 20, act: 'move', map: 'town', x: 12, y: 14, size: 0 }, // closed: next to it again
     { hour: 21, act: 'sleep' },
   ],
   villager_male: [ // Hank
@@ -29,14 +29,14 @@ export const SCHEDULES = {
   villager_female: [ // Rosa
     { hour: 6, act: 'move', map: 'town', x: 22, y: 9, size: 2 },
     { hour: 11, act: 'move', map: 'farm', x: 29, y: 15, size: 2 },
-    { hour: 15, act: 'move', map: 'town', x: 30, y: 18, size: 2 },
+    { hour: 15, act: 'move', map: 'town', x: 30, y: 15, size: 2 },
     { hour: 21, act: 'sleep' },
   ],
   villager_child: [ // Pip
     { hour: 6, act: 'move', map: 'farm', x: 12, y: 15, size: 2 },
     { hour: 10, act: 'wander', map: 'farm' },
     { hour: 10, day: 'Sat', act: 'wander', map: 'town' },
-    { hour: 14, act: 'move', map: 'town', x: 4, y: 24, size: 2 },
+    { hour: 14, act: 'move', map: 'town', x: 4, y: 23, size: 2 },
     { hour: 21, act: 'sleep' },
   ],
 };
