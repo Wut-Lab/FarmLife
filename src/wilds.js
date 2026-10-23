@@ -1,4 +1,4 @@
-// The Wilds: woods past the east end of town, made fresh each visit from a seed. Woods, clearings, ponds and rocks.
+// The Wilds: woods past the east end of town, made fresh each visit from a seed. Woods, clearings, ponds, rocks and berry bushes.
 // wildsData(seed, season) gives editor data (see map-data.js), so the editor can open one and mapFromData can build it.
 import { blankMap, retile, solidOf, PREFABS } from './map-data.js';
 import { findPath } from './villagers.js';
@@ -80,6 +80,11 @@ export function wildsData(seed = Date.now(), season = 'Spring') {
     else if (r < p + 0.035) put(LITTLE[Math.floor(rand() * LITTLE.length)])(x, y + 1);
     else if (r < p + 0.04 && !d.ground[idx(x, Math.max(0, y))].startsWith('wild')) put('rock_large')(x, y);
   }
+  // Berry bushes along the edges of the path and clearings, so you can always reach them.
+  const edges = [];
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++)
+    if (!keep[idx(x, y)] && !used[idx(x, y)] && !water(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => keep[idx(x + a, y + b)] && !water(x + a, y + b))) edges.push([x, y]);
+  for (let n = 3 + Math.floor(rand() * 4); n > 0 && edges.length; n--) put('berry_bush')(...edges.splice(Math.floor(rand() * edges.length), 1)[0]);
 
   // Open up anything walled off, so every bit of open ground can be reached from the path.
   d.spawn = { x: 0, y: ENTRY[0] };

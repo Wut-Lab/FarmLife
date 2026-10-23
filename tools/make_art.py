@@ -1192,6 +1192,40 @@ def white_sneakers():  # plain white sneaker, grey sole line
     for k in range(3): d.line([(12 + k * 3, 16 + k), (14 + k * 3, 18 + k)], C('#c8c4bc'))
     return outline(im)
 
+# Forage: the berry bush (with berries, and picked bare), and the things you pick up.
+BERRY_LEAF = ('#2f8a4a', '#4fae62', '#1e6236')  # a bluer, deeper green than the other shrubs
+def berry_bush(ripe=True):
+    im = new(); d = ImageDraw.Draw(im); d.ellipse([5, 26, 27, 31], (0, 0, 0, 60))
+    for box in ([3, 12, 17, 28], [15, 12, 29, 28], [8, 4, 24, 22]): shape(im, lambda d, box=box: d.ellipse(box), *BERRY_LEAF)
+    d = ImageDraw.Draw(im)
+    for x, y in ((9, 10), (19, 8), (13, 16), (23, 17), (7, 20), (17, 22)): d.line([(x, y), (x + 2, y - 1)], C('#1e6236'))  # leaf veins
+    if ripe:
+        for x, y in ((10, 13), (15, 8), (20, 12), (24, 20), (7, 21), (14, 19), (19, 24), (11, 25)):
+            shape(im, lambda d, x=x, y=y: d.ellipse([x - 2, y - 2, x + 1, y + 1]), '#f0283a', '#ff7a7a', '#a0101e', 1)
+            d = ImageDraw.Draw(im); d.point((x - 1, y - 1), C('#ffffff'))
+    return outline(im)
+def berries_item():  # a little handful of bright red berries with a leaf
+    im = new()
+    leaf(im, 15, 5, 10, 6, BERRY_LEAF)
+    for x, y in ((11, 15), (18, 14), (14, 21), (21, 21), (8, 22)):
+        shape(im, lambda d, x=x, y=y: d.ellipse([x - 4, y - 4, x + 3, y + 3]), '#f0283a', '#ff7a7a', '#a0101e', 1)
+        ImageDraw.Draw(im).point((x - 2, y - 2), C('#ffffff'))
+    return outline(im)
+def pinecone():  # brown cone of overlapping scales, point down
+    im = new()
+    shape(im, lambda d: d.polygon([(16, 28), (8, 16), (9, 9), (16, 5), (23, 9), (24, 16)]), '#8a5a2e', '#b07a44', '#5a3a1c')
+    d = ImageDraw.Draw(im)
+    for y in range(9, 26, 4):
+        w = max(1, 7 - abs(y - 13) // 2)
+        for x in range(16 - w, 16 + w + 1, 3): d.line([(x - 1, y), (x + 1, y + 2)], C('#5a3a1c')); d.point((x, y + 1), C('#c8925a'))
+    d.line([(16, 2), (16, 5)], C('#5a3a1c'))
+    return outline(im)
+def stone():  # a grey stone for gathering (smaller and rounder than the map's rocks)
+    im = new()
+    shape(im, lambda d: d.polygon([(7, 24), (9, 15), (15, 11), (22, 12), (26, 18), (25, 25), (16, 27)]), '#9a9aa0', '#c4c4ca', '#6a6a72')
+    d = ImageDraw.Draw(im); d.line([(13, 17), (17, 21)], C('#6a6a72')); d.point((20, 16), C('#e0e0e6'))
+    return outline(im)
+
 # ---------- assemble ----------
 cells, names = [], {}
 def add(name, im):
@@ -1240,6 +1274,7 @@ for st in range(4): add(f'wheat{st}', crop('wheat', st))
 add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
 for name, col in (('note_red', '#e0322c'), ('note_yellow', '#f6c62c'), ('note_blue', '#2a6ae0')): add(name, music_note(col))
 add('bird0', macaw(0)); add('bird1', macaw(1)); add('bird_fly0', macaw(0, True)); add('bird_fly1', macaw(1, True))
+add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone())
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)

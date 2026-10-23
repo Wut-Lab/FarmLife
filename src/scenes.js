@@ -12,6 +12,7 @@ import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, 
 import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen, goodsOf } from './store.js';
 import { Events, MINSTREL_LINES } from './events.js';
+import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
 import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
@@ -144,6 +145,8 @@ const CONTROLS = [
   ['Bag', 'I, or tap Bag; tap 2 slots to swap'],
   ['Sleep', 'Use on your front door'],
   ['Villagers', 'Use to talk; hold a crop to gift it'],
+  ['Forage', 'Walk over pinecones and stones; Use on berry bushes'],
+  ['Eat', 'Use while holding berries'],
   ['Pause', 'Esc / P, or tap II'],
   ['Help', '? key, or tap ?'],
   ['Map', 'M, or tap the globe'],
@@ -188,7 +191,7 @@ export class World {
     this.gear = {}; // things bought at the general store: id -> true
     this.worn = {}; // equipment slot -> id from GOODS
     this.moved = { gone: [], put: [] }; // farm plants moved with the shovel: tiles dug up, and [tile, plant] planted
-    this.inv.canBin = id => !!CROPS[id]; // only crops go in the shipping bin
+    this.inv.canBin = id => !!(CROPS[id] || FORAGE[id]); // only crops and forage go in the shipping bin
     this.scatterDigs();
     this.shop = false;
     this.open = false; this.pick = -1;
@@ -290,6 +293,7 @@ export class World {
       if (!this.blocked(this.x, ny)) this.y = ny;
     }
     this.player.update(dt, moving);
+    this.gather();
     const me = feet(this.x, this.y);
     for (const m of Object.values(this.maps)) for (const v of m.villagers) v.update(dt, m === this.map ? (x, y) => overlaps(feet(x, y), me) : () => false);
     this.hop();
@@ -318,6 +322,7 @@ export class World {
   freshen(id) {
     const m = this.maps[id] = { ...LOCATIONS[id].build(Date.now(), this.clock.seasonName), name: LOCATIONS[id].name, villagers: [] };
     m.digs = scatterDigs(m, DIG_SPOTS[id] ?? 0);
+    if (SPREAD[id]) scatterForage(m, SPREAD[id]);
     const spot = id === 'wilds' && Math.random() < TRAVELLER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // sometimes someone's out here
     if (spot) {
       const look = travellerLook(), v = new Villager({ sheet: 'traveller', ...spot });
@@ -329,6 +334,26 @@ export class World {
     if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
   }
   get villagers() { return this.map.villagers; }
+  // Pick up forage (pinecones, stones) you walk over.
+  gather() {
+    const k = `${Math.floor((this.x + 8) / TILE)},${Math.floor((this.y + 13) / TILE)}`, id = this.map.forage?.get(k);
+    if (!id) return;
+    if (!this.inv.add(id)) { if (this.toast !== 'Your bag is full.' || this.toastT <= 0) this.say('Your bag is full.'); return; }
+    this.map.forage.delete(k); sfx('harvest'); this.say(`Picked up a ${FORAGE[id].name.toLowerCase()}.`);
+  }
+  // Pick a berry bush you're facing (it's bare until morning).
+  pickBerries(o) {
+    const n = pickBush(o);
+    if (!n) return this.say("No berries left. They'll grow back by morning.");
+    if (!this.inv.add('berries', n)) { regrowBushes({ objects: [o] }); return this.say('Your bag is full.'); }
+    sfx('harvest'); this.say(`Picked ${n} ${n > 1 ? 'berries' : 'berry'}!`);
+  }
+  eat(id) {
+    const k = this.clock;
+    if (k.energy >= k.max) return this.say("You're already full of energy.");
+    this.inv.take(id, 1); k.energy = Math.min(k.max, k.energy + FORAGE[id].energy); sfx('harvest');
+    this.say(`Ate some ${FORAGE[id].name.toLowerCase()}. +${FORAGE[id].energy} energy!`);
+  }
   // The minstrel's song while you're near him; the region's music otherwise.
   song(near) { if (near !== songPlaying('minstrel')) playMusic(near ? 'minstrel' : undefined); }
   found(msg) { sfx('coin'); this.say(msg); }
@@ -392,6 +417,8 @@ export class World {
     }
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
+    const bush = bushAt(this.map, key);
+    if (bush) return this.pickBerries(bush);
     const counter = Object.keys(KEEPERS).find(k => key === this.map[KEEPERS[k].building]);
     if (counter) { // the keeper sells, if they're here; otherwise the door opens the shop
       if (this.closed(counter)) return this.say(this.closed(counter));
@@ -401,6 +428,7 @@ export class World {
     if (this.map.bin.includes(key)) { this.open = this.binOpen = true; this.pick = -1; return; }
     if (held === 'shovel') return this.dig(key);
     if (PLANTS[held]) return this.replant(key, held);
+    if (FORAGE[held]?.energy) return this.eat(held);
     if (!this.onFarm || !f.has(key)) return CROPS[held] && this.say(`That's ${aCrop(held)}.`);
     const p = f.get(key), tired = () => { sfx('nope'); this.say('Too tired. Sleep at your front door.'); };
     if (f.isRipe(p)) {
@@ -505,7 +533,7 @@ export class World {
   closeRect() { const [, by] = this.slotRect(HOTBAR); return [this.g.w / 2 - 18, by + 45, 36, 11]; }
 
   // Shipping bin: 5 slots, filled from the bag; everything in it is sold overnight.
-  binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id] ? this.sellPrice(s.id) : 0) * s.n, 0); }
+  binValue(stacks) { return stacks.reduce((sum, s) => sum + (CROPS[s.id] ? this.sellPrice(s.id) : FORAGE[s.id]?.price ?? 0) * s.n, 0); }
   // Perks from villagers' support change prices.
   sellPrice(crop) { return Math.round(CROPS[crop].price * (this.support.has('bargain') ? 1.1 : 1)); }
   seedCost(c) { return Math.ceil(c.seed * (this.support.has('discount') ? 0.9 : 1)); }
@@ -615,7 +643,12 @@ export class World {
   }
 
   // The shovel: loose earth turns up finds; small plants come up so you can replant them on your farm.
-  scatterDigs() { for (const [id, n] of Object.entries(DIG_SPOTS)) if (this.maps[id]) this.maps[id].digs = scatterDigs(this.maps[id], n); }
+  // Each morning (and on a new game): fresh loose earth, berry bushes grow back, a few pinecones and stones on the farm.
+  scatterDigs() {
+    for (const [id, n] of Object.entries(DIG_SPOTS)) if (this.maps[id]) this.maps[id].digs = scatterDigs(this.maps[id], n);
+    for (const m of Object.values(this.maps)) regrowBushes(m);
+    scatterForage(this.maps.farm, SPREAD.farm);
+  }
   plantAt(key, map = this.map) {
     return map.objects.find(o => `${o.x / TILE},${o.y / TILE}` === key && o.tiles.length === 1 && o.tiles[0].length === 1 && PLANTS[o.tiles[0][0]]);
   }
@@ -698,8 +731,8 @@ export class World {
       sfx('coin'); this.gold -= this.seedCost(c); this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
     });
     if (r.sell && (inp.hit('KeyS') || inp.tapIn(...r.sell))) {
-      const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * this.sellPrice(s), 0);
-      if (earned) sfx('coin'); this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
+      const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * this.sellPrice(s), 0) + Object.keys(FORAGE).reduce((sum, id) => sum + this.inv.take(id) * FORAGE[id].price, 0);
+      if (earned) sfx('coin'); this.gold += earned; this.say(earned ? `Sold your harvest for ${earned}g.` : 'Nothing to sell.');
     }
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
   }
@@ -718,7 +751,7 @@ export class World {
       g.text(`own ${this.seeds[s]}`, x + 82, y + 5, { size: 5, color: '#dcebc6' });
       g.text(`${this.seedCost(c)}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
     });
-    if (r.sell) { g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' }); }
+    if (r.sell) { g.panel(...r.sell, '#e86a9a'); g.text('Sell harvest (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' }); }
     g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
   }
 
@@ -771,7 +804,7 @@ export class World {
     g.panel(x, y, 18, 18, i === this.pick ? '#e86a9add' : undefined);
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
-    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? CROPS[s.id].item;
+    const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? FORAGE[s.id]?.icon ?? CROPS[s.id].item;
     g.tile(icon, x + 1, y + 1);
     const n = s.id === 'seeds' ? this.seeds[SEEDS[this.seed]] : s.n;
     if (n !== undefined) g.text(String(n), x + 17, y + 11, { size: 5, align: 'right' });
@@ -790,6 +823,8 @@ export class World {
         if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * TILE - cx, y * TILE - cy + 3, 16, 11); }
         if (p) g.tile(this.field.sprite(p), x * TILE - cx, y * TILE - cy);
         if (this.map.digs?.has(`${x},${y}`)) g.tile('dig_spot', x * TILE - cx, y * TILE - cy);
+        const fo = this.map.forage?.get(`${x},${y}`);
+        if (fo) g.tile(FORAGE[fo].icon, x * TILE - cx + 3, y * TILE - cy + 4, 10); // forage lies small on the ground
       }
     this.events.drawGround(this, cx, cy);
     // Highlight the tile the player is facing.
@@ -881,7 +916,7 @@ export class World {
     // Hotbar, top left, with the held item's name under it.
     for (let i = 0; i < HOTBAR; i++) this.drawSlot(i);
     const h = this.inv.held;
-    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? PLANTS[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
+    if (h && !this.open) g.text(h.id === 'seeds' ? `${CROPS[SEEDS[this.seed]].name} Seeds` : TOOLS[h.id]?.name ?? PLANTS[h.id]?.name ?? FORAGE[h.id]?.name ?? CROPS[h.id].name, 5, 24, { size: 5 });
     // Bag grid.
     if (this.open) {
       const [bx, by] = this.slotRect(HOTBAR);
