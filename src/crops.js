@@ -3,8 +3,17 @@ export const CROPS = {
   carrot:  { name: 'Carrot',  days: 3, price: 35,  seed: 15, stages: ['carrot0', 'carrot1', 'carrot2', 'carrot3'],     item: 'carrot_item',  packet: 'carrot_packet' },
   turnip:  { name: 'Turnip',  days: 4, price: 50,  seed: 20, stages: ['turnip0', 'turnip1', 'turnip2', 'turnip3'], item: 'turnip_item', packet: 'turnip_packet' },
   cabbage: { name: 'Cabbage', days: 6, price: 90,  seed: 40, stages: ['cabbage0', 'cabbage1', 'cabbage2', 'cabbage3'], item: 'cabbage_item', packet: 'cabbage_packet' },
+  // Seasonal crops (season is an index into SEASONS): they only grow in their season and wither when it ends.
+  spinach: { name: 'Spinach', days: 4, price: 60,  seed: 25, season: 0, some: true, stages: ['spinach0', 'spinach1', 'spinach2', 'spinach3'], item: 'spinach_item', packet: 'spinach_packet' },
+  tomato:  { name: 'Tomato',  days: 7, price: 110, seed: 45, season: 1, plural: 'tomatoes', stages: ['tomato0', 'tomato1', 'tomato2', 'tomato3'], item: 'tomato_item', packet: 'tomato_packet' },
+  arugula: { name: 'Arugula', days: 4, price: 55,  seed: 22, season: 2, some: true, stages: ['arugula0', 'arugula1', 'arugula2', 'arugula3'], item: 'arugula_item', packet: 'arugula_packet' },
+  peas:    { name: 'Peas',    days: 5, price: 70,  seed: 30, season: 3, some: true, plural: 'peas', stages: ['peas0', 'peas1', 'peas2', 'peas3'], item: 'peas_item', packet: 'peas_packet' },
 };
 export const SEEDS = Object.keys(CROPS);
+// "a carrot" / "some peas", and "carrots" / "tomatoes" / "spinach" for n of them.
+export const aCrop = c => (CROPS[c].some ? 'some ' : 'a ') + CROPS[c].name.toLowerCase();
+export const nCrops = (c, n) => n > 1 ? CROPS[c].plural ?? CROPS[c].name.toLowerCase() + (CROPS[c].some ? '' : 's') : CROPS[c].name.toLowerCase();
+export const inSeason = (crop, season) => CROPS[crop].season === undefined || CROPS[crop].season === season;
 
 export class Field {
   constructor(plots) { this.plots = new Map(plots.map(k => [k, null])); }
@@ -34,5 +43,12 @@ export class Field {
       if (p.wet && !this.isRipe(p)) p.grown++;
       p.wet = false;
     }
+  }
+
+  // A new season: crops from the old one wither. Returns how many.
+  wither(season) {
+    let n = 0;
+    for (const [k, p] of this.plots) if (p && !inSeason(p.crop, season)) { this.plots.set(k, null); n++; }
+    return n;
   }
 }

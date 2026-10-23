@@ -94,6 +94,7 @@ def crop(kind, stage):
     if stage == 0:
         shape(im, lambda d: d.ellipse([11, 19, 21, 25]), '#7a4c30', '#946039', '#5c3822', 1); sprouts(im, 2, 4, 4)
     elif stage == 1: sprouts(im, 3, 7, 4)
+    elif kind in SEASONAL: seasonal_crop(im, kind, stage)
     elif kind == 'cabbage':
         r = 6 if stage == 2 else 9
         shape(im, lambda d: d.ellipse([16 - r - 3, 24 - r, 16 + r + 3, 26]), '#4f9e3a', '#6cbf4a', '#3e7a2e')
@@ -107,6 +108,46 @@ def crop(kind, stage):
         for a in ((-6, 9), (0, 12), (6, 9)) if stage == 3 else ((-4, 7), (0, 9), (4, 7)):
             x, h = 16 + a[0], a[1]
             shape(im, lambda d, x=x, h=h: d.ellipse([x - 2, 21 - h, x + 2, 21]), *LEAF, d=1)
+    return outline(im)
+
+# Seasonal crops, drawn from scratch: spinach (spring), tomato (summer), arugula (fall), peas (winter).
+SEASONAL = ('spinach', 'tomato', 'arugula', 'peas')
+def leaf(im, x, y, w, h, cols): shape(im, lambda d: d.ellipse([x, y, x + w, y + h]), *cols, d=1)
+def seasonal_crop(im, kind, stage):
+    big = stage == 3; d = ImageDraw.Draw(im)
+    if kind == 'spinach':  # a low rosette of round dark leaves
+        r = 5 if big else 4
+        for a in ((-7, 2), (7, 2), (-4, -3), (4, -3), (0, 0)): leaf(im, 16 + a[0] - r, 18 + a[1] - r, 2 * r, 2 * r - 1, ('#2f7a32', '#4c9c42', '#1f5a26'))
+    elif kind == 'arugula':  # tall, narrow, notched leaves
+        for x, h in ((-6, 10), (-2, 13), (2, 13), (6, 10)) if big else ((-4, 8), (0, 10), (4, 8)):
+            leaf(im, 15 + x, 22 - h, 3, h, ('#6aa83c', '#8cc85a', '#4a8028'))
+            for y in range(24 - h, 21, 3): d.point((14 + x, y), C('#4a8028'))
+    elif kind == 'tomato':  # a staked bush, with red fruit when ripe
+        shape(im, lambda d: d.rectangle([15, 6, 16, 26]), '#a8744a', '#c48e5e', '#6f4426', 1)
+        for x, y in ((-6, 10), (4, 8), (-5, 16), (5, 15), (-1, 4)) if big else ((-5, 13), (4, 11), (-1, 8)): leaf(im, 16 + x - 3, y, 7, 5, LEAF)
+        if big:
+            for x, y in ((9, 13), (19, 12), (12, 19), (20, 19)): shape(im, lambda d, x=x, y=y: d.ellipse([x - 2, y - 2, x + 2, y + 2]), '#d93a2c', '#f26a50', '#9a2a1f', 1)
+    else:  # peas: a little trellis with vines and pods
+        for x in (10, 22): shape(im, lambda d, x=x: d.rectangle([x, 6, x + 1, 26]), '#a8744a', '#c48e5e', '#6f4426', 1)
+        d.line([(10, 10), (23, 10)], C('#6f4426'))
+        for x in (13, 19):
+            for y in range(12 if big else 16, 26, 4): leaf(im, x - 2, y, 5, 3, LEAF)
+        if big:
+            for x, y in ((11, 15), (20, 18), (14, 21)): shape(im, lambda d, x=x, y=y: d.rounded_rectangle([x, y, x + 3, y + 6], 1), '#7cc84e', '#a8e078', '#4f9030', 1)
+def seasonal_item(kind):
+    im = new(); d = ImageDraw.Draw(im)
+    if kind == 'spinach':
+        for a in ((-5, 0), (5, 0), (0, -3)): leaf(im, 16 + a[0] - 6, 12 + a[1], 12, 11, ('#2f7a32', '#4c9c42', '#1f5a26'))
+        shape(im, lambda d: d.rectangle([14, 22, 18, 26]), '#c8a070', '#e0c090', '#8a6a40', 1)
+    elif kind == 'arugula':
+        for x in (-5, 0, 5): leaf(im, 14 + x, 7, 4, 16, ('#6aa83c', '#8cc85a', '#4a8028'))
+        shape(im, lambda d: d.rectangle([13, 22, 19, 25]), '#e8d8b0', '#fff0d0', '#a89870', 1)
+    elif kind == 'tomato':
+        shape(im, lambda d: d.ellipse([8, 10, 24, 25]), '#d93a2c', '#f26a50', '#9a2a1f')
+        for a in ((-4, 0), (4, 0), (0, -2)): leaf(im, 16 + a[0] - 2, 9 + a[1], 4, 3, LEAF)
+    else:
+        shape(im, lambda d: d.rounded_rectangle([7, 12, 25, 20], 4), '#7cc84e', '#a8e078', '#4f9030')
+        for x in (11, 16, 21): shape(im, lambda d, x=x: d.ellipse([x - 2, 14, x + 2, 18]), '#a8e078', '#d0f0a0', '#6aa83c', 1)
     return outline(im)
 
 # ---------- CC0 items ----------
@@ -868,6 +909,9 @@ blob_set('cobbleb', COB, grass(0), 'kerb'); blob_set('brickb', BRK, grass(0), 'k
 blob_set('shallow', SHAL, grass(0), 'shore'); blob_set('deep', DEEP, SHAL, 'deep')
 add('shovel', shovel()); add('shoes', shoes())
 add('sneakers', sneakers()); add('dig_spot', dig_spot())
+for kind in SEASONAL:
+    for st in range(4): add(f'{kind}{st}', crop(kind, st))
+    add(f'{kind}_item', seasonal_item(kind)); add(f'{kind}_packet', packet(seasonal_item(kind)))
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))

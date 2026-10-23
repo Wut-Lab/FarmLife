@@ -38,3 +38,14 @@ test('quests: offered overnight, handed in for gold, expire', () => {
   const saved = JSON.parse(JSON.stringify(s.state));
   assert.equal(new Support(saved).people.villager_male.pts, s.people.villager_male.pts);
 });
+
+test('villagers chat about the time of day and season, and only ask for crops in season', async () => {
+  const { chatter } = await import('../src/support.js');
+  assert.deepEqual(chatter(7 * 60, 3), ['Brrrr...', 'Good morning!']);
+  assert.equal(chatter(13 * 60, 0)[1], "There's so much day left!");
+  assert.equal(chatter(17 * 60, 1)[1], 'The Sun is getting low.');
+  assert.equal(chatter(11.5 * 60, 2).length, 1);
+  const s = new Support(), seen = new Set();
+  for (let i = 0; i < 200; i++) { s.overnight(Math.random, 3); for (const p of Object.values(s.people)) { if (p.quest) seen.add(p.quest.item); p.quest = null; } }
+  assert.ok(seen.has('peas')); assert.ok(!seen.has('tomato'));
+});

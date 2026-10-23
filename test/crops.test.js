@@ -21,3 +21,12 @@ test('unwatered crops do not grow, and non-field tiles are ignored', () => {
   assert.equal(f.get('0,0').grown, 0);
   assert.equal(f.act('5,5', 'turnip'), null);
 });
+
+test('seasonal crops wither when their season ends; year-round ones keep growing', async () => {
+  const { inSeason } = await import('../src/crops.js');
+  assert.equal(inSeason('tomato', 1), true); assert.equal(inSeason('tomato', 2), false); assert.equal(inSeason('carrot', 3), true);
+  const f = new Field(['0,0', '1,0']);
+  f.act('0,0', 'tomato'); f.act('1,0', 'carrot');
+  assert.equal(f.wither(2), 1);
+  assert.equal(f.get('0,0'), null); assert.equal(f.get('1,0').crop, 'carrot');
+});

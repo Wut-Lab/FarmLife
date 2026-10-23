@@ -1,5 +1,5 @@
 // Support: friendship with each villager, raised by talking, gifts and quests. Hearts unlock rewards and perks.
-import { CROPS, SEEDS } from './crops.js';
+import { CROPS, SEEDS, inSeason } from './crops.js';
 
 export const PER_HEART = 100, MAX_HEARTS = 10;
 const TALK = 10, GIFT = { love: 80, like: 45, neutral: 20, dislike: -30 }, QUEST_PTS = 60, QUEST_DAYS = 3, QUEST_CHANCE = 0.35;
@@ -14,6 +14,16 @@ export const PEOPLE = {
   villager_child: { name: 'Pip', loves: ['carrot'], likes: [], dislikes: ['cabbage'],
     perk: { id: 'green_thumb', text: 'Watering takes no energy' }, hello: ['How is your farm?'] },
 };
+// Things anyone might say, by time of day (minutes since midnight) and season.
+const SEASON_LINES = ['The local flowers are beautiful! You should take a look!', "That sun is blazing! I wish I had a fan...",
+  "There's nothing like the fall colors.", 'Brrrr...'];
+export function chatter(minutes, season) {
+  const h = minutes / 60, out = [SEASON_LINES[season]];
+  if (h >= 6 && h < 11) out.push('Good morning!');
+  else if (h >= 12 && h < 16) out.push("There's so much day left!");
+  else if (h >= 16) out.push('The Sun is getting low.');
+  return out;
+}
 // Rewards for reaching each heart level, once each (the perk comes at PERK_AT).
 export const REWARDS = { 2: { gold: 100 }, 4: { seeds: 5 }, 7: { gold: 300 }, 10: { gold: 1000 } };
 
@@ -62,12 +72,14 @@ export class Support {
   }
 
   // Each night: new day's talk and gift, quests count down, and some villagers ask for something new.
-  overnight(rand = Math.random) {
+  // Quests only ask for crops that grow in `season` (the season of the coming day).
+  overnight(rand = Math.random, season) {
+    const crops = SEEDS.filter(c => season === undefined ? CROPS[c].season === undefined : inSeason(c, season));
     for (const [id, p] of Object.entries(this.people)) {
       p.talked = p.gifted = false;
       if (p.quest && --p.quest.days <= 0) p.quest = null;
       if (!p.quest && rand() < QUEST_CHANCE) {
-        const item = SEEDS[Math.floor(rand() * SEEDS.length)], n = 1 + Math.floor(rand() * 3);
+        const item = crops[Math.floor(rand() * crops.length)], n = 1 + Math.floor(rand() * 3);
         p.quest = { item, n, gold: Math.round(CROPS[item].price * n * 1.5), days: QUEST_DAYS };
       }
     }
