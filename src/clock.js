@@ -36,7 +36,7 @@ export class Clock {
   tick() {
     this.minutes += TICK_MINUTES;
     this._emit('tick', this);
-    if (this.minutes >= DAY_END) this.sleep({ passedOut: true });
+    if (this.minutes >= DAY_END) { this._acc = 0; if (this.passOut) this.passOut(); else this.sleep({ passedOut: true }); } // passOut: lets the game fade out first
   }
 
   // Spend energy on an action. Returns false if too tired.

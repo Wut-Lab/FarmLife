@@ -160,7 +160,9 @@ const CONTROLS = [
 
 const SPEED = 64; // pixels per second, 4 tiles
 const BANNER = [0.5, 1.5, 0.7]; // location name: seconds fading in, shown, fading out
+const WILDS_DAYS = 3; // the Wilds grow anew every this many days
 const FADE = 0.2; // seconds to fade out (and again to fade in) between locations
+const SLEEP_FADE = [0.9, 0.6]; // going to sleep: seconds to fade to black, then to stay dark (it fades back in as long)
 
 // Ten small pixel hearts, filled up to n.
 function drawHearts(g, x, y, n) {
@@ -187,6 +189,7 @@ export class World {
     this.people = {}; // sheet -> { key, id, v }: each scheduled person and the map they're on right now
     Object.assign(this, this.map.spawn);
     this.clock = new Clock({ msPerTick: DAY_SPEEDS[settings.speed].ms });
+    this.clock.passOut = () => this.goToSleep(true);
     this.menu = null; this.mi = 0; // pause / settings / controls overlay
     this.field = new Field(this.map.plots);
     this.seed = 0;
@@ -204,7 +207,7 @@ export class World {
     this.events = new Events(); // today's random events
     this.quests = new Quests();
     this.levels = { ...START_LEVELS }; this.upgrading = null; // tool levels, and the one Bella has overnight: { tool, level }
-    this.tilled = []; this.storeTab = 'goods'; this.pets = []; // pets: adopted cats and dogs (their looks, from pets.js) // farm tiles the hoe has turned into new plots
+    this.tilled = []; this.wilds = null; this.storeTab = 'goods'; this.pets = []; // pets: adopted cats and dogs (their looks, from pets.js) // farm tiles the hoe has turned into new plots
     this.clock.on('overnight', () => {
       this.quests.tick(0, true);
       if (this.upgrading) { const { tool, level } = this.upgrading; this.levels[tool] = level; this.upgradeNews = ` Bella finished your ${toolName(tool, level)}!`; this.upgrading = null; }
@@ -217,7 +220,8 @@ export class World {
     this.clock.on('season', k => { this.withered = this.field.wither(k.season); });
     this.clock.on('newDay', ({ passedOut }) => {
       this.map = this.maps.farm; Object.assign(this, this.map.spawn); this.player.dir = DIRS.down; // wake up outside the front door
-      this.events.newDay();
+      this.events.newDay(); this.schedule(true);
+      if (this.wilds && !this.wildsStale()) this.visitors(this.maps.wilds); // new faces in the Wilds each day
       const saved = writeSave(this.slot, this.snapshot());
       this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + this.openGates() + (this.upgradeNews ?? '') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : '')); this.upgradeNews = '';
     });
@@ -229,7 +233,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets,
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(),
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -246,6 +250,7 @@ export class World {
     for (const [key, id] of this.moved.put) this.plant(key, id);
     this.quests = new Quests(s.quests);
     this.pets = s.pets ?? []; this.homePets();
+    if (s.wilds) this.freshen('wilds', s.wilds);
     this.wear();
     this.support = new Support(s.support);
     this.say('Welcome back!');
@@ -319,18 +324,27 @@ export class World {
     // Walk off the end of the road into the next location.
     const { W, H, exits } = this.map, fx = this.x + 8, fy = this.y + 13; // feet past the edge (only possible on the road)
     const side = fx < 0 ? 'left' : fx > W * TILE ? 'right' : fy < 0 ? 'up' : fy > H * TILE ? 'down' : null;
-    if (side && exits?.[side]) this.fade = { t: 0, id: exits[side], side };
+    if (side && exits?.[side]) this.fade = { t: 0, out: FADE, hold: 0, go: () => this.travel(exits[side], side), walk: true };
   }
-  // Fade to black, switch location at the darkest point, then fade back in.
+  // Fade to black, do `go` (change location, or sleep) once it's dark, then fade back in.
   fadeUpdate(dt) {
     const f = this.fade;
-    if (f.t < FADE && f.t + dt >= FADE) this.travel(f.id, f.side);
-    f.t += dt; if (this.banner) this.banner.t += dt;
-    this.player.update(dt, f.t < FADE);
-    if (f.t >= 2 * FADE) this.fade = null;
+    if (f.t < f.out && f.t + dt >= f.out) f.go();
+    f.t += dt; if (this.banner && f.walk) this.banner.t += dt;
+    this.player.update(dt, f.walk && f.t < f.out);
+    if (f.t >= 2 * f.out + f.hold) this.fade = null;
+  }
+  // How dark the fade is right now (0-1).
+  get fadeDark() { const { t, out, hold } = this.fade; return Math.max(0, Math.min(1, t < out ? t / out : t < out + hold ? 1 : 1 - (t - out - hold) / out)); }
+  // Bedtime (or passing out at 2 AM): fade to black, the night passes, and the morning fades in.
+  goToSleep(passedOut = false) {
+    if (this.fade) return;
+    if (!passedOut) sfx('sleep');
+    this.open = this.binOpen = false;
+    this.fade = { t: 0, out: SLEEP_FADE[0], hold: SLEEP_FADE[1], go: () => this.clock.sleep({ passedOut }) };
   }
   travel(id, side) {
-    if (LOCATIONS[id].fresh) this.freshen(id);
+    if (LOCATIONS[id].fresh && this.wildsStale()) this.freshen(id);
     this.map = this.maps[id];
     // Come in on the opposite edge, lined up with the road there; if your row (or column) isn't road, use the nearest one that is.
     const across = side === 'left' || side === 'right', cells = exitRows(this.map, OPPOSITE[side]);
@@ -344,28 +358,50 @@ export class World {
     }
     this.banner = { text: this.map.name, t: 0 }; playMusic(); // each region picks its music on entry
   }
-  // A generated place is made anew for each visit, with its own loose earth to dig.
-  freshen(id) {
-    const m = this.maps[id] = { ...LOCATIONS[id].build(Date.now(), this.clock.seasonName), name: LOCATIONS[id].name, villagers: [] };
+  // The Wilds stay as they are for WILDS_DAYS days (or until the season changes), then grow anew: what you leave there
+  // (forage, a stray you're befriending) is still there tomorrow. Its people, though, come and go each day.
+  wildsStale() { const w = this.wilds; return !w || this.absDay - w.made >= WILDS_DAYS || w.season !== this.clock.seasonName; }
+  // Build the Wilds: a new one, or one from a save (saved: { seed, made, season, forage, pets }).
+  freshen(id, saved = null) {
+    const w = this.wilds = saved ? { seed: saved.seed, made: saved.made, season: saved.season } : { seed: Date.now(), made: this.absDay, season: this.clock.seasonName };
+    const m = this.maps[id] = { ...LOCATIONS[id].build(w.seed, w.season), name: LOCATIONS[id].name, villagers: [] };
     m.digs = scatterDigs(m, DIG_SPOTS[id] ?? 0);
-    if (SPREAD[id]) scatterForage(m, SPREAD[id]);
-    const spot = id === 'wilds' && Math.random() < TRAVELLER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // sometimes someone's out here
+    if (saved?.forage) m.forage = new Map(saved.forage); else if (SPREAD[id]) scatterForage(m, SPREAD[id]);
+    const open = { ...m, solid: m.solid.map((s, j) => s || m.ground[j].startsWith('shallow')) };
+    if (saved) (saved.pets ?? []).forEach(p => this.addStray(m, p.look, p, p));
+    else for (let i = 0; i < 2 && Math.random() < PET_CHANCE; i++) { // a stray cat or dog or two, wandering about
+      const at = randomSpot(open), look = petLook();
+      if (!at) break;
+      this.addStray(m, look, { ...at, size: look.kind === 'cat' && Math.random() < 0.3 ? 0 : 1 });
+    }
+    this.visitors(m);
+  }
+  addStray(m, look, at, was = {}) {
+    const sheet = `pet${m.villagers.filter(v => v.role === 'pet').length}`;
+    this.g.images[sheet] = paintPet(this.g.images, look);
+    m.villagers.push(Object.assign(new Villager({ sheet, ...at }), { role: 'pet', px: 11, name: look.name, about: look.about, kind: KINDS[look.kind], look, trust: was.trust ?? 0, fed: was.fed, lastPet: was.lastPet, met: was.met }));
+  }
+  // Today's people in the Wilds: maybe a traveller, and rarely the hooded stranger.
+  visitors(m) {
+    m.villagers = m.villagers.filter(v => v.role === 'pet');
+    const open = { ...m, solid: m.solid.map((s, j) => s || m.ground[j].startsWith('shallow')) };
+    const spot = Math.random() < TRAVELLER_CHANCE && randomSpot(open);
     if (spot) {
       const look = travellerLook(), v = new Villager({ sheet: 'traveller', ...spot });
       this.g.images.traveller = paintTraveller(this.g.images, look);
       Object.assign(v, { name: look.name, met: false });
       m.villagers.push(v);
     }
-    const hood = id === 'wilds' && Math.random() < STRANGER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // and, rarely, the hooded stranger
+    const hood = Math.random() < STRANGER_CHANCE && randomSpot(open);
     if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
-    for (let i = 0; id === 'wilds' && i < 2 && Math.random() < PET_CHANCE; i++) { // a stray cat or dog or two, wandering about
-      const at = randomSpot({ ...m, solid: m.solid.map((s, j) => s || m.ground[j].startsWith('shallow')) });
-      if (!at) break;
-      const look = petLook(), sheet = `pet${i}`;
-      this.g.images[sheet] = paintPet(this.g.images, look);
-      m.villagers.push(Object.assign(new Villager({ sheet, ...at, size: look.kind === 'cat' && Math.random() < 0.3 ? 0 : 1 }), { role: 'pet', px: 11, name: look.name, about: look.about, kind: KINDS[look.kind], look, trust: 0 }));
-    }
   }
+  // What a save keeps of the Wilds.
+  wildsSave() {
+    const m = this.maps.wilds;
+    return this.wilds && { ...this.wilds, forage: [...(m.forage ?? [])], pets: m.villagers.filter(v => v.role === 'pet').map(v => ({
+      look: v.look, trust: v.trust, fed: v.fed, lastPet: v.lastPet, met: v.met, x: Math.round(v.corners[0][0] / TILE), y: Math.round(v.corners[0][1] / TILE), size: v.still ? 0 : 1 })) };
+  }
+  get absDay() { const k = this.clock; return ((k.year - 1) * SEASONS.length + k.season) * DAYS_PER_SEASON + k.day; } // days since the game began
   get villagers() { return this.map.villagers; }
   // Petting a cat or dog. Strays warm up to you (see pets.js): at full trust, Use again takes them home to the farm.
   petPet(v) {
@@ -377,7 +413,7 @@ export class World {
       this.pets.push(v.look); this.map.villagers.splice(this.map.villagers.indexOf(v), 1); this.homePets(); sfx('coin');
       return this.say(`You adopted ${v.name}! They'll be waiting for you on the farm.`);
     }
-    const treat = this.inv.held?.id === 'berries' && !v.fed, now = this.clock.minutes;
+    const treat = this.inv.held?.id === 'berries' && !v.fed, now = this.absDay * 24 * 60 + this.clock.minutes; // game minutes, counting across days
     if (treat && earnTrust(v, now, true)) this.inv.take('berries', 1);
     const got = treat || earnTrust(v, now);
     if (got) v.heartT = 1.2;
@@ -483,7 +519,8 @@ export class World {
   // Send scheduled people somewhere new when their rule changes (wanderers pick a new spot each hour).
   // Awake, they walk there; waking up or going to bed, they just appear or vanish. Talking to someone holds them up:
   // the game doesn't run while you talk or shop, and they wait a moment after you're done.
-  schedule() {
+  // jump: after you sleep, everyone is simply where they should be (no one stood around all night and walks off at dawn).
+  schedule(jump = false) {
     const k = this.clock, hour = Math.floor(k.minutes / 60), day = weekday(k.day);
     for (const [sheet, rules] of Object.entries(SCHEDULES)) {
       if (!rules.length) continue; // not scheduled yet
@@ -492,7 +529,7 @@ export class World {
       const p = this.people[sheet];
       if (p?.key === key) continue;
       const spot = key === 'sleep' ? null : r.act === 'wander' ? randomSpot(map) : fits(map, r) ? { x: r.x, y: r.y, size: r.size ?? 0 } : null;
-      const here = p?.v && this.maps[p.id], legs = spot && here && planRoute(this.maps, p.id, tileOf(here, p.v), r.map, [spot.x, spot.y]);
+      const here = p?.v && this.maps[p.id], legs = !jump && spot && here && planRoute(this.maps, p.id, tileOf(here, p.v), r.map, [spot.x, spot.y]);
       if (legs) { p.v.go(legs, spot); p.key = key; continue; }
       if (here) here.villagers.splice(here.villagers.indexOf(p.v), 1);
       const v = spot && new Villager({ sheet, ...spot });
@@ -547,7 +584,7 @@ export class World {
     }
     if (q?.remind) this.say(`${KEEPERS[v.walker.sheet]?.name ?? PEOPLE[v.walker.sheet]?.name}: ${q.remind}`);
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
-    if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
+    if (key === this.map.door) return this.goToSleep();
     if (this.map.gates?.includes(key)) { const g = GATES[this.mapId]; if (g && !g.open(this)) return this.say(g.locked); }
     const bush = bushAt(this.map, key);
     if (bush) return this.pickBerries(bush);
@@ -646,7 +683,7 @@ export class World {
   }
   wrap(str, w, size) {
     const c = this.g.ctx, out = [];
-    c.font = `${size}px "Pixelify Sans", monospace`;
+    c.font = `${size}px "Tiny5", "Pixelify Sans", monospace`;
     for (const word of str.split(' ')) {
       const last = out[out.length - 1];
       if (last !== undefined && c.measureText(last + ' ' + word).width <= w) out[out.length - 1] = last + ' ' + word; else out.push(word);
@@ -1037,8 +1074,10 @@ export class World {
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
     if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
-    if (this.fade) { const t = this.fade.t / FADE; c.fillStyle = `rgba(0,0,0,${Math.min(1, t < 1 ? t : 2 - t).toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
+    const dim = () => { c.fillStyle = `rgba(0,0,0,${this.fadeDark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); };
+    if (this.fade?.walk) dim(); // changing places: the HUD stays up
     this.hud();
+    if (this.fade && !this.fade.walk) dim(); // sleeping: everything goes dark
     if (this.talk) this.drawTalk();
     if (this.mapView) this.drawMap();
     if (this.menu) this.drawMenu();

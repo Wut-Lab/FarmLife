@@ -73,14 +73,21 @@ export class Game {
       Math.round(x * 2) / 2, Math.round(y * 2) / 2, size, size);
   }
 
+  // Text in Pixelify Sans, with digits in Tiny5 (Pixelify's 5 looks like an S). Tiny5 is drawn on an 8-units-per-pixel grid,
+  // so digits get the nearest size that lands on whole screen pixels, sitting on the same line as the letters.
   text(str, x, y, { size = 8, color = '#fff8e8', align = 'left', shadow = '#3f2631', bold = false } = {}) {
-    const c = this.ctx;
-    c.font = `${bold ? 'bold ' : ''}${size}px "Pixelify Sans", monospace`;
-    c.textAlign = align;
-    c.textBaseline = 'top';
-    if (shadow) { c.fillStyle = shadow; c.fillText(str, x + size / 8, y + size / 8); }
-    c.fillStyle = color;
-    c.fillText(str, x, y);
+    const c = this.ctx, k = this.scale, letters = `${bold ? 'bold ' : ''}${size}px "Pixelify Sans", monospace`;
+    const ds = Math.max(1, Math.round(size / 8 * k)) * 8 / k, digits = `${ds}px "Tiny5", "Pixelify Sans", monospace`;
+    const runs = String(str).split(/(\d+)/).filter(Boolean).map(t => ({ t, digit: /^\d/.test(t) }));
+    for (const r of runs) { c.font = r.digit ? digits : letters; r.w = c.measureText(r.t).width; }
+    const w = runs.reduce((n, r) => n + r.w, 0), dy = Math.round((size * 0.925 - ds * 0.875) * k) / k; // line up the bottoms
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    const draw = (x0, y0) => {
+      let at = align === 'center' ? x0 - w / 2 : align === 'right' ? x0 - w : x0;
+      for (const r of runs) { c.font = r.digit ? digits : letters; c.fillText(r.t, r.digit ? Math.round(at * k) / k : at, r.digit ? y0 + dy : y0); at += r.w; }
+    };
+    if (shadow) { c.fillStyle = shadow; draw(x + size / 8, y + size / 8); }
+    c.fillStyle = color; draw(x, y);
   }
 
   panel(x, y, w, h, fill = '#3f2631cc') {

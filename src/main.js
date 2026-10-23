@@ -21,6 +21,7 @@ await Promise.all([
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),
   document.fonts?.load('bold 10px "Pixelify Sans"').catch(() => {}),
+  document.fonts?.load('10px "Tiny5"', '5').catch(() => {}),
 ]);
 window.game = game; // handy for debugging in the console
 game.start(new Menu());
