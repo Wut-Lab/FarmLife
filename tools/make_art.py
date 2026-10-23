@@ -1211,14 +1211,17 @@ def berries_item():  # a little handful of bright red berries with a leaf
         shape(im, lambda d, x=x, y=y: d.ellipse([x - 4, y - 4, x + 3, y + 3]), '#f0283a', '#ff7a7a', '#a0101e', 1)
         ImageDraw.Draw(im).point((x - 2, y - 2), C('#ffffff'))
     return outline(im)
-def pinecone():  # brown cone of overlapping scales, point down
-    im = new()
-    shape(im, lambda d: d.polygon([(16, 28), (8, 16), (9, 9), (16, 5), (23, 9), (24, 16)]), '#8a5a2e', '#b07a44', '#5a3a1c')
-    d = ImageDraw.Draw(im)
-    for y in range(9, 26, 4):
-        w = max(1, 7 - abs(y - 13) // 2)
-        for x in range(16 - w, 16 + w + 1, 3): d.line([(x - 1, y), (x + 1, y + 2)], C('#5a3a1c')); d.point((x, y + 1), C('#c8925a'))
-    d.line([(16, 2), (16, 5)], C('#5a3a1c'))
+def pinecone():  # a tapering cone of overlapping woody scales; tips poke out past the edge so the outline is rough
+    im = new(); S_, Sl, Sd = '#9a6634', '#c8925a', '#4e3018'
+    shape(im, lambda d: d.ellipse([10, 5, 22, 28]), Sd, None, None)  # dark core shows between the scales
+    rows = [(6, (16,)), (10, (13, 19)), (14, (10, 16, 22)), (18, (10, 16, 22)), (22, (12, 20)), (26, (16,))]  # (y, scale centres)
+    for y, xs in rows:
+        for cx in xs:
+            flare = -2 if cx < 15 else 2 if cx > 17 else 0  # outer scales lean outwards
+            pts = [(cx - 3, y - 2), (cx + 3, y - 2), (cx + 3 + flare, y + 2), (cx + flare, y + 4), (cx - 3 + flare, y + 2)]
+            shape(im, lambda d, pts=pts: d.polygon(pts), S_, Sl, Sd, 1)
+            ImageDraw.Draw(im).point((cx + flare, y + 3), C('#e0b07a'))  # pale scale tip
+    d = ImageDraw.Draw(im); d.line([(16, 1), (16, 3)], C('#5a3a1c'))  # stem
     return outline(im)
 def stick():  # a fallen twig: a bent brown stick with a little side branch and a leaf
     im = new()
@@ -1230,6 +1233,20 @@ def stone():  # a grey stone for gathering (smaller and rounder than the map's r
     im = new()
     shape(im, lambda d: d.polygon([(7, 24), (9, 15), (15, 11), (22, 12), (26, 18), (25, 25), (16, 27)]), '#9a9aa0', '#c4c4ca', '#6a6a72')
     d = ImageDraw.Draw(im); d.line([(13, 17), (17, 21)], C('#6a6a72')); d.point((20, 16), C('#e0e0e6'))
+    return outline(im)
+
+# The gate to a locked area: posts and a plank gate (bottom tile), with a striped "under construction" board on top.
+def gate():
+    im = new(S, 2 * S)
+    for x in (3, 26): shape(im, lambda d, x=x: d.rectangle([x, 6, x + 3, 62]), '#9a6436', '#b07440', '#6f4426', 1)  # posts
+    for y in (38, 46, 54): shape(im, lambda d, y=y: d.rectangle([6, y, 25, y + 4]), '#c88a50', '#e0a96a', '#9a6436', 1)  # planks
+    d = ImageDraw.Draw(im); d.line([(7, 39), (24, 57)], C('#9a6436')); d.line([(7, 40), (24, 58)], C('#c88a50'))  # brace
+    shape(im, lambda d: d.rectangle([1, 10, 30, 20]), '#f4f2ee', '#ffffff', '#c8c4bc', 1)  # striped board
+    d = ImageDraw.Draw(im)
+    for x in range(-8, 32, 8): d.polygon([(x, 20), (x + 4, 20), (x + 12, 10), (x + 8, 10)], C('#f08a2c'))
+    d.rectangle([0, 0, 31, 9], (0, 0, 0, 0)); d.rectangle([0, 21, 31, 23], (0, 0, 0, 0))
+    for x in (3, 26): shape(im, lambda d, x=x: d.rectangle([x, 6, x + 3, 9]), '#9a6436', '#b07440', '#6f4426', 1)
+    shape(im, lambda d: d.ellipse([13, 2, 18, 7]), '#f6c62c', '#fde27a', '#c08a18', 1)  # warning lamp
     return outline(im)
 
 # ---------- assemble ----------
@@ -1280,7 +1297,7 @@ for st in range(4): add(f'wheat{st}', crop('wheat', st))
 add('wheat_item', wheat_item()); add('wheat_packet', packet(wheat_item()))
 for name, col in (('note_red', '#e0322c'), ('note_yellow', '#f6c62c'), ('note_blue', '#2a6ae0')): add(name, music_note(col))
 add('bird0', macaw(0)); add('bird1', macaw(1)); add('bird_fly0', macaw(0, True)); add('bird_fly1', macaw(1, True))
-add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone()); add('stick', stick())
+add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add('berries', berries_item()); add('pinecone', pinecone()); add('stone', stone()); add('stick', stick()); add('gate', gate())
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)

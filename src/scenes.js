@@ -12,6 +12,7 @@ import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, 
 import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen, goodsOf } from './store.js';
 import { Events, MINSTREL_LINES } from './events.js';
+import { GATES } from './unlocks.js';
 import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
@@ -389,6 +390,7 @@ export class World {
       this.maps[p.id].villagers.push(p.v);
     }
   }
+  get mapId() { return Object.keys(this.maps).find(id => this.maps[id] === this.map); }
   get onFarm() { return this.map === this.maps.farm; }
 
   // The tile in front of the player's feet.
@@ -417,6 +419,7 @@ export class World {
     }
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
+    if (this.map.gates?.includes(key)) { const g = GATES[this.mapId]; if (g && !g.open(this)) return this.say(g.locked); }
     const bush = bushAt(this.map, key);
     if (bush) return this.pickBerries(bush);
     const counter = Object.keys(KEEPERS).find(k => key === this.map[KEEPERS[k].building]);
@@ -829,7 +832,7 @@ export class World {
     this.events.drawGround(this, cx, cy);
     // Highlight the tile the player is facing.
     const [fx, fy] = this.facing().split(',').map(Number);
-    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin].includes(`${fx},${fy}`) || this.map.digs?.has(`${fx},${fy}`)) {
+    if ((this.onFarm && this.field.has(`${fx},${fy}`)) || [this.map.door, this.map.shop, this.map.store, ...this.map.bin, ...(this.map.gates ?? [])].includes(`${fx},${fy}`) || this.map.digs?.has(`${fx},${fy}`)) {
       c.strokeStyle = '#fff8e8aa'; c.lineWidth = 1;
       c.strokeRect(fx * TILE - cx + 0.5, fy * TILE - cy + 0.5, 15, 15);
     }

@@ -39,7 +39,7 @@ const SIZES = {
   house: { w: 3, h: 3 }, shop: { w: 3, h: 3 }, barn: { w: 4, h: 4, solid: 3 }, bin: { w: 2, h: 1 },
   tree_green: { w: 1, h: 2, solid: 1 }, tree_orange: { w: 1, h: 2, solid: 1 },
   pine: { w: 1, h: 2, solid: 1 }, oak: { w: 2, h: 2, solid: 1 }, shrub_large: { w: 2, h: 1 },
-  house_brown: { w: 3, h: 4, solid: 3 }, house_blue: { w: 3, h: 4, solid: 3 },
+  house_brown: { w: 3, h: 4, solid: 3 }, house_blue: { w: 3, h: 4, solid: 3 }, gate: { w: 1, h: 2 },
   store: { w: 6, h: 4, solid: 3, cols: { 4: 1, 5: 1 }, door: 2 },   pickup: { w: 3, h: 2, solid: 1 }, car_small: { w: 2, h: 2, solid: 1 }, box_truck: { w: 4, h: 3, solid: 2 },
   taxi: { w: 3, h: 2, solid: 1 }, suv: { w: 3, h: 2, solid: 1 }, rock_large: { w: 2, h: 2, solid: 1 }, stone_house: { w: 5, h: 4, solid: 3 },
 };
@@ -94,10 +94,10 @@ export function solidOf(d) {
   return solid;
 }
 
-// Data -> the game's map: houses get a door, shops a counter, bins their tiles, soil becomes plots.
+// Data -> the game's map: houses get a door, shops a counter, bins their tiles, gates theirs, soil becomes plots.
 export function mapFromData(d) {
   const { W, H } = d, key = (x, y) => `${x},${y}`;
-  const out = { W, H, ground: d.ground.slice(), solid: solidOf(d), objects: [], plots: [], door: null, shop: null, store: null, bin: [],
+  const out = { W, H, ground: d.ground.slice(), solid: solidOf(d), objects: [], plots: [], door: null, shop: null, store: null, bin: [], gates: [],
     name: d.name, exits: { ...d.exits }, npcs: (d.npcs ?? []).map(v => ({ ...v })) };
   for (const o of d.objects) {
     const p = PREFABS[o.name]; if (!p) continue;
@@ -106,6 +106,7 @@ export function mapFromData(d) {
     if (o.name === 'house') out.door ??= front;
     if (o.name === 'shop') out.shop ??= front;
     if (o.name === 'store') out.store ??= front;
+    if (o.name === 'gate') for (let j = 0; j < p.h; j++) out.gates.push(key(o.x, o.y + j)); // either tile answers when you Use it
     if (o.name === 'bin' && !out.bin.length) for (let i = 0; i < p.w; i++) out.bin.push(key(o.x + i, o.y + p.h - 1));
   }
   d.ground.forEach((n, i) => { if (n.startsWith('soil')) out.plots.push(key(i % W, Math.floor(i / W))); });
