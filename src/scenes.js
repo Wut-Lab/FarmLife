@@ -38,7 +38,7 @@ function meadow(g, t) {
 }
 
 function button(g, label, x, y, w, h, focused) {
-  g.panel(x, y, w, h, focused ? '#e86a9a' : '#3f2631dd');
+  g.button(x, y, w, h, focused ? '#e86a9a' : '#3f2631dd');
   g.text(label, x + w / 2, y + (h - 10) / 2, { size: 10, align: 'center' });
   return g.input.tapIn(x, y, w, h);
 }
@@ -90,7 +90,7 @@ export class SaveSelect {
     g.text('Choose a save file', cx, 8, { size: 12, align: 'center' });
     this.saves.forEach((s, i) => {
       const y = top + i * (h + 4);
-      g.panel(x, y, w, h, i === this.pick ? '#e86a9a' : '#3f2631dd');
+      g.button(x, y, w, h, i === this.pick ? '#e86a9a' : '#3f2631dd');
       g.text(`File ${i + 1}`, x + 6, y + 2, { size: 6, color: '#fff3a8' });
       if (s) {
         const c = s.clock;
@@ -99,7 +99,7 @@ export class SaveSelect {
         g.text(`${SEASONS[c.season]} ${c.day}, Year ${c.year}`, x + 24, y + 9, { size: 7 });
         g.text(`${s.gold}g`, x + 24, y + 17, { size: 6, color: '#fff3a8' });
         const del = [x + w - 34, y + h - 13, 30, 10];
-        g.panel(...del, this.confirm === i ? '#c34b35' : '#5d7150');
+        g.button(...del, this.confirm === i ? '#c34b35' : '#5d7150');
         g.text(this.confirm === i ? 'Sure?' : 'Delete', del[0] + 15, del[1] + 2, { size: 5, align: 'center' });
         if (g.input.tapIn(...del)) return this.erase(i);
       } else g.text('Empty: start a new farm', x + 24, y + 12, { size: 7, color: '#dcebc6' });
@@ -130,7 +130,7 @@ export class CharacterSelect {
     const top = g.h * 0.12 + 22, left = cx - cardW - gap / 2;
     CHARACTERS.forEach((c, i) => {
       const x = left + i * (cardW + gap);
-      g.panel(x, top, cardW, cardH, i === this.pick ? '#e86a9a' : '#3f2631cc');
+      g.button(x, top, cardW, cardH, i === this.pick ? '#e86a9a' : '#3f2631cc');
       this.walkers[i].draw(g, x + 8, top + 6, size);
       g.text(c.label, x + cardW / 2, top + size + 12, { size: 8, align: 'center' });
       if (g.input.tapIn(x, top, cardW, cardH)) this.pick === i ? this.start() : (this.pick = i);
@@ -231,12 +231,12 @@ export class World {
     playMusic(); // one of two tracks, picked at random each time you enter
   }
 
-  // Everything a save file needs. Saved each morning, so time of day and position aren't stored.
+  // Everything a save file needs. Saved each morning, and when you quit or leave the page (then with the time and where you are).
   snapshot() {
-    const k = this.clock;
+    const k = this.clock, here = Object.keys(this.maps).find(id => this.maps[id] === this.map);
     return {
       v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(),
-      clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
+      clock: { day: k.day, season: k.season, year: k.year, energy: k.energy }, at: { minutes: k.minutes, map: here, x: this.x, y: this.y },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
   }
@@ -245,7 +245,7 @@ export class World {
     if (s.layout === FARM_LAYOUT) for (const key of s.tilled ?? []) this.tillTile(key); // new plots first, so their crops have somewhere to go
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     Object.assign(this, { levels: { ...START_LEVELS, ...s.levels }, upgrading: s.upgrading ?? null });
-    this.inv.slots = s.slots; this.inv.sel = s.sel;
+    this.inv.load(s.slots, s.sel);
     Object.assign(this, { gold: s.gold, seeds: { ...this.seeds, ...s.seeds }, seed: s.seed, gear: s.gear ?? {}, worn: s.worn ?? (s.gear?.shoes ? { shoes: 'shoes' } : {}) });
     this.moved = s.layout === FARM_LAYOUT && s.moved || { gone: [], put: [] }; // plants moved on an older farm layout don't carry over
     for (const key of this.moved.gone) this.unplant(key);
@@ -253,11 +253,13 @@ export class World {
     this.quests = new Quests(s.quests);
     this.pets = s.pets ?? []; this.homePets();
     if (s.wilds) this.freshen('wilds', s.wilds);
+    if (s.at && this.maps[s.at.map]) { this.clock.minutes = s.at.minutes; this.map = this.maps[s.at.map]; this.x = s.at.x; this.y = s.at.y; this.schedule(true); }
     this.wear();
     this.support = new Support(s.support);
     this.say('Welcome back!');
   }
   say(msg) { this.toast = msg; this.toastT = 3; }
+  autosave() { if (!this.fade) writeSave(this.slot, this.snapshot()); } // mid-sleep, the morning save comes next
 
   // Feet hitbox: 8x5 pixels at the bottom of the 16x16 logical sprite. Villagers block too,
   // unless you already overlap one (so you can always step away).
@@ -639,7 +641,7 @@ export class World {
       if (!this.clock.useEnergy(2)) return tired();
       sfx('dig'); f.plots.set(key, null); return this.say(`Dug up the ${CROPS[p.crop].name}.`);
     }
-    this.say('Pick a tool from your hotbar (1-3).');
+    this.say('Pick a tool from your hotbar.');
   }
 
   buttons() {
@@ -733,7 +735,7 @@ export class World {
       { label: 'Quests', go: () => this.openMenu('quests') },
       { label: 'Controls', go: () => this.openMenu('controls') },
       { label: 'Settings', go: () => this.openMenu('settings') },
-      { label: 'Quit to title', go: () => { stopMusic(); this.g.go(new SaveSelect()); } },
+      { label: 'Save and quit', go: () => { this.autosave(); stopMusic(); this.g.go(new SaveSelect()); } },
     ];
     if (this.menu === 'equipment') return [
       ...Object.entries(WEAR_SLOTS).map(([slot, label]) => {
@@ -811,7 +813,7 @@ export class World {
     });
     rows.forEach((it, i) => {
       const [rx, ry, rw, rh] = it.r;
-      g.panel(rx, ry, rw, rh, i === this.mi ? '#e86a9a' : '#5d7150cc');
+      g.button(rx, ry, rw, rh, i === this.mi ? '#e86a9a' : '#5d7150cc');
       g.text(it.label, it.adj ? rx + 6 : rx + rw / 2, ry + 4, { size: 6, align: it.adj ? 'left' : 'center' });
       if (it.adj) {
         g.text('<', rx + rw - 62, ry + 4, { size: 6, align: 'center', color: '#fff3a8' });
@@ -902,8 +904,8 @@ export class World {
     this.pouch = true; this.open = this.binOpen = false; sfx('click');
   }
   pouchRects() {
-    const list = this.ownSeeds, [bx, by] = this.slotRect(this.inv.slots.findIndex(s => s?.id === 'seeds'));
-    return list.map((_, i) => [bx + i * 19, by + 30, 18, 18]);
+    const list = this.ownSeeds, x0 = Math.round(this.g.w / 2 - list.length * 19 / 2), y0 = Math.round(this.g.h / 2 - 4);
+    return list.map((_, i) => [x0 + i * 19, y0, 18, 18]);
   }
   pouchUpdate(inp) {
     this.player.update(0, false);
@@ -912,15 +914,15 @@ export class World {
     if (inp.hit('ArrowLeft', 'KeyA')) pick((at + list.length - 1) % list.length);
     if (inp.hit('ArrowRight', 'KeyD')) pick((at + 1) % list.length);
     list.forEach((_, i) => { if (inp.hit('Digit' + (i + 1)) || inp.tapIn(...r[i])) { pick(i); this.pouch = false; } });
-    if (inp.hit('Escape', 'Enter', 'Space', 'KeyE', 'KeyQ', 'Tab') || (inp.tap && !inp.tapIn(r[0][0] - 3, r[0][1] - 12, list.length * 19 + 5, 33))) this.pouch = false;
+    if (inp.hit('Escape', 'Enter', 'Space', 'KeyE', 'KeyQ', 'Tab') || (inp.tap && !inp.tapIn(this.g.w / 2 - Math.max(96, list.length * 19 + 5) / 2, r[0][1] - 14, Math.max(96, list.length * 19 + 5), 37))) this.pouch = false;
   }
   drawPouch() {
-    const g = this.g, list = this.ownSeeds, r = this.pouchRects(), [x, y] = r[0];
-    g.panel(x - 3, y - 12, list.length * 19 + 5, 33, '#8a5a3aee');
-    g.text(`Seed bag · ${CROPS[SEEDS[this.seed]].name}`, x, y - 10, { size: 5, color: '#fff3a8' });
+    const g = this.g, list = this.ownSeeds, r = this.pouchRects(), [x, y] = r[0], w = Math.max(list.length * 19 + 5, 96);
+    g.panel(g.w / 2 - w / 2, y - 14, w, 37, '#3f2631ee');
+    g.text(`Seed bag · ${CROPS[SEEDS[this.seed]].name}`, g.w / 2, y - 11, { size: 6, align: 'center', color: '#fff3a8' });
     list.forEach((c, i) => {
       const [sx, sy] = r[i];
-      g.panel(sx, sy, 18, 18);
+      g.button(sx, sy, 18, 18);
       if (SEEDS[this.seed] === c) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(sx + 0.5, sy + 0.5, 17, 17); }
       g.tile(CROPS[c].packet, sx + 1, sy + 1);
       g.text(String(this.seeds[c]), sx + 17, sy + 11, { size: 5, align: 'right' });
@@ -944,25 +946,33 @@ export class World {
     g.ctx.fillStyle = '#0b142866'; g.ctx.fillRect(0, 0, g.w, g.h);
     g.panel(r.x, r.y, r.w, r.h, '#3f2631f6');
     r.lines.forEach((l, i) => g.text(l, r.x + r.w / 2, r.y + 7 + i * 9, { size: 6, align: 'center' }));
-    g.panel(...r.yes, '#e86a9a'); g.text(`${this.confirm.yes} (Enter)`, r.yes[0] + 32, r.yes[1] + 4, { size: 5, align: 'center' });
-    g.panel(...r.no, '#5d7150'); g.text('No (Esc)', r.no[0] + 32, r.no[1] + 4, { size: 5, align: 'center' });
+    g.button(...r.yes, '#e86a9a'); g.text(`${this.confirm.yes} (Enter)`, r.yes[0] + 32, r.yes[1] + 4, { size: 5, align: 'center' });
+    g.button(...r.no, '#5d7150'); g.text('No (Esc)', r.no[0] + 32, r.no[1] + 4, { size: 5, align: 'center' });
   }
   // Seed shop: buy seeds (year-round ones and this season's, or the keeper's own stock), sell crops.
   shopSeeds() { return KEEPERS[this.shop]?.stock ?? SEEDS.filter(c => !CROPS[c].rare && inSeason(c, this.clock.season)); }
-  // Each row: the seed (tap to buy) and, on the right, how many: [-] n [+].
+  // Each row: the seed (tap to pick it) and, on the right, how many: [-] n [+]. Buy gets everything picked at once.
   shopRows() {
-    const g = this.g, n = this.shopSeeds().length, W = 176, h = 38 + n * 20, x = Math.round(g.w / 2 - W / 2), y = Math.round(g.h / 2 - h / 2);
+    const g = this.g, n = this.shopSeeds().length, W = 176, h = 38 + n * 20, x = Math.round(g.w / 2 - W / 2), y = Math.round(g.h / 2 - h / 2), by = y + 18 + n * 20;
     const rows = this.shopSeeds().map((_, i) => [x + 4, y + 16 + i * 20, W - 8, 18]);
-    return { x, y, h, W, buy: rows.map(([rx, ry, rw, rh]) => [rx, ry, rw - 42, rh]), less: rows.map(([rx, ry, rw]) => [rx + rw - 40, ry + 3, 12, 12]), more: rows.map(([rx, ry, rw]) => [rx + rw - 14, ry + 3, 12, 12]), rows,
-      ...(KEEPERS[this.shop]?.noBuying ? { close: [x + W / 2 - 32, y + 18 + n * 20, 64, 14] } : { sell: [x + W / 2 - 68, y + 18 + n * 20, 64, 14], close: [x + W / 2 + 4, y + 18 + n * 20, 64, 14] }) }; // some keepers don't buy crops
+    return { x, y, h, W, pick: rows.map(([rx, ry, rw, rh]) => [rx, ry, rw - 42, rh]), less: rows.map(([rx, ry, rw]) => [rx + rw - 40, ry + 3, 12, 12]), more: rows.map(([rx, ry, rw]) => [rx + rw - 14, ry + 3, 12, 12]), rows,
+      ...(KEEPERS[this.shop]?.noBuying ? { buy: [x + W / 2 - 56, by, 54, 14], close: [x + W / 2 + 2, by, 54, 14] } // some keepers don't buy crops
+        : { buy: [x + 4, by, 54, 14], sell: [x + 61, by, 54, 14], close: [x + 118, by, 54, 14] }) };
   }
-  // Buy n of a seed, after a yes/no.
-  buySeeds(s, n) {
-    const c = CROPS[s], cost = this.seedCost(c) * n, what = `${n} ${c.name} seed${n > 1 ? 's' : ''}`;
-    if (this.gold < cost) return this.say(`Not enough gold for ${what} (${cost}g).`);
-    this.ask(`Buy ${what} for ${cost}g?`, () => {
-      sfx('coin'); this.gold -= cost; this.seeds[s] += n; this.fixSeed(); this.qty[s] = 1;
-      this.say(`Bought ${what}. You have ${this.seeds[s]}.`);
+  // Everything with a quantity set, and what it all costs.
+  basket() {
+    const list = this.shopSeeds().filter(s => this.qty[s] > 0).map(s => [s, this.qty[s]]);
+    return { list, cost: list.reduce((t, [s, n]) => t + this.seedCost(CROPS[s]) * n, 0) };
+  }
+  // Buy everything picked, after a yes/no.
+  buySeeds() {
+    const { list, cost } = this.basket(), what = list.map(([s, n]) => `${n} ${CROPS[s].name}`).join(', ');
+    if (!list.length) return this.say('Pick how many with + and - first.');
+    if (this.gold < cost) return this.say(`Not enough gold: that's ${cost}g.`);
+    this.ask(`Buy ${what} seed${list.length > 1 || list[0][1] > 1 ? 's' : ''} for ${cost}g?`, () => {
+      sfx('coin'); this.gold -= cost;
+      for (const [s, n] of list) { this.seeds[s] += n; this.qty[s] = 0; }
+      this.fixSeed(); this.say(`Bought ${what} seeds. They're in your seed bag.`);
     }, 'Buy');
   }
   shopUpdate(inp, dt) {
@@ -971,17 +981,17 @@ export class World {
     if (this.toastT > 0) this.toastT -= dt;
     this.player.update(dt, false);
     if (goodsOf(this.shop).length) return this.storeUpdate(inp);
-    const list = this.shopSeeds(), q = s => this.qty[s] ?? 1, setQ = (s, n) => { this.qty[s] = Math.max(1, Math.min(MAX_BUY, n)); sfx('click'); };
+    const list = this.shopSeeds(), q = s => this.qty[s] ?? 0, setQ = (s, n) => { this.qty[s] = Math.max(0, Math.min(MAX_BUY, n)); sfx('click'); };
     this.shopSel = Math.min(this.shopSel ?? 0, list.length - 1);
     if (inp.hit('ArrowUp')) this.shopSel = (this.shopSel + list.length - 1) % list.length;
     if (inp.hit('ArrowDown')) this.shopSel = (this.shopSel + 1) % list.length;
     if (inp.hit('ArrowLeft', 'Minus')) setQ(list[this.shopSel], q(list[this.shopSel]) - 1);
     if (inp.hit('ArrowRight', 'Equal')) setQ(list[this.shopSel], q(list[this.shopSel]) + 1);
-    if (inp.hit('Enter')) return this.buySeeds(list[this.shopSel], q(list[this.shopSel]));
+    if (inp.hit('Enter', 'KeyB') || inp.tapIn(...r.buy)) return this.buySeeds();
     for (const [i, s] of list.entries()) {
       if (inp.tapIn(...r.less[i])) { this.shopSel = i; setQ(s, q(s) - 1); }
       else if (inp.tapIn(...r.more[i])) { this.shopSel = i; setQ(s, q(s) + 1); }
-      else if (inp.hit('Digit' + (i + 1)) || inp.tapIn(...r.buy[i])) { this.shopSel = i; return this.buySeeds(s, q(s)); }
+      else if (inp.hit('Digit' + (i + 1)) || inp.tapIn(...r.pick[i])) { this.shopSel = i; sfx('click'); }
     }
     if (r.sell && (inp.hit('KeyS') || inp.tapIn(...r.sell))) {
       const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * this.sellPrice(s), 0) + Object.keys(FORAGE).reduce((sum, id) => sum + this.inv.take(id) * FORAGE[id].price, 0);
@@ -997,19 +1007,21 @@ export class World {
     if (keeper && this.villagers.some(v => v.walker.sheet === keeper)) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(keeper).draw(g, r.x - 22, r.y + 2); }
     g.text(`${KEEPERS[keeper]?.title ?? 'Seed Shop'} · ${this.gold}g`, r.x + r.W / 2, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
     this.shopSeeds().forEach((s, i) => {
-      const c = CROPS[s], [x, y, w, h] = r.rows[i], n = this.qty[s] ?? 1;
-      g.panel(x, y, w, h, i === this.shopSel ? '#7a8a5ccc' : '#5d7150cc');
+      const c = CROPS[s], [x, y, w, h] = r.rows[i], n = this.qty[s] ?? 0;
+      g.button(x, y, w, h, i === this.shopSel ? '#7a8a5ccc' : '#5d7150cc');
       if (i === this.shopSel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); }
       g.tile(c.packet, x + 1, y + 1);
       g.text(`${i + 1}. ${c.name}`, x + 20, y + 2, { size: 6 });
       g.text(`own ${this.seeds[s]} · ${this.seedCost(c)}g each`, x + 20, y + 10, { size: 5, color: '#dcebc6' });
-      g.text(`${this.seedCost(c) * n}g`, x + w - 44, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
-      for (const [b, t] of [[r.less[i], '-'], [r.more[i], '+']]) { g.panel(...b, '#3f2631cc'); g.text(t, b[0] + 6, b[1] + 2, { size: 7, align: 'center' }); }
+      if (n) g.text(`${this.seedCost(c) * n}g`, x + w - 44, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
+      for (const [b, t] of [[r.less[i], '-'], [r.more[i], '+']]) { g.button(...b, '#3f2631cc'); g.text(t, b[0] + 6, b[1] + 2, { size: 7, align: 'center' }); }
       g.text(String(n), x + w - 21, y + 5, { size: 6, align: 'center' });
     });
-    if (!(this.toastT > 0)) g.text('Up/Down: pick · Left/Right: how many · Enter: buy', r.x + r.W / 2, r.y + r.h + 2, { size: 5, align: 'center', color: '#dcebc6' });
-    if (r.sell) { g.panel(...r.sell, '#e86a9a'); g.text('Sell harvest (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' }); }
-    g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
+    if (!(this.toastT > 0)) g.text('Up/Down: pick · Left/Right: how many · Enter: buy all', r.x + r.W / 2, r.y + r.h + 2, { size: 5, align: 'center', color: '#dcebc6' });
+    const cost = this.basket().cost;
+    g.button(...r.buy, cost ? '#e8a23a' : '#8a7a5a'); g.text(cost ? `Buy · ${cost}g` : 'Buy (Enter)', r.buy[0] + 27, r.buy[1] + 4, { size: 5, align: 'center' });
+    if (r.sell) { g.button(...r.sell, '#e86a9a'); g.text('Sell harvest (S)', r.sell[0] + 27, r.sell[1] + 4, { size: 5, align: 'center' }); }
+    g.button(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 27, r.close[1] + 4, { size: 5, align: 'center' });
   }
 
   // Goods shops (Bella's general store, the clothes salesman): each thing bought once.
@@ -1069,13 +1081,13 @@ export class World {
     if (this.villagers.some(v => v.walker.sheet === this.shop)) { g.panel(r.x - 26, r.y, 24, 24, '#3f2631ee'); new Walker(this.shop).draw(g, r.x - 22, r.y + 2); }
     g.text(`${KEEPERS[this.shop].title} · ${this.gold}g`, r.x + r.w / 2, r.y + 4, { size: 7, align: 'center', color: '#fff3a8' });
     if (r.tabs) for (const [i, [tab, label]] of [['goods', 'Goods'], ['tools', 'Tool upgrades (T)']].entries()) {
-      g.panel(...r.tabs[i], this.storeTab === tab ? '#e86a9a' : '#5d715099'); g.text(label, r.tabs[i][0] + 37, r.tabs[i][1] + 3, { size: 5, align: 'center' });
+      g.button(...r.tabs[i], this.storeTab === tab ? '#e86a9a' : '#5d715099'); g.text(label, r.tabs[i][0] + 37, r.tabs[i][1] + 3, { size: 5, align: 'center' });
     }
     this.storeList().forEach((row, i) => {
       const [x, y, w, h] = r.buy[i];
       if (row.tool) {
         const lv = this.levels[row.tool], max = lv >= MAX_LEVEL, away = this.busy(row.tool), next = max ? lv : lv + 1;
-        g.panel(x, y, w, h, max || away ? '#5d715066' : '#5d7150cc');
+        g.button(x, y, w, h, max || away ? '#5d715066' : '#5d7150cc');
         g.tile(toolIcon(row.tool, next), x + 2, y + 4);
         g.text(`${i + 1}. ${toolName(row.tool, next)}${lv === 0 ? '' : max ? ' (best)' : ''}`, x + 21, y + 2, { size: 6 });
         g.text(UPGRADES[row.tool].about[next - 1], x + 21, y + 10, { size: 5, color: '#dcebc6' });
@@ -1084,18 +1096,18 @@ export class World {
         return;
       }
       const it = GOODS[row.id], own = this.gear[row.id];
-      g.panel(x, y, w, h, own ? '#5d715066' : '#5d7150cc');
+      g.button(x, y, w, h, own ? '#5d715066' : '#5d7150cc');
       g.tile(it.icon, x + 2, y + 4);
       g.text(`${i + 1}. ${it.name}`, x + 21, y + 4, { size: 6 });
       g.text(it.about, x + 21, y + 14, { size: 5, color: '#dcebc6' });
       g.text(own ? 'Owned' : `${it.price}g`, x + w - 3, y + 4, { size: own ? 5 : 6, align: 'right', color: own ? '#dcebc6' : '#fff3a8' });
     });
-    g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
+    g.button(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
   }
 
   // Slots 0-7 are the hotbar (top left); 8+ are the bag grid shown when it's open.
   slotRect(i) {
-    if (i < HOTBAR) return [4 + i * 19, 4, 18, 18];
+    if (i < HOTBAR) return [4 + i * 19 + (i >= LOCKED ? 3 : 0), 4, 18, 18]; // a gap after the fixed can and seed bag
     if (i >= HOTBAR + BAG) return [Math.round(this.g.w / 2 - BIN * 19 / 2) + (i - HOTBAR - BAG) * 19, Math.round(this.g.h / 2 - 46), 18, 18];
     const j = i - HOTBAR, x0 = Math.round(this.g.w / 2 - 76), y0 = Math.round(this.g.h / 2 - (this.binOpen ? 8 : 16));
     return [x0 + (j % 8) * 19, y0 + Math.floor(j / 8) * 19, 18, 18];
@@ -1103,7 +1115,7 @@ export class World {
 
   drawSlot(i) {
     const g = this.g, s = this.inv.slots[i], [x, y] = this.slotRect(i);
-    g.panel(x, y, 18, 18, i === this.pick ? '#e86a9add' : undefined);
+    g.button(x, y, 18, 18, i === this.pick ? '#e86a9add' : i < LOCKED ? '#2f5560dd' : undefined); // the fixed can and seed bag are teal
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
     const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : (UPGRADES[s.id] && toolIcon(s.id, this.levels[s.id])) ?? TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? FORAGE[s.id]?.icon ?? CROPS[s.id].item;
@@ -1218,12 +1230,12 @@ export class World {
     c.beginPath(); c.arc(px, py, r + 1, 0, Math.PI * 2); c.fillStyle = '#fff8e8'; c.fill();
     c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2); c.fillStyle = '#e8507a'; c.fill();
     g.text('You', px, py - r - 8, { size: 5, align: 'center' });
-    g.panel(...exit, '#e86a9a'); g.text('Exit', exit[0] + exit[2] / 2, exit[1] + 3, { size: 6, align: 'center' });
+    g.button(...exit, '#e86a9a'); g.text('Exit', exit[0] + exit[2] / 2, exit[1] + 3, { size: 6, align: 'center' });
   }
 
   hud() {
     const g = this.g, k = this.clock, w = 78, x = g.w - w - 18;
-    const y = g.w < HOTBAR * 19 + w + 26 ? 26 : 4; // Drop below the hotbar on narrow screens.
+    const y = g.w < HOTBAR * 19 + w + 29 ? 26 : 4; // Drop below the hotbar on narrow screens.
     g.panel(x, y, w, 34);
     g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, y + 3, { size: 7 });
     g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
@@ -1247,20 +1259,20 @@ export class World {
         for (let i = HOTBAR + BAG; i < HOTBAR + BAG + BIN; i++) this.drawSlot(i);
       }
       const cr = this.closeRect();
-      g.panel(...cr, '#e86a9a'); g.text('Close', cr[0] + cr[2] / 2, cr[1] + 2, { size: 6, align: 'center' });
+      g.button(...cr, '#e86a9a'); g.text('Close', cr[0] + cr[2] / 2, cr[1] + 2, { size: 6, align: 'center' });
     }
     if (this.shop) this.drawShop();
     if (this.pouch) this.drawPouch();
     // Help and pause buttons, top right.
     const hb = this.buttons();
-    g.panel(...hb.help, '#000000cc'); g.text('?', hb.help[0] + 5, hb.help[1] + 1, { size: 7, align: 'center' });
-    g.panel(...hb.map, '#000000cc'); this.drawGlobe(hb.map[0] + 5, hb.map[1] + 5);
-    g.panel(...hb.pause, '#000000cc'); g.text('II', hb.pause[0] + 5, hb.pause[1] + 2, { size: 5, align: 'center' });
+    g.button(...hb.help, '#000000cc'); g.text('?', hb.help[0] + 5, hb.help[1] + 1, { size: 7, align: 'center' });
+    g.button(...hb.map, '#000000cc'); this.drawGlobe(hb.map[0] + 5, hb.map[1] + 5);
+    g.button(...hb.pause, '#000000cc'); g.text('II', hb.pause[0] + 5, hb.pause[1] + 2, { size: 5, align: 'center' });
     // Bag and action buttons, bottom right.
     const b = this.buttons();
-    g.panel(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('bag', b.bag[0] + 3, b.bag[1] + 1);
+    g.button(...b.bag, this.open ? '#e86a9a' : '#3f2631dd'); g.tile('bag', b.bag[0] + 3, b.bag[1] + 1);
     g.text('Bag', b.bag[0] + 11, b.bag[1] + 15, { size: 5, align: 'center' });
-    g.panel(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
+    g.button(...b.act, '#e86a9a'); g.text('Use', b.act[0] + 11, b.act[1] + 7, { size: 7, align: 'center' });
     // Location name: fades in and out at the top centre after you arrive (lower on narrow screens, clear of the hotbar).
     if (this.banner) {
       const t = this.banner.t, a = t < BANNER[0] ? t / BANNER[0] : t < BANNER[0] + BANNER[1] ? 1 : 1 - (t - BANNER[0] - BANNER[1]) / BANNER[2];

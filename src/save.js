@@ -1,4 +1,4 @@
-// Four save files in localStorage. The game auto-saves each morning after you sleep.
+// Four save files in localStorage. The game auto-saves each morning after you sleep, and when you quit or leave the page.
 export const SLOTS = 4;
 const key = slot => `farmlife.save.${slot}`;
 

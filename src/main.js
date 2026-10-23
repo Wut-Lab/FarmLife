@@ -23,5 +23,8 @@ await Promise.all([
   document.fonts?.load('bold 10px "Pixelify Sans"').catch(() => {}),
   document.fonts?.load('10px "Tiny5"', '5').catch(() => {}),
 ]);
+// Save when the page is closed, reloaded or put in the background.
+addEventListener('pagehide', () => game.scene.autosave?.());
+document.addEventListener('visibilitychange', () => { if (document.hidden) game.scene.autosave?.(); });
 window.game = game; // handy for debugging in the console
 game.start(new Menu());

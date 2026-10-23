@@ -1,17 +1,22 @@
-// Hotbar + bag + shipping bin. Slots 0-2 hold the fixed tools; every other slot holds an item stack {id, n} or null.
+// Hotbar + bag + shipping bin. Slots 0-1 hold the fixed watering can and seed bag (the main loop); the hoe starts in slot 2 and moves like an item; every other slot holds an item stack {id, n} or null.
 export const TOOLS = {
   hoe:   { name: 'Hoe',          icon: 'hoe' },
   can:   { name: 'Watering Can', icon: 'can' },
   seeds: { name: 'Seeds' },
   shovel: { name: 'Shovel',      icon: 'shovel' }, // bought from Bella; carried in the bag like an item
 };
-export const HOTBAR = 8, LOCKED = 3, BAG = 16, BIN = 5; // bin slots come after the bag
+export const HOTBAR = 8, LOCKED = 2, BAG = 16, BIN = 5; // bin slots come after the bag
 
 export class Inventory {
   constructor() {
-    this.slots = [{ id: 'hoe' }, { id: 'can' }, { id: 'seeds' }, ...Array(HOTBAR - LOCKED + BAG + BIN).fill(null)];
+    this.slots = [{ id: 'can' }, { id: 'seeds' }, { id: 'hoe' }, ...Array(HOTBAR - 3 + BAG + BIN).fill(null)];
     this.sel = 0;
     this.canBin = id => !TOOLS[id]; // what may go in the shipping bin (the game allows only crops)
+  }
+  // Older saves had hoe, can, seeds in slots 0-2: move the can and seed bag to the front.
+  load(slots, sel) {
+    if (slots[0]?.id === 'hoe') { slots.splice(0, 3, slots[1], slots[2], slots[0]); sel = sel < 3 ? (sel + 2) % 3 : sel; }
+    this.slots = slots; this.sel = sel;
   }
   get held() { return this.slots[this.sel]; }
   get carried() { return this.slots.slice(0, HOTBAR + BAG); }
@@ -46,7 +51,7 @@ export class Inventory {
     return out;
   }
 
-  // Swap any two non-tool slots (hotbar or bag). Tools can't go in the shipping bin.
+  // Swap any two slots except the fixed can and seed bag (hotbar or bag). Tools can't go in the shipping bin.
   swap(a, b) {
     if (a < LOCKED || b < LOCKED) return false;
     const binned = i => i >= HOTBAR + BAG, no = s => s && !this.canBin(s.id);

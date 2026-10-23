@@ -97,6 +97,13 @@ export class Game {
     c.roundRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h), 3);
     c.fill();
   }
+  // A panel you can tap: the same, with a thin black edge.
+  button(x, y, w, h, fill) {
+    this.panel(x, y, w, h, fill);
+    const c = this.ctx;
+    c.strokeStyle = '#000'; c.lineWidth = 0.5;
+    c.beginPath(); c.roundRect(Math.round(x) + 0.25, Math.round(y) + 0.25, Math.round(w) - 0.5, Math.round(h) - 0.5, 3); c.stroke();
+  }
 }
 
 // Keyboard, mouse and touch. A drag acts as a virtual joystick; a short press is a tap.

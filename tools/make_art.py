@@ -224,6 +224,17 @@ def can():
     shape(im, lambda d: d.rounded_rectangle([10, 12, 26, 28], 4), '#7fb3d8', '#b9dcf2', '#4f80aa')
     d = ImageDraw.Draw(im); d.arc([13, 4, 27, 18], 200, 360, C('#4f80aa'), 2); d.line([(12, 21), (24, 21)], C('#4f80aa'))
     return outline(im)
+def backpack():  # light blue pack with brown straps, flap and buckle
+    im = new(); d = ImageDraw.Draw(im)
+    d.arc([10, 2, 22, 14], 180, 360, C('#7a4a26'), 2)  # top handle
+    shape(im, lambda d: d.rounded_rectangle([6, 7, 26, 29], 6), '#7cc4e8', '#b4e2f6', '#4d93bf')
+    shape(im, lambda d: d.rounded_rectangle([10, 18, 22, 28], 3), '#68b2da', '#9cd4ee', '#4d93bf', 1)  # front pocket
+    shape(im, lambda d: d.rounded_rectangle([7, 7, 25, 15], 5), '#9a6236', '#bb8250', '#6a3e1e', 1)  # flap
+    d = ImageDraw.Draw(im)
+    for x in (11, 21): d.line([(x, 14), (x, 18)], C('#7a4a26'), 2)  # straps down to the pocket
+    d.rectangle([14, 13, 18, 16], C('#e8c25a')); d.point((16, 14), C('#7a4a26'))  # buckle
+    d.line([(12, 22), (20, 22)], C('#4d93bf'))  # pocket seam
+    return outline(im)
 def shovel():  # long handle with a D grip at the top, rounded pointed blade at the bottom
     im = new(); d = ImageDraw.Draw(im)
     d.line([(11, 21), (24, 7)], C('#a86a3a'), 3); d.line([(12, 20), (23, 8)], C('#c88a50'), 1)
@@ -1298,7 +1309,7 @@ for j in range(3):
 for kind in ('carrot', 'turnip', 'cabbage'):
     for s in range(4): add(f'{kind}{s}', crop(kind, s))
     add(f'{kind}_item', ITEMS[kind]); add(f'{kind}_packet', packet(ITEMS[kind]))
-add('hoe', hoe()); add('can', can()); add('bag', cell(BAGS, 0, 32))
+add('hoe', hoe()); add('can', can()); add('bag', backpack())
 add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orange', tall_tree(('#e0892f', '#f5ad4f', '#b0601f')))
 add('tree', small_tree()); add('mushrooms', mushrooms())
 add('pine', pine()); add('oak', oak()); add('shrub_large', shrub(2 * S)); add('shrub_flower', shrub(S, True))

@@ -12,10 +12,18 @@ test('items stack in the bag and swap into the hotbar', () => {
   assert.equal(inv.count('carrot'), 3);
 });
 
-test('tool slots cannot be swapped', () => {
+test('the can and seed bag are fixed; the hoe can move', () => {
   const inv = new Inventory();
-  assert.equal(inv.swap(0, HOTBAR), false);
-  assert.equal(inv.slots[0].id, 'hoe');
+  assert.equal(inv.swap(0, HOTBAR), false); assert.equal(inv.swap(1, HOTBAR), false);
+  assert.equal(inv.slots[0].id, 'can');
+  assert.ok(inv.swap(2, HOTBAR)); assert.equal(inv.slots[HOTBAR].id, 'hoe');
+});
+
+test('old saves move the can and seed bag to the front', () => {
+  const inv = new Inventory();
+  inv.load([{ id: 'hoe' }, { id: 'can' }, { id: 'seeds' }, null], 0);
+  assert.deepEqual(inv.slots.slice(0, 3).map(s => s.id), ['can', 'seeds', 'hoe']);
+  assert.equal(inv.held.id, 'hoe');
 });
 
 test('shipping bin slots are separate from the bag and empty overnight', () => {
