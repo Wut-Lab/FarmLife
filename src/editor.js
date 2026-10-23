@@ -12,7 +12,7 @@ const T = 32; // screen pixels per tile at zoom 1
 const ZMIN = 0.2, ZMAX = 6; // zoom limits; the slider runs on a log scale between them
 
 // ---------- map state, autosave, undo ----------
-const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)', shopkeeper: 'Fredrick (shopkeeper)', storekeeper: 'Bella (storekeeper)' };
+const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)', shopkeeper: 'Fredrick (shopkeeper)', storekeeper: 'Bella (storekeeper)', wanderer: 'Hooded stranger' };
 const sheets = Object.fromEntries(await Promise.all(Object.keys(NPCS).map(async k => {
   const im = new Image(); im.src = `assets/characters/${k}.png`; await im.decode(); return [k, im];
 })));
@@ -66,7 +66,7 @@ const brushes = [...AUTO,
   ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name })),
   ...Object.entries(NPCS).map(([k, label]) => ({ id: k, label, npc: k }))];
 const group = b => b.ground ? 'Ground' : b.npc ? 'Villagers' : /pickup|car|truck|taxi|suv/.test(b.id) ? 'Vehicles' : /house|shop|store|bin|sign|fence/.test(b.id) ? 'Buildings & props'
-  : /tree|pine|oak|shrub|mushroom|flower|bush|rock/.test(b.id) ? 'Nature' : 'Other';
+  : /tree|pine|oak|shrub|mushroom|flower|dandelion|bush|rock/.test(b.id) ? 'Nature' : 'Other';
 let brush = brushes.find(b => b.id === 'path');
 
 function thumb(rows) {

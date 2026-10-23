@@ -8,7 +8,7 @@ const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves f
 import { CROPS, SEEDS, Field, aCrop, nCrops, inSeason } from './crops.js';
 import { settings, saveSettings, DAY_SPEEDS, sfx, playMusic, stopMusic, musicName } from './audio.js';
 import { SLOTS, listSaves, readSave, writeSave, deleteSave } from './save.js';
-import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS } from './villagers.js';
+import { Villager, spawnVillagers, randomSpot, fits, feet, overlaps, planRoute, KEEPERS, STRANGER_LINES } from './villagers.js';
 import { SCHEDULES, activity, weekday } from './schedule.js';
 import { GOODS, STORE_HOURS, WEAR_SLOTS, storeOpen } from './store.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
@@ -353,6 +353,10 @@ export class World {
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     const v = this.villagerAhead();
+    if (v?.role === 'stranger') { // turns to you, says something cryptic
+      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+      return this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
+    }
     if (v) return v.role !== 'shop' ? this.meet(v) : this.closed(v.walker.sheet) ? this.say(this.closed(v.walker.sheet)) : this.openShop(v);
     if (key === this.map.door) { sfx('sleep'); return this.clock.sleep(); }
     const counter = Object.keys(KEEPERS).find(k => key === this.map[KEEPERS[k].building]);

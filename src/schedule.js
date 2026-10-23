@@ -20,6 +20,7 @@ export const SCHEDULES = {
     { hour: 20, act: 'move', map: 'town', x: 12, y: 14, size: 0 }, // closed: next to it again
     { hour: 21, act: 'sleep' },
   ],
+  wanderer: [], // the hooded stranger: no rules yet, so they stay wherever the map places them
   villager_male: [ // Hank
     { hour: 6, act: 'move', map: 'town', x: 20, y: 9, size: 2 },
     { hour: 12, act: 'move', map: 'road', x: 18, y: 12, size: 2 },
