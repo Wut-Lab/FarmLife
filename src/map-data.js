@@ -1,6 +1,6 @@
 // Hand-built maps: the JSON the map editor (editor.html) saves, and turning it into the map shape the game uses.
 // Data: { W, H, ground: [tile name per cell], objects: [{ name, x, y }], block: [0 auto | 1 solid | 2 walkable], spawn: { x, y },
-//   name, exits: { left, right: location id }, npcs: [{ sheet, x, y, size }] }
+//   name, exits: { left, right, up, down: location id }, npcs: [{ sheet, x, y, size }] }
 import { A } from './art-index.js';
 import { CROPS } from './crops.js';
 import { VILLAGERS } from './villagers.js';
@@ -47,8 +47,12 @@ const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips', 'dandelions', 'roc
 const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', 'berry_bush_bare', 'berries', 'pinecone', 'stone', 'stick', 'beanie', 'longsleeve', 'jeans', 'white_sneakers', 'note_red', 'note_yellow', 'note_blue', 'bird0', 'bird1', 'bird_fly0', 'bird_fly1', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
 export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep|wildcool|wildwarm)\d+$/.test(n);
 export const isPaved = n => /^(path|cobbleb?|brickb?)\d+$/.test(n);
-// Rows where a road reaches the map's left or right edge: walking off there takes you through that side's exit.
-export const exitRows = (m, side) => [...Array(m.H).keys()].filter(y => isPaved(m.ground[y * m.W + (side === 'left' ? 0 : m.W - 1)]));
+// Where a road reaches a map's edge: rows on the left/right edges, columns on the top/bottom ('up'/'down').
+// Walking off the edge there takes you through that side's exit.
+export const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
+export const exitRows = (m, side) => side === 'up' || side === 'down'
+  ? [...Array(m.W).keys()].filter(x => isPaved(m.ground[(side === 'up' ? 0 : m.H - 1) * m.W + x]))
+  : [...Array(m.H).keys()].filter(y => isPaved(m.ground[y * m.W + (side === 'left' ? 0 : m.W - 1)]));
 export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep', 'wildcool', 'wildwarm']; // 47-piece autotile sets drawn by tools/make_art.py
 
 // Blob autotiles: neighbour bits N, E, S, W, NE, SE, SW, NW. A corner only counts when both sides next to it do,

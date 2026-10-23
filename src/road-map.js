@@ -220,7 +220,7 @@ export const ROAD_MAP = {
     {"name":"gate","x":38,"y":27},
   ],
   block: Array(1200).fill(0),
-  spawn: { x: 1, y: 16 }, name: 'Road to Town', exits: { left: 'farm', right: 'town' },
+  spawn: { x: 1, y: 16 }, name: 'Road to Town', exits: { left: 'farm', right: 'town', down: 'south' },
   npcs: [
     {sheet:'villager_child',x:34,y:23,size:2},
   ],

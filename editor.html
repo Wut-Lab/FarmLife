@@ -47,6 +47,8 @@
     aside { grid-row: 3; border-right: 0; border-top: 2px solid #241318; }
     .grid { grid-template-columns: repeat(5, 1fr); }
   }
+#note{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:10;max-width:90vw;padding:8px 14px;border-radius:8px;background:#3f2631ee;color:#fff3a8;font:14px "Pixelify Sans",monospace;box-shadow:0 2px 8px #0006}
+#note[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -57,6 +59,8 @@
   <button id="reset" title="Throw away your changes to this location and start from the game's version">Reset</button>
   <label title="Where walking off the road at the left edge takes you">← <select id="exitL"></select></label>
   <label title="Where walking off the road at the right edge takes you"><select id="exitR"></select> →</label>
+  <label title="Where walking off the road at the top edge takes you">↑ <select id="exitU"></select></label>
+  <label title="Where walking off the road at the bottom edge takes you">↓ <select id="exitD"></select></label>
   <button id="import" title="Open a map .json file">Import</button>
   <button id="export" title="Download this map as a .json file">Export</button>
   <button id="play" title="Play this map in the game (new tab)">▶ Play test</button>
@@ -71,6 +75,7 @@
   <button id="resize">Resize</button>
   <input id="file" type="file" accept=".json,application/json" hidden>
 </header>
+<div id="note" hidden></div>
 <aside>
   <h2>Tools</h2>
   <div class="tools" id="tools"></div>

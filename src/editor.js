@@ -1,5 +1,6 @@
 // Map editor (editor.html): pick a location, paint ground, place objects and villagers, adjust collision, the spawn
 // point and the road exits, then export JSON or play-test (index.html?map=editor). Each location autosaves to localStorage.
+// When the game's own version of a location changes (an update), the editor switches to it; Undo brings your old one back.
 import { A } from './art-index.js';
 import { LOCATIONS } from './locations.js';
 import { ROLES } from './villagers.js';
@@ -12,17 +13,27 @@ const T = 32; // screen pixels per tile at zoom 1
 const ZMIN = 0.2, ZMAX = 6; // zoom limits; the slider runs on a log scale between them
 
 // ---------- map state, autosave, undo ----------
-const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)', shopkeeper: 'Fredrick (shopkeeper)', storekeeper: 'Bella (storekeeper)', wanderer: 'Hooded stranger' };
+const NPCS = { villager_male: 'Villager (man)', villager_female: 'Villager (woman)', villager_child: 'Villager (child)', shopkeeper: 'Fredrick (shopkeeper)', storekeeper: 'Bella (storekeeper)', wanderer: 'Hooded stranger', minstrel: 'Wandering minstrel', salesman: 'Clothes salesman' };
 const sheets = Object.fromEntries(await Promise.all(Object.keys(NPCS).map(async k => {
   const im = new Image(); im.src = `assets/characters/${k}.png`; await im.decode(); return [k, im];
 })));
 const all = editorData(); // every location's edited map; untouched locations use the game's own
 let loc = 'farm', d;
 const fresh = id => dataFromMap(LOCATIONS[id].build());
+// Which version of the game's map each autosave was made from, so an updated game map replaces a stale autosave.
+const BASE_KEY = 'farmlife-editor-base', base = (() => { try { return JSON.parse(localStorage.getItem(BASE_KEY)) ?? {}; } catch { return {}; } })();
+const stamp = id => { const s = JSON.stringify(fresh(id)); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
 function openLoc(id) {
-  loc = id; d = valid(all[id]) ? all[id] : fresh(id); undo.length = redo.length = 0;
+  loc = id; undo.length = redo.length = 0;
+  const mine = valid(all[id]) ? all[id] : null, now = LOCATIONS[id].fresh ? null : stamp(id);
+  d = mine ?? fresh(id);
+  if (mine && now !== null && base[id] !== now) { // the game's map changed since this autosave
+    undo.push(JSON.stringify(mine)); d = fresh(id); save();
+    note(`Updated ${LOCATIONS[id].name} to the game's latest version. Undo (Ctrl+Z) brings yours back.`);
+  }
   $('#loc').value = id; changed(true, false); fitView();
 }
+function note(msg) { const n = $('#note'); if (!n) return alert(msg); n.textContent = msg; n.hidden = false; clearTimeout(note.t); note.t = setTimeout(() => (n.hidden = true), 8000); }
 function valid(m) {
   if (!m || !(m.W > 0 && m.H > 0) || m.ground?.length !== m.W * m.H || !Array.isArray(m.objects)) return false;
   m.block = m.block?.length === m.W * m.H ? m.block : Array(m.W * m.H).fill(0);
@@ -31,7 +42,10 @@ function valid(m) {
   m.exits = { ...m.exits }; m.npcs = (m.npcs ?? []).filter(v => NPCS[v.sheet]);
   return true;
 }
-const save = () => { all[loc] = d; try { localStorage.setItem(EDITOR_KEY, JSON.stringify(all)); } catch {} };
+const save = () => {
+  all[loc] = d; if (!LOCATIONS[loc].fresh) base[loc] = stamp(loc);
+  try { localStorage.setItem(EDITOR_KEY, JSON.stringify(all)); localStorage.setItem(BASE_KEY, JSON.stringify(base)); } catch {}
+};
 const undo = [], redo = [];
 const snap = () => { undo.push(JSON.stringify(d)); if (undo.length > 200) undo.shift(); redo.length = 0; };
 function history(from, to) {
@@ -42,8 +56,10 @@ function replace(m) { snap(); d = m; changed(true); fitView(); }
 function changed(sizes, store = true) {
   if (store) save();
   draw();
-  if (sizes) { $('#mw').value = d.W; $('#mh').value = d.H; $('#exitL').value = d.exits.left ?? ''; $('#exitR').value = d.exits.right ?? ''; }
+  if (sizes) { $('#mw').value = d.W; $('#mh').value = d.H; for (const [k, side] of Object.entries(SIDE)) $('#exit' + k).value = d.exits[side] ?? ''; }
 }
+
+const SIDE = { L: 'left', R: 'right', U: 'up', D: 'down' }; // exit pickers in the header
 
 // ---------- brushes ----------
 const patch = f => [[blobTile(f, 2 | 4 | 32), blobTile(f, 8 | 4 | 64)], [blobTile(f, 1 | 2 | 16), blobTile(f, 1 | 8 | 128)]]; // 2x2 preview
@@ -323,6 +339,30 @@ function render() {
       ctx.fillStyle = to ? '#f6d04d' : '#fff8e8'; ctx.fillText(label, tx, Y(rows[0]) - 4); ctx.textBaseline = 'middle';
     }
   }
+  for (const side of ['up', 'down']) { // the same for the top and bottom edges, by column
+    const to = d.exits[side], cols = exitRows(d, side), ey = side === 'up' ? -1 : d.H, edge = side === 'up' ? 0 : d.H - 1;
+    const ty = side === 'up' ? Y(0) + 4 : Y(d.H) - 4;
+    ctx.textAlign = 'center'; ctx.textBaseline = side === 'up' ? 'top' : 'bottom';
+    if (to && !cols.length) {
+      ctx.strokeStyle = '#ff6b5b'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.moveTo(X(0), Y(edge + (side === 'up' ? 0 : 1))); ctx.lineTo(X(d.W), Y(edge + (side === 'up' ? 0 : 1))); ctx.stroke(); ctx.setLineDash([]);
+      const msg = `No road reaches this edge (exit to ${LOCATIONS[to].name})`, w = ctx.measureText(msg).width;
+      ctx.fillStyle = '#3f2631dd'; ctx.fillRect(X(d.W / 2) - w / 2 - 3, side === 'up' ? ty - 2 : ty - s * 0.5 - 2, w + 6, s * 0.5 + 4);
+      ctx.fillStyle = '#ff6b5b'; ctx.fillText(msg, X(d.W / 2), ty); ctx.textBaseline = 'middle'; continue;
+    }
+    for (const x of cols) {
+      ctx.fillStyle = to ? '#f6d04d99' : '#ffffff22'; ctx.fillRect(X(x), Y(ey), s, s);
+      ctx.strokeStyle = to ? '#f6d04d' : '#ffffff55'; ctx.lineWidth = 2; ctx.strokeRect(X(x) + 1, Y(edge) + 1, s - 2, s - 2);
+      ctx.fillStyle = '#3f2631'; ctx.textBaseline = 'middle'; ctx.fillText(side === 'up' ? '▲' : '▼', X(x + 0.5), Y(ey + 0.5) + 1);
+    }
+    if (cols.length) {
+      const label = to ? `${side === 'up' ? '▲' : '▼'} To ${LOCATIONS[to].name}` : 'No exit set', w = ctx.measureText(label).width, lx = Math.min(X(cols[0] + 0.5), X(d.W) - w / 2 - 4);
+      const ly = side === 'up' ? Y(1) + 4 : Y(d.H - 1) - 4;
+      ctx.textBaseline = side === 'up' ? 'top' : 'bottom'; ctx.fillStyle = '#3f2631cc';
+      ctx.fillRect(lx - w / 2 - 3, side === 'up' ? ly - 2 : ly - s * 0.5 - 2, w + 6, s * 0.5 + 4);
+      ctx.fillStyle = to ? '#f6d04d' : '#fff8e8'; ctx.fillText(label, lx, ly); ctx.textBaseline = 'middle';
+    }
+  }
   // Spawn marker.
   ctx.fillStyle = '#f6d04d'; ctx.strokeStyle = '#3f2631'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(X(d.spawn.x + 0.5), Y(d.spawn.y + 0.5), s * 0.3, 0, 7); ctx.fill(); ctx.stroke();
@@ -449,10 +489,10 @@ $('#new').onclick = () => confirm(`Start ${LOCATIONS[loc].name} over as empty gr
 $('#reset').onclick = () => confirm(`Go back to the game's own ${LOCATIONS[loc].name}? (Undo can bring yours back.)`) && replace(fresh(loc));
 for (const [id, l] of Object.entries(LOCATIONS)) $('#loc').append(new Option(l.name, id));
 $('#loc').onchange = e => openLoc(e.target.value);
-for (const side of ['L', 'R']) {
-  const sel = $('#exit' + side); sel.append(new Option('No exit', ''));
+for (const [k, side] of Object.entries(SIDE)) {
+  const sel = $('#exit' + k); sel.append(new Option('No exit', ''));
   for (const [id, l] of Object.entries(LOCATIONS)) sel.append(new Option(l.name, id));
-  sel.onchange = e => { snap(); d.exits[side === 'L' ? 'left' : 'right'] = e.target.value || undefined; changed(); };
+  sel.onchange = e => { snap(); d.exits[side] = e.target.value || undefined; changed(); };
 }
 $('#export').onclick = () => {
   const name = (prompt('File name', 'hub') ?? '').trim().replace(/\.json$/i, '');

@@ -1211,16 +1211,18 @@ def berries_item():  # a little handful of bright red berries with a leaf
         shape(im, lambda d, x=x, y=y: d.ellipse([x - 4, y - 4, x + 3, y + 3]), '#f0283a', '#ff7a7a', '#a0101e', 1)
         ImageDraw.Draw(im).point((x - 2, y - 2), C('#ffffff'))
     return outline(im)
-def pinecone():  # a tapering cone of overlapping woody scales; tips poke out past the edge so the outline is rough
-    im = new(); S_, Sl, Sd = '#9a6634', '#c8925a', '#4e3018'
-    shape(im, lambda d: d.ellipse([10, 5, 22, 28]), Sd, None, None)  # dark core shows between the scales
-    rows = [(6, (16,)), (10, (13, 19)), (14, (10, 16, 22)), (18, (10, 16, 22)), (22, (12, 20)), (26, (16,))]  # (y, scale centres)
+def pinecone():  # a Jeffrey pine cone: big, egg-shaped and open, broadest near the base, thick woody scales in staggered rows
+    im = new(); S_, Sl, Sd, knob = '#a8683a', '#d49a62', '#5e3418', '#ecc690'
+    shape(im, lambda d: d.ellipse([8, 5, 24, 29]), Sd, None, None)  # dark core shows between the scales
+    rows = [(6, (16,)), (10, (13, 19)), (14, (10, 16, 22)), (18, (8, 13, 19, 24)), (22, (10, 16, 22)), (26, (13, 19))]  # (y, scale centres)
     for y, xs in rows:
         for cx in xs:
-            flare = -2 if cx < 15 else 2 if cx > 17 else 0  # outer scales lean outwards
-            pts = [(cx - 3, y - 2), (cx + 3, y - 2), (cx + 3 + flare, y + 2), (cx + flare, y + 4), (cx - 3 + flare, y + 2)]
+            out = -1 if cx < 15 else 1 if cx > 17 else 0
+            far = cx in (8, 24) or (y in (14, 22) and cx in (10, 22))  # scales on the rim jut out sideways
+            dx = out * (2 if far else 1)
+            pts = [(cx - 3, y - 1), (cx, y - 3), (cx + 3, y - 1), (cx + 3 + dx, y + 2), (cx + dx, y + 4), (cx - 3 + dx, y + 2)]
             shape(im, lambda d, pts=pts: d.polygon(pts), S_, Sl, Sd, 1)
-            ImageDraw.Draw(im).point((cx + flare, y + 3), C('#e0b07a'))  # pale scale tip
+            d = ImageDraw.Draw(im); d.point((cx + dx, y + 1), C(knob)); d.point((cx + dx, y + 2), C(Sd))  # pale knob with its little prickle
     d = ImageDraw.Draw(im); d.line([(16, 1), (16, 3)], C('#5a3a1c'))  # stem
     return outline(im)
 def stick():  # a fallen twig: a bent brown stick with a little side branch and a leaf

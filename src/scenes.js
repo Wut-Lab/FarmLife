@@ -1,7 +1,7 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
 import { Clock, MAX_ENERGY, SEASONS, DAYS_PER_SEASON } from './clock.js';
-import { editorMaps, exitRows, isPaved } from './map-data.js';
+import { editorMaps, exitRows, isPaved, OPPOSITE } from './map-data.js';
 import { LOCATIONS } from './locations.js';
 
 const FARM_LAYOUT = 2; // bump when the farm map changes, so saved plant moves from the old layout are dropped
@@ -245,9 +245,11 @@ export class World {
     for (const v of this.villagers) { const f = feet(v.x, v.y); if (overlaps(next, f) && !overlaps(me, f)) return true; }
     for (const [px, py] of [[x + 4, y + 11], [x + 11, y + 11], [x + 4, y + 15], [x + 11, y + 15]]) {
       const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-      if (ty < 0 || ty >= H) return true;
-      if (tx < 0 || tx >= W) { // off the edge only along a road with an exit
-        if (!this.map.exits?.[tx < 0 ? 'left' : 'right'] || !isPaved(this.map.ground[ty * W + (tx < 0 ? 0 : W - 1)])) return true;
+      const offX = tx < 0 || tx >= W, offY = ty < 0 || ty >= H;
+      if (offX && offY) return true;
+      if (offX || offY) { // off the edge only along a road with an exit
+        const side = offX ? (tx < 0 ? 'left' : 'right') : (ty < 0 ? 'up' : 'down'), edge = offX ? ty * W + (tx < 0 ? 0 : W - 1) : (ty < 0 ? 0 : H - 1) * W + tx;
+        if (!this.map.exits?.[side] || !isPaved(this.map.ground[edge])) return true;
         continue;
       }
       if (solid[ty * W + tx]) return true;
@@ -299,7 +301,8 @@ export class World {
     for (const m of Object.values(this.maps)) for (const v of m.villagers) v.update(dt, m === this.map ? (x, y) => overlaps(feet(x, y), me) : () => false);
     this.hop();
     // Walk off the end of the road into the next location.
-    const { W, exits } = this.map, side = this.x + 8 < 0 ? 'left' : this.x + 8 > W * TILE ? 'right' : null; // centre past the edge (only possible on the road)
+    const { W, H, exits } = this.map, fx = this.x + 8, fy = this.y + 13; // feet past the edge (only possible on the road)
+    const side = fx < 0 ? 'left' : fx > W * TILE ? 'right' : fy < 0 ? 'up' : fy > H * TILE ? 'down' : null;
     if (side && exits?.[side]) this.fade = { t: 0, id: exits[side], side };
   }
   // Fade to black, switch location at the darkest point, then fade back in.
@@ -313,10 +316,16 @@ export class World {
   travel(id, side) {
     if (LOCATIONS[id].fresh) this.freshen(id);
     this.map = this.maps[id];
-    this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
-    // Line up with the road on the side you came in; if the row you were on isn't road there, use the nearest road row.
-    const rows = exitRows(this.map, side === 'right' ? 'left' : 'right'), row = Math.floor((this.y + 13) / TILE);
-    if (rows.length && !rows.includes(row)) this.y = rows.reduce((a, b) => (Math.abs(b - row) < Math.abs(a - row) ? b : a)) * TILE - 4;
+    // Come in on the opposite edge, lined up with the road there; if your row (or column) isn't road, use the nearest one that is.
+    const across = side === 'left' || side === 'right', cells = exitRows(this.map, OPPOSITE[side]);
+    const near = at => (cells.length && !cells.includes(at) ? cells.reduce((a, b) => (Math.abs(b - at) < Math.abs(a - at) ? b : a)) : at);
+    if (across) {
+      this.x = side === 'right' ? 0 : (this.map.W - 1) * TILE;
+      this.y = near(Math.floor((this.y + 13) / TILE)) * TILE - 4;
+    } else {
+      this.y = side === 'down' ? -4 : (this.map.H - 1) * TILE - 4;
+      this.x = near(Math.floor((this.x + 8) / TILE)) * TILE;
+    }
     this.banner = { text: this.map.name, t: 0 }; playMusic(); // each region picks its music on entry
   }
   // A generated place is made anew for each visit, with its own loose earth to dig.
