@@ -18,6 +18,7 @@ import { UPGRADES, START_LEVELS, MAX_LEVEL, toolIcon, toolName, costText, area }
 import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
+import { PET_CHANCE, KINDS, SOUNDS, petLook, paintPet } from './pets.js';
 import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
@@ -309,6 +310,7 @@ export class World {
     this.player.update(dt, moving);
     this.gather();
     const me = feet(this.x, this.y);
+    for (const v of this.villagers) if (v.heartT > 0) v.heartT -= dt;
     for (const m of Object.values(this.maps)) for (const v of m.villagers) v.update(dt, m === this.map ? (x, y) => overlaps(feet(x, y), me) : () => false);
     this.hop();
     // Walk off the end of the road into the next location.
@@ -353,6 +355,13 @@ export class World {
     }
     const hood = id === 'wilds' && Math.random() < STRANGER_CHANCE && randomSpot({ ...m, solid: m.solid.map((s, i) => s || m.ground[i].startsWith('shallow')) }); // and, rarely, the hooded stranger
     if (hood) m.villagers.push(new Villager({ sheet: 'wanderer', x: hood.x, y: hood.y, size: 0 }));
+    for (let i = 0; id === 'wilds' && i < 2 && Math.random() < PET_CHANCE; i++) { // a stray cat or dog or two, wandering about
+      const at = randomSpot({ ...m, solid: m.solid.map((s, j) => s || m.ground[j].startsWith('shallow')) });
+      if (!at) break;
+      const look = petLook(), sheet = `pet${i}`;
+      this.g.images[sheet] = paintPet(this.g.images, look);
+      m.villagers.push(Object.assign(new Villager({ sheet, ...at, size: look.kind === 'cat' && Math.random() < 0.3 ? 0 : 1 }), { role: 'pet', px: 11, name: look.name, about: look.about, kind: KINDS[look.kind] }));
+    }
   }
   get villagers() { return this.map.villagers; }
   // Swing open any gate whose unlock has been earned; returns its news (for the morning message), or ''.
@@ -483,6 +492,11 @@ export class World {
     if (v?.role === 'minstrel') { // stops to sing you a line
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       return this.say(`Wandering minstrel: ${MINSTREL_LINES[Math.floor(Math.random() * MINSTREL_LINES.length)]}`);
+    }
+    if (v?.role === 'pet') { // stops for a pat; a little heart floats up
+      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2; v.heartT = 1.2;
+      const said = SOUNDS[v.kind][Math.floor(Math.random() * SOUNDS[v.kind].length)];
+      return this.say(v.met ? `${v.name} ${said}` : (v.met = true, `A stray ${v.about}! It seems to answer to "${v.name}". It ${said}`));
     }
     if (v?.role === 'traveller') { // introduces themself, then just chats
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
@@ -965,6 +979,12 @@ export class World {
       else if (o.villager) o.villager.draw(g, cx, cy);
       else o.tiles.forEach((row, j) => row.forEach((n, k) => g.tile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
     }
+    for (const v of this.villagers) if (v.heartT > 0) { // a petted stray's heart, rising and fading
+      const hx = Math.round(v.x + 5 - cx), hy = Math.round(v.y + 5 - (1.2 - v.heartT) * 8 - cy);
+      c.globalAlpha = Math.min(1, v.heartT * 2); c.fillStyle = '#e8507a';
+      c.fillRect(hx, hy, 2, 1); c.fillRect(hx + 3, hy, 2, 1); c.fillRect(hx, hy + 1, 5, 1); c.fillRect(hx + 1, hy + 2, 3, 1); c.fillRect(hx + 2, hy + 3, 1, 1);
+      c.globalAlpha = 1;
+    }
     this.events.drawAbove(this, cx, cy);
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
@@ -1002,14 +1022,14 @@ export class World {
     const put = (n, x, y) => { const i = A[n]; if (i !== undefined) c.drawImage(art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32, x * P, y * P, P, P); };
     m.ground.forEach((n, i) => {
       const x = i % m.W, y = Math.floor(i / m.W), p = this.onFarm && this.field.get(`${x},${y}`);
-      put(n, x, y);
-      if (p?.wet) { c.fillStyle = '#3f263155'; c.fillRect(x * P, y * P + 3, P, 11); }
+      put(p?.wet && n.startsWith('soil') ? 'soilwet' + n.slice(4) : n, x, y);
       if (p) put(this.field.sprite(p), x, y);
     });
     for (const o of [...m.objects].sort((a, b) => a.base - b.base)) o.tiles.forEach((row, j) => row.forEach((n, i) => put(n, o.x / TILE + i, o.y / TILE + j)));
     for (const v of this.villagers) { // villagers as small figures where they stand right now
       const f = v.walker, img = this.g.images[f.sheet];
-      if (img) c.drawImage(img, 0, 0, 32, 32, v.x / TILE * P, v.y / TILE * P, P, P);
+      const k = (v.px ?? TILE) / TILE;
+      if (img) c.drawImage(img, 0, 0, 32, 32, (v.x / TILE + (1 - k) / 2) * P, (v.y / TILE + 1 - k) * P, P * k, P * k);
     }
     return (this.mini = cv);
   }

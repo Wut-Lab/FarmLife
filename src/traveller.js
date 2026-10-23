@@ -44,13 +44,15 @@ export function travellerLook(rand = Math.random) {
 }
 
 // The traveller's sprite sheet: their style's sheet with the key colours swapped.
-export function paintTraveller(images, look) {
-  const src = images[`traveller_${look.style}`], c = document.createElement('canvas');
+export const paintTraveller = (images, look) => paintSheet(images[`traveller_${look.style}`], look.swap);
+// A copy of a sheet with key colours (swap: { '#rrggbb': '#rrggbb' }) changed.
+export function paintSheet(src, swap) {
+  const c = document.createElement('canvas');
   c.width = src.width; c.height = src.height;
   const ctx = c.getContext('2d'); ctx.drawImage(src, 0, 0);
   const img = ctx.getImageData(0, 0, c.width, c.height), px = img.data, hex = i => '#' + [0, 1, 2].map(k => px[i + k].toString(16).padStart(2, '0')).join('');
   for (let i = 0; i < px.length; i += 4) {
-    const to = px[i + 3] && look.swap[hex(i)];
+    const to = px[i + 3] && swap[hex(i)];
     if (to) for (let k = 0; k < 3; k++) px[i + k] = parseInt(to.slice(1 + 2 * k, 3 + 2 * k), 16);
   }
   ctx.putImageData(img, 0, 0);

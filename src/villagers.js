@@ -72,7 +72,7 @@ export class Villager {
     return true;
   }
 
-  draw(g, cx, cy) { this.walker.draw(g, this.x - cx, this.y - cy); }
+  draw(g, cx, cy) { const s = this.px ?? TILE; this.walker.draw(g, this.x - cx + (TILE - s) / 2, this.y - cy + TILE - s, s); } // px: drawn smaller (pets), feet in place
 }
 
 // True if a villager's whole square (top-left x, y; side `size` tiles) is walkable.

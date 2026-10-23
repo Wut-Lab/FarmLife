@@ -16,6 +16,7 @@ await Promise.all([
     wanderer: 'assets/characters/wanderer.png',
     minstrel: 'assets/characters/minstrel.png',
     salesman: 'assets/characters/salesman.png',
+    pet_cat: 'assets/characters/pet_cat.png', pet_dog: 'assets/characters/pet_dog.png', pet_pup: 'assets/characters/pet_pup.png',
     ...Object.fromEntries(STYLES.map(k => [`traveller_${k}`, `assets/characters/traveller_${k}.png`])),
   }),
   document.fonts?.load('10px "Pixelify Sans"').catch(() => {}),

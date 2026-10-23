@@ -1339,6 +1339,82 @@ add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add(
 for t in ('copper', 'gold'): add(f'hoe_{t}', tier(hoe(), t)); add(f'can_{t}', tier(can(), t)); add(f'shovel_{t}', tier(shovel(), t))
 add('basket', basket(1)); add('basket_copper', basket(2)); add('basket_gold', basket(3))
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
+# Wilds pets: cats and dogs drawn in key colours that the game swaps for a random coat (src/pets.js keeps the same keys).
+# coat (base, light, dark), markings (tabby stripes or patches), white-ish belly/paws, eyes.
+PET_KEY = dict(coat=('#ff1001', '#ff1002', '#ff1003'), mark='#10ff01', belly='#0110ff', eye='#ff10ff')
+def pet(kind):
+    from PIL import ImageOps
+    B, Bl, Bd = PET_KEY['coat']; dog = kind != 'cat'; sheet = new(3 * S, 4 * S)
+    coat = {C(B), C(Bl), C(Bd)}
+    def tri(d, pts): d.polygon(pts)
+    for dir_ in range(4):
+        for f in range(3):
+            im = new(); step = (0, 1, -1)[f]; d = ImageDraw.Draw(im); d.ellipse([8, 27, 24, 31], (0, 0, 0, 60))
+            if dir_ in (1, 2):  # drawn facing right, mirrored for left
+                wag = (0, 1, -1)[f]
+                d.line([(8, 21), (6, 17), (5 + wag, 12)] if not dog else [(8, 20), (5, 16 + wag), (5, 13 + wag)], C(Bd), 2)  # tail
+                for lx, s_ in ((9, step), (12, -step), (18, -step), (21, step)):  # legs, the near pair a little lighter
+                    shape(im, lambda d, lx=lx, s_=s_: d.rectangle([lx + s_, 24, lx + 1 + s_, 29]), B, None, Bd, 1)
+                shape(im, lambda d: d.ellipse([7, 17, 23, 26] if dog else [8, 18, 22, 26]), B, Bl, Bd)
+                if dog:
+                    shape(im, lambda d: d.ellipse([18, 10, 28, 20]), B, Bl, Bd)
+                    shape(im, lambda d: d.rounded_rectangle([24, 15, 30, 19], 2), B, Bl, Bd, 1)
+                    d = ImageDraw.Draw(im); d.point((30, 15), C('#2a1a2a')); d.point((29, 15), C('#2a1a2a'))
+                    if kind == 'dog': shape(im, lambda d: d.ellipse([18, 11, 22, 19]), Bd, None, None)  # floppy ear
+                    else: shape(im, lambda d: tri(d, [(19, 13), (21, 6), (24, 12)]), B, Bl, Bd, 1)  # pointy ear
+                    d = ImageDraw.Draw(im); d.point((25, 13), C(PET_KEY['eye'])); d.point((25, 12), C('#2a1a2a'))
+                else:
+                    shape(im, lambda d: d.ellipse([18, 11, 27, 20]), B, Bl, Bd)
+                    shape(im, lambda d: tri(d, [(19, 13), (20, 8), (23, 12)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(23, 12), (25, 8), (26, 13)]), B, Bl, Bd, 1)
+                    d = ImageDraw.Draw(im); d.point((24, 14), C(PET_KEY['eye'])); d.point((24, 15), C(PET_KEY['eye'])); d.point((27, 17), C('#e88a9a'))
+            elif dir_ == 0:  # facing you
+                wag = (0, 1, -1)[f]
+                d.line([(21, 25), (25, 21 + wag), (25, 16 + wag)], C(Bd), 2)
+                shape(im, lambda d: d.ellipse([10, 17, 22, 28]), B, Bl, Bd)
+                for lx, s_ in ((12, step), (18, -step)): shape(im, lambda d, lx=lx, s_=s_: d.rectangle([lx, 24, lx + 2, 29 - max(0, s_)]), B, None, Bd, 1)
+                if dog:
+                    shape(im, lambda d: d.ellipse([9, 7, 23, 20]), B, Bl, Bd)
+                    if kind == 'dog':
+                        shape(im, lambda d: d.ellipse([7, 9, 11, 18]), Bd, None, None); shape(im, lambda d: d.ellipse([21, 9, 25, 18]), Bd, None, None)
+                    else:
+                        shape(im, lambda d: tri(d, [(10, 11), (11, 3), (15, 9)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(17, 9), (21, 3), (22, 11)]), B, Bl, Bd, 1)
+                    shape(im, lambda d: d.ellipse([12, 13, 20, 19]), B, Bl, None)
+                    d = ImageDraw.Draw(im)
+                    for ex in (12, 19): d.point((ex, 12), C('#ffffff')); d.point((ex, 13), C('#1a1018')); d.point((ex + (1 if ex < 16 else -1), 13), C(PET_KEY['eye']))
+                    d.rectangle([15, 14, 17, 15], C('#2a1a2a'))
+                else:
+                    shape(im, lambda d: d.ellipse([9, 9, 23, 20]), B, Bl, Bd)
+                    shape(im, lambda d: tri(d, [(10, 12), (10, 5), (14, 10)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(18, 10), (22, 5), (22, 12)]), B, Bl, Bd, 1)
+                    d = ImageDraw.Draw(im)
+                    for ex in (12, 18): d.point((ex, 13), C(PET_KEY['eye'])); d.point((ex + 1, 13), C(PET_KEY['eye'])); d.point((ex, 14), C(PET_KEY['eye'])); d.point((ex + 1, 14), C('#2a1a2a'))
+                    d.point((16, 16), C('#e88a9a')); d.point((15, 17), C('#5a3a3a')); d.point((17, 17), C('#5a3a3a'))
+            else:  # walking away
+                for lx, s_ in ((12, step), (18, -step)): shape(im, lambda d, lx=lx, s_=s_: d.rectangle([lx, 24, lx + 2, 29 - max(0, s_)]), B, None, Bd, 1)
+                shape(im, lambda d: d.ellipse([10, 16, 22, 28]), B, Bl, Bd)
+                if dog:
+                    shape(im, lambda d: d.ellipse([10, 7, 22, 19]), B, Bl, Bd)
+                    if kind == 'dog': shape(im, lambda d: d.ellipse([8, 9, 12, 17]), Bd, None, None); shape(im, lambda d: d.ellipse([20, 9, 24, 17]), Bd, None, None)
+                    else: shape(im, lambda d: tri(d, [(11, 11), (12, 3), (15, 9)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(17, 9), (20, 3), (21, 11)]), B, Bl, Bd, 1)
+                else:
+                    shape(im, lambda d: d.ellipse([10, 8, 22, 19]), B, Bl, Bd)
+                    shape(im, lambda d: tri(d, [(11, 12), (11, 4), (15, 9)]), B, Bl, Bd, 1); shape(im, lambda d: tri(d, [(17, 9), (21, 4), (21, 12)]), B, Bl, Bd, 1)
+                d = ImageDraw.Draw(im); wag = (0, 1, -1)[f]
+                d.line([(16, 25), (16 + wag, 21), (17 + wag, 14)] if not dog else [(16, 24), (16 + wag * 2, 19)], C(Bd), 2)  # tail up
+            # Markings and pale bits, over the coat only: tabby stripes for cats, a patch for dogs; belly, chest and paws.
+            px = im.load(); side = dir_ in (1, 2)
+            for y in range(S):
+                for x in range(S):
+                    if px[x, y][:3] + (255,) not in coat: continue
+                    if (y >= 28) or (dir_ == 0 and ((11 <= x <= 20 and 19 <= y <= 24) or (dog and 12 <= x <= 20 and 15 <= y <= 19))) or (side and y >= 24 and 10 <= x <= 20) or (side and dog and x >= 26 and y >= 17):
+                        px[x, y] = C(PET_KEY['belly'])
+                    elif not dog and (x + (y if side else 0)) % 4 == 0 and px[x, y] != C(Bd) and y < 26 and not (dir_ == 0 and 10 < y < 18 and 11 < x < 21):
+                        px[x, y] = C(PET_KEY['mark'])
+                    elif dog and ((side and (x - 13) ** 2 + (y - 18) ** 2 < 12) or (dir_ == 3 and (x - 18) ** 2 + (y - 21) ** 2 < 10) or (dir_ == 0 and (x - 19) ** 2 + (y - 11) ** 2 < 6)):
+                        px[x, y] = C(PET_KEY['mark'])
+            outline(im)
+            sheet.alpha_composite(ImageOps.mirror(im) if dir_ == 1 else im, (f * S, dir_ * S))
+    return sheet
+
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))
@@ -1351,6 +1427,7 @@ farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
 farmer(WANDERER).save('assets/characters/wanderer.png')  # hooded stranger, kept for a later event
 farmer(MINSTREL).save('assets/characters/minstrel.png'); farmer(SALESMAN).save('assets/characters/salesman.png')
+for k_ in ('cat', 'dog', 'pup'): pet(k_).save(f'assets/characters/pet_{k_}.png')
 for k_, p_ in TRAVELLERS.items(): farmer(p_).save(f'assets/characters/traveller_{k_}.png')
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
