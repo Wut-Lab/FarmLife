@@ -152,14 +152,20 @@ def seasonal_item(kind):
     return outline(im)
 
 # Wheat (sold by the robed stranger): a clump of stalks that turn gold, with heavy grain heads.
-def wheat_crop(im, stage):  # stalks fanning out from one clump; gold with grain heads when ripe
+def wheat_crop(im, stage):  # an unruly clump: stalks of uneven height leaning every which way, heads nodding when ripe
     d = ImageDraw.Draw(im); ripe = stage == 3; stalk = '#d8a838' if ripe else '#6aa83c'
-    tops = ((6, 9), (16, 4), (26, 9)) if ripe else ((10, 14), (16, 12), (22, 14))
-    for x, y in tops: d.line([(16, 26), (x, y + 4)], C(stalk))
+    # (base x, top x, top y, head lean): crossing stalks, a couple bent over
+    stalks = ((14, 4, 11, -1), (15, 10, 6, -1), (16, 17, 3, 1), (17, 13, 9, 0), (17, 24, 6, 1), (18, 28, 13, 1), (15, 21, 10, 1)) if ripe else \
+             ((14, 8, 14, 0), (16, 13, 10, 0), (16, 19, 12, 0), (18, 24, 15, 0), (15, 17, 16, 0))
+    for bx, x, y, _ in stalks: d.line([(bx, 26), (x, y + 3)], C(stalk))
     if ripe:
-        for x, y in tops: shape(im, lambda d, x=x, y=y: d.ellipse([x - 2, y - 2, x + 2, y + 6]), '#f2c84a', '#fbe48a', '#b8862a', 1)
+        for bx, x, y, lean in stalks:  # grain heads tip over in the direction they lean
+            shape(im, lambda d, x=x, y=y, lean=lean: d.polygon([(x - 2 + lean, y - 3), (x + 2 + lean, y - 2), (x + 2, y + 4), (x - 1, y + 4)]), '#f2c84a', '#fbe48a', '#b8862a', 1)
+            d = ImageDraw.Draw(im); d.line([(x + lean, y - 3), (x + 2 * lean, y - 6)], C('#e8c060'))  # whiskers
+        for x, y in ((10, 20), (21, 18)): leaf(im, x, y, 4, 2, ('#b8a040', '#d8c060', '#8a7028'))  # loose dry leaves
     else:
-        for x, y in tops: d.point((x, y + 3), C('#8cc85a'))
+        for bx, x, y, _ in stalks: d.point((x + (1 if x > 16 else -1), y + 5), C('#8cc85a'))
+        leaf(im, 9, 21, 5, 2, LEAF); leaf(im, 19, 19, 5, 2, LEAF)
 def wheat_item():
     im = new(); d = ImageDraw.Draw(im)
     for x, top in ((11, 7), (16, 5), (21, 7)):

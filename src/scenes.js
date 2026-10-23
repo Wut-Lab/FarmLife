@@ -668,7 +668,8 @@ export class World {
   shopSeeds() { return KEEPERS[this.shop]?.stock ?? SEEDS.filter(c => !CROPS[c].rare && inSeason(c, this.clock.season)); }
   shopRows() {
     const g = this.g, n = this.shopSeeds().length, h = 38 + n * 20, x = Math.round(g.w / 2 - 70), y = Math.round(g.h / 2 - h / 2);
-    return { x, y, h, buy: this.shopSeeds().map((_, i) => [x + 4, y + 16 + i * 20, 132, 18]), sell: [x + 4, y + 18 + n * 20, 64, 14], close: [x + 72, y + 18 + n * 20, 64, 14] };
+    return { x, y, h, buy: this.shopSeeds().map((_, i) => [x + 4, y + 16 + i * 20, 132, 18]),
+      ...(KEEPERS[this.shop]?.noBuying ? { close: [x + 38, y + 18 + n * 20, 64, 14] } : { sell: [x + 4, y + 18 + n * 20, 64, 14], close: [x + 72, y + 18 + n * 20, 64, 14] }) }; // some keepers don't buy crops
   }
   shopUpdate(inp, dt) {
     const r = this.shopRows();
@@ -682,7 +683,7 @@ export class World {
       if (this.gold < this.seedCost(c)) return this.say(`Not enough gold for ${c.name} seeds.`);
       sfx('coin'); this.gold -= this.seedCost(c); this.seeds[s]++; this.say(`Bought ${c.name} seeds. You have ${this.seeds[s]}.`);
     });
-    if (inp.hit('KeyS') || inp.tapIn(...r.sell)) {
+    if (r.sell && (inp.hit('KeyS') || inp.tapIn(...r.sell))) {
       const earned = SEEDS.reduce((sum, s) => sum + this.inv.take(s) * this.sellPrice(s), 0);
       if (earned) sfx('coin'); this.gold += earned; this.say(earned ? `Sold your crops for ${earned}g.` : 'No crops to sell.');
     }
@@ -703,7 +704,7 @@ export class World {
       g.text(`own ${this.seeds[s]}`, x + 82, y + 5, { size: 5, color: '#dcebc6' });
       g.text(`${this.seedCost(c)}g`, x + w - 3, y + 5, { size: 6, align: 'right', color: '#fff3a8' });
     });
-    g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' });
+    if (r.sell) { g.panel(...r.sell, '#e86a9a'); g.text('Sell crops (S)', r.sell[0] + 32, r.sell[1] + 4, { size: 5, align: 'center' }); }
     g.panel(...r.close, '#5d7150'); g.text('Close (Esc)', r.close[0] + 32, r.close[1] + 4, { size: 5, align: 'center' });
   }
 
