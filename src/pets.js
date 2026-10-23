@@ -22,11 +22,21 @@ export function petLook(rand = Math.random) {
   const pick = a => a[Math.floor(rand() * a.length)], kind = pick(Object.keys(KINDS)), what = KINDS[kind];
   const [coat, B, Bl, Bd] = pick(COATS[what]), dark = B === '#3a3236';
   // Pattern: cats are tabby, tuxedo or plain; dogs are patched, white-chested or plain.
-  const pattern = pick(what === 'cat' ? ['tabby', 'tuxedo', 'plain'] : ['patched', 'white-chested', 'plain']);
+  const pattern = pick(what === 'cat' ? ['tabby', coat === 'white' ? 'plain' : 'tuxedo', 'plain'] : ['patched', coat === 'white' ? 'plain' : 'white-chested', 'plain']); // no white bib on a white coat
   const mark = pattern === 'tabby' ? (dark ? Bl : Bd) : pattern === 'patched' ? (dark || coat === 'grey' ? WHITE : Bd) : B;
   const [belly, bellyD] = pattern === 'plain' || coat === 'white' ? [Bl, B] : [WHITE, '#d4cabc']; // plain coats are just lighter underneath
   const swap = { '#ff1001': B, '#ff1002': Bl, '#ff1003': Bd, '#10ff01': mark, '#0110ff': belly, '#0110fe': bellyD, '#ff10ff': pick(EYES[what]) };
-  const about = `${coat}${pattern === 'plain' ? '' : ` ${pattern}`} ${what}`.replace('white white-chested', 'white');
+  const about = `${coat}${pattern === 'plain' ? '' : ` ${pattern}`} ${what}`;
   return { kind, name: pick(NAMES), about, swap };
 }
 export const paintPet = (images, look) => paintSheet(images[`pet_${look.kind}`], look.swap);
+
+// Trust: a stray goes home with you once it has TRUST hearts, all earned in one visit (the Wilds reset when you leave).
+// Petting earns a heart if it's been PET_GAP game minutes since the last one that did; sharing berries earns one straight away, once.
+export const TRUST = 3, PET_GAP = 60, MAX_PETS = 4;
+export function earnTrust(p, minutes, treat = false) {
+  if (p.trust >= TRUST || (treat ? p.fed : p.lastPet != null && minutes - p.lastPet < PET_GAP)) return false;
+  p.trust = (p.trust ?? 0) + 1;
+  if (treat) p.fed = true; else p.lastPet = minutes;
+  return true;
+}

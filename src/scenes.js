@@ -18,7 +18,7 @@ import { UPGRADES, START_LEVELS, MAX_LEVEL, toolIcon, toolName, costText, area }
 import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
-import { PET_CHANCE, KINDS, SOUNDS, petLook, paintPet } from './pets.js';
+import { PET_CHANCE, KINDS, SOUNDS, TRUST, MAX_PETS, petLook, paintPet, earnTrust } from './pets.js';
 import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
@@ -151,7 +151,7 @@ const CONTROLS = [
   ['Villagers', 'Use to talk; hold a crop to gift it'],
   ['Forage', 'Walk over it; Use on berry bushes'],
   ['Tools', "Upgrade at Bella's store (T: Tool upgrades)"],
-  ['Strays', 'Use to pet cats and dogs in the Wilds'],
+  ['Strays', 'Pet or give berries: 3 hearts to adopt'],
   ['Eat', 'Use while holding berries'],
   ['Pause', 'Esc / P, or tap II'],
   ['Help', '? key, or tap ?'],
@@ -204,7 +204,7 @@ export class World {
     this.events = new Events(); // today's random events
     this.quests = new Quests();
     this.levels = { ...START_LEVELS }; this.upgrading = null; // tool levels, and the one Bella has overnight: { tool, level }
-    this.tilled = []; this.storeTab = 'goods'; // farm tiles the hoe has turned into new plots
+    this.tilled = []; this.storeTab = 'goods'; this.pets = []; // pets: adopted cats and dogs (their looks, from pets.js) // farm tiles the hoe has turned into new plots
     this.clock.on('overnight', () => {
       this.quests.tick(0, true);
       if (this.upgrading) { const { tool, level } = this.upgrading; this.levels[tool] = level; this.upgradeNews = ` Bella finished your ${toolName(tool, level)}!`; this.upgrading = null; }
@@ -229,7 +229,7 @@ export class World {
   snapshot() {
     const k = this.clock;
     return {
-      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled,
+      v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets,
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy },
       plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
     };
@@ -245,6 +245,7 @@ export class World {
     for (const key of this.moved.gone) this.unplant(key);
     for (const [key, id] of this.moved.put) this.plant(key, id);
     this.quests = new Quests(s.quests);
+    this.pets = s.pets ?? []; this.homePets();
     this.wear();
     this.support = new Support(s.support);
     this.say('Welcome back!');
@@ -362,10 +363,47 @@ export class World {
       if (!at) break;
       const look = petLook(), sheet = `pet${i}`;
       this.g.images[sheet] = paintPet(this.g.images, look);
-      m.villagers.push(Object.assign(new Villager({ sheet, ...at, size: look.kind === 'cat' && Math.random() < 0.3 ? 0 : 1 }), { role: 'pet', px: 11, name: look.name, about: look.about, kind: KINDS[look.kind] }));
+      m.villagers.push(Object.assign(new Villager({ sheet, ...at, size: look.kind === 'cat' && Math.random() < 0.3 ? 0 : 1 }), { role: 'pet', px: 11, name: look.name, about: look.about, kind: KINDS[look.kind], look, trust: 0 }));
     }
   }
   get villagers() { return this.map.villagers; }
+  // Petting a cat or dog. Strays warm up to you (see pets.js): at full trust, Use again takes them home to the farm.
+  petPet(v) {
+    v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
+    const said = SOUNDS[v.kind][Math.floor(Math.random() * SOUNDS[v.kind].length)], hi = !v.met; v.met = true;
+    if (v.home) { v.heartT = 1.2; return this.say(`${v.name} ${said}`); }
+    if (v.trust >= TRUST) { // trusts you: home it goes, if there's room
+      if (this.pets.length >= MAX_PETS) return this.say(`${v.name} wants to come home with you, but your farm has all the pets it can handle for now.`);
+      this.pets.push(v.look); this.map.villagers.splice(this.map.villagers.indexOf(v), 1); this.homePets(); sfx('coin');
+      return this.say(`You adopted ${v.name}! They'll be waiting for you on the farm.`);
+    }
+    const treat = this.inv.held?.id === 'berries' && !v.fed, now = this.clock.minutes;
+    if (treat && earnTrust(v, now, true)) this.inv.take('berries', 1);
+    const got = treat || earnTrust(v, now);
+    if (got) v.heartT = 1.2;
+    const start = hi ? `A stray ${v.about}! It seems to answer to "${v.name}". ` : '';
+    if (treat) return this.say(`${start}${v.name} gobbles up a berry! (${v.trust}/${TRUST} hearts)` + (v.trust >= TRUST ? ' Use again to take them home.' : ''));
+    if (!got) return this.say(`${v.name} ${said} Give them a little time to get to know you.`);
+    return this.say(`${start}${hi ? 'It' : v.name} ${said} (${v.trust}/${TRUST} hearts)` + (v.trust >= TRUST ? ` ${v.name} trusts you! Use again to take them home.` : ''));
+  }
+  // Adopted pets roam the farm near the house, each on its own painted sheet.
+  homePets() {
+    const m = this.maps.farm, [dx, dy] = m.door.split(',').map(Number);
+    m.villagers = m.villagers.filter(v => !v.home);
+    // Open 2x2 squares in front of the house, nearest the yard first; not on plots or where you wake up.
+    const taken = new Set([`${Math.round(m.spawn.x / TILE)},${Math.round(m.spawn.y / TILE)}`]), spots = [], all = [];
+    for (let y = dy + 1; y < dy + 10; y++) for (let x = dx - 9; x <= dx + 9; x++) all.push([x, y]);
+    all.sort(([ax, ay], [bx, by]) => Math.hypot(ax - dx, ay - dy - 3) - Math.hypot(bx - dx, by - dy - 3));
+    for (const [x, y] of all) {
+      const near = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([a, b]) => `${x + a},${y + b}`);
+      if (fits(m, { x, y, size: 1 }) && !near.some(k => m.plots.includes(k) || this.field.has(k) || taken.has(k))) { spots.push([x, y]); near.forEach(k => taken.add(k)); }
+    }
+    this.pets.forEach((look, i) => {
+      const [x, y] = spots[i] ?? [dx, dy + 2], sheet = `home${i}`;
+      this.g.images[sheet] = paintPet(this.g.images, look);
+      m.villagers.push(Object.assign(new Villager({ sheet, x, y, size: look.kind === 'cat' && i % 2 ? 0 : 1 }), { role: 'pet', px: 11, home: true, name: look.name, kind: KINDS[look.kind] }));
+    });
+  }
   // Swing open any gate whose unlock has been earned; returns its news (for the morning message), or ''.
   openGates() {
     let news = '';
@@ -495,11 +533,7 @@ export class World {
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       return this.say(`Wandering minstrel: ${MINSTREL_LINES[Math.floor(Math.random() * MINSTREL_LINES.length)]}`);
     }
-    if (v?.role === 'pet') { // stops for a pat; a little heart floats up
-      v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2; v.heartT = 1.2;
-      const said = SOUNDS[v.kind][Math.floor(Math.random() * SOUNDS[v.kind].length)];
-      return this.say(v.met ? `${v.name} ${said}` : (v.met = true, `A stray ${v.about}! It seems to answer to "${v.name}". It ${said}`));
-    }
+    if (v?.role === 'pet') return this.petPet(v);
     if (v?.role === 'traveller') { // introduces themself, then just chats
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       const pick = a => a[Math.floor(Math.random() * a.length)], hi = !v.met; v.met = true;
@@ -987,6 +1021,12 @@ export class World {
       else if (o.villager) o.villager.draw(g, cx, cy);
       else o.tiles.forEach((row, j) => row.forEach((n, k) => g.tile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
     }
+    for (const v of this.villagers) if (v.role === 'pet' && !v.home && v.met && Math.hypot(v.x - this.x, v.y - this.y) < 40) // a stray's trust, over its head
+      for (let i = 0; i < TRUST; i++) {
+        const hx = Math.round(v.x + 1 + i * 5 - cx), hy = Math.round(v.y + 1 - cy);
+        c.fillStyle = i < v.trust ? '#e8507a' : '#00000066';
+        c.fillRect(hx, hy, 1, 1); c.fillRect(hx + 2, hy, 1, 1); c.fillRect(hx, hy + 1, 3, 1); c.fillRect(hx + 1, hy + 2, 1, 1);
+      }
     for (const v of this.villagers) if (v.heartT > 0) { // a petted stray's heart, rising and fading
       const hx = Math.round(v.x + 5 - cx), hy = Math.round(v.y + 5 - (1.2 - v.heartT) * 8 - cy);
       c.globalAlpha = Math.min(1, v.heartT * 2); c.fillStyle = '#e8507a';
