@@ -484,7 +484,7 @@ def stall():  # 96x96 seed stall: striped awning on posts, shelves of seed packe
     return outline(im)
 
 FONT = {'G': '111100101101111', 'E': '111100110100111', 'N': '111101101101101', 'R': '110101110101101', 'A': '010101111101101',
-        'L': '100100100100111', 'S': '111100111001111', 'T': '111010010010010', 'O': '111101101101111', ' ': '000000000000000'}
+        'L': '100100100100111', 'S': '111100111001111', 'T': '111010010010010', 'O': '111101101101111', 'X': '101101010101101', 'I': '111010010010111', ' ': '000000000000000'}
 def text(d, x, y, msg, col):  # 3x5 pixel capitals
     for ch in msg:
         for k, b in enumerate(FONT[ch]):
@@ -665,6 +665,180 @@ def cottage(wall, wall_l, wall_d, roof, roof_l, roof_d, door, door_l, door_d, ch
 def inside_poly(pts, x, y):
     m = Image.new('L', (4 * S, 4 * S)); ImageDraw.Draw(m).polygon(pts, 255); return m.getpixel((x, y)) > 0 if 0 <= y < 4 * S else False
 
+# ---------- more variety: cars, wildflowers, dandelions, rocks, a stone house ----------
+def chrome(im, box): shape(im, lambda d: d.rounded_rectangle(box, 1), '#d8dce0', '#ffffff', '#9aa0a8', 1)
+def lamp(im, box): shape(im, lambda d: d.ellipse(box), '#fff4c0', '#ffffff', '#c8b878', 1)
+def taxi():  # 96x64 yellow sedan with a roof sign, checker stripe and a dented rear door
+    im = new(3 * S, 2 * S); d = ImageDraw.Draw(im); Y, Yl, Yd = '#f2c230', '#fde27a', '#b8861a'
+    d.ellipse([8, 58, 90, 63], (0, 0, 0, 60))
+    shape(im, lambda d: d.polygon([(22, 32), (32, 18), (62, 18), (72, 32)]), Y, Yl, Yd)  # cabin
+    shape(im, lambda d: d.rounded_rectangle([2, 30, 93, 52], 5), Y, Yl, Yd)  # body
+    shape(im, lambda d: d.polygon([(27, 31), (34, 21), (46, 21), (46, 31)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+    shape(im, lambda d: d.polygon([(49, 21), (60, 21), (67, 31), (49, 31)]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+    shape(im, lambda d: d.rounded_rectangle([38, 11, 56, 18], 1), '#fff4c0', '#ffffff', '#c8b878', 1)  # roof sign
+    text(d, 40, 12, 'TAXI', '#2a2a30')
+    for i, x in enumerate(range(6, 90, 3)):  # checker band
+        for j in range(2): d.rectangle([x, 39 + j * 2, x + 1, 40 + j * 2], C('#2a2a30' if (i + j) % 2 else '#f4f2ee'))
+    d.line([(47, 32), (47, 50)], C(Yd)); d.line([(70, 33), (70, 50)], C(Yd)); d.line([(24, 33), (24, 50)], C(Yd))
+    d.line([(40, 35), (43, 35)], C('#d8dce0')); d.line([(62, 35), (65, 35)], C('#d8dce0'))
+    for x, y, c in ((29, 43, Yd), (30, 44, Yd), (31, 45, Yd), (32, 45, Yd), (33, 44, Yd), (34, 43, Yd), (30, 42, Yl), (33, 42, Yl), (31, 43, '#d8a828'), (32, 43, '#d8a828'),
+                    (28, 47, '#9aa0a8'), (29, 48, '#9aa0a8'), (30, 48, '#9aa0a8')):  # the dent and a scrape
+        d.point((x, y), C(c))
+    lamp(im, [87, 34, 92, 39]); d.rectangle([3, 34, 4, 38], C('#e8504a'))
+    chrome(im, [84, 48, 95, 52]); chrome(im, [0, 48, 10, 52])
+    wheel(im, 21, 53, 8); wheel(im, 75, 53, 8)
+    return outline(im)
+def suv():  # 96x64 big black full-size SUV: boxy, tall, tinted glass, chrome grille and trim
+    im = new(3 * S, 2 * S); d = ImageDraw.Draw(im); K, Kl, Kd = '#2a2a32', '#4a4a58', '#141418'
+    d.ellipse([6, 58, 92, 63], (0, 0, 0, 70))
+    shape(im, lambda d: d.polygon([(3, 14), (64, 14), (74, 28), (93, 31), (93, 52), (3, 52)]), K, Kl, Kd)
+    shape(im, lambda d: d.rectangle([6, 11, 60, 13]), '#9aa0a8', '#d8dce0', None)  # roof rails
+    for box in ([7, 17, 22, 28], [25, 17, 44, 28], [47, 17, 62, 28]): shape(im, lambda d, box=box: d.rectangle(box), '#3a4a5a', '#5a7088', '#222a34', 1)
+    shape(im, lambda d: d.polygon([(64, 17), (71, 28), (64, 28)]), '#3a4a5a', '#5a7088', '#222a34', 1)
+    for x in (10, 28, 50): d.line([(x, 26), (x + 5, 19)], C('#7a90a8'))  # glare on the tint
+    d.line([(4, 36), (92, 36)], C('#9aa0a8'))  # chrome belt line
+    for x in (24, 45, 66): d.line([(x, 30), (x, 50)], C(Kd))
+    for x in (38, 59): d.line([(x, 33), (x + 3, 33)], C('#d8dce0'))
+    shape(im, lambda d: d.rectangle([86, 33, 93, 46]), '#b8bcc4', '#e8ecf0', '#7a8088', 1)  # grille
+    for y in range(35, 46, 3): d.line([(87, y), (92, y)], C('#7a8088'))
+    lamp(im, [82, 31, 88, 35]); d.rectangle([3, 30, 5, 38], C('#c8343a'))
+    shape(im, lambda d: d.rectangle([24, 50, 66, 52]), '#3a3a42', '#5a5a62', None)  # step bar
+    chrome(im, [84, 48, 95, 53]); chrome(im, [0, 48, 9, 53])
+    wheel(im, 20, 52, 10); wheel(im, 76, 52, 10)
+    return outline(im)
+
+def wild_tile(m, cols, seed):  # meadow of small flowers; thins out toward edges with no meadow beside them
+    im = grass(0); wr = random.Random(seed)
+    put = lambda x, y, c: im.putpixel((x % S, y % S), C(c))  # wraps, so blooms on a tile edge carry on in the next tile
+    open_sides = [k for k, b in enumerate((N_, E_, S_, W_)) if not m & b]
+    corners = [((31, 0) if b == NE else (31, 31) if b == SE else (0, 31) if b == SW else (0, 0)) for b, a, c in ((NE, N_, E_), (SE, S_, E_), (SW, S_, W_), (NW, N_, W_)) if m & a and m & c and not m & b]
+    def room(x, y):
+        dist = [(y, 31 - x, 31 - y, x)[k] for k in open_sides] + [math.hypot(x - cx, y - cy) for cx, cy in corners]
+        return min(dist, default=99)
+    for _ in range(30):  # leafy sprigs under the flowers
+        x, y = wr.randrange(1, 31), wr.randrange(2, 31)
+        if room(x, y) > wr.uniform(2, 12): put(x, y, '#5aa042'); put(x + 1, y - 1, '#4e9440')
+    for _ in range(46):
+        x, y, c = wr.randrange(32), wr.randrange(32), wr.choice(cols)
+        if room(x, y) < wr.uniform(2, 14): continue
+        if wr.random() < .65:  # five-petal bloom
+            for a, b in ((1, 0), (-1, 0), (0, -1), (0, 1)): put(x + a, y + b, c)
+            put(x, y, '#fff6c0'); put(x + 1, y + 2, '#4e9440')
+        else:  # small bud on a stem
+            put(x, y, c); put(x, y + 1, '#4e9440')
+    return im
+def dandelions():  # rosettes of toothed leaves, yellow heads and two seed clocks, loose ones fading into the grass
+    im = new(); d = ImageDraw.Draw(im); dr = random.Random(31)
+    for cx, cy in ((10, 26), (21, 27)):
+        for a in range(0, 360, 40):
+            r = math.radians(a); x1, y1 = cx + 7 * math.cos(r), cy + 3 * math.sin(r)
+            shape(im, lambda d, x1=x1, y1=y1, cx=cx, cy=cy: d.polygon([(cx, cy - 1), (x1, y1), (cx, cy + 1)]), '#5a9e42', '#7cc35a', '#3e7a32', 1)
+    d = ImageDraw.Draw(im)
+    for x0, y0, x1, y1 in ((10, 25, 8, 14), (11, 25, 14, 18), (21, 26, 22, 12), (20, 26, 18, 20)): d.line([(x0, y0), (x1, y1)], C('#5a9e42'))
+    for cx, cy in ((14, 17), (18, 19)):
+        shape(im, lambda d, cx=cx, cy=cy: d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3]), '#f6d04d', '#fde27a', '#d8a020', 1); d.point((cx, cy), C('#e8b020'))
+    for cx, cy in ((8, 11), (22, 9)):  # seed clocks
+        shape(im, lambda d, cx=cx, cy=cy: d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4]), '#f4f2ee', '#ffffff', '#c8c4bc', 1)
+        for a in range(0, 360, 45): d.point((round(cx + 2 * math.cos(math.radians(a))), round(cy + 2 * math.sin(math.radians(a)))), C('#d8d4cc'))
+    outline(im)
+    for x, y in ((3, 18), (28, 16), (4, 30), (29, 30), (15, 4), (27, 3)):  # loose heads and a drifting seed, no outline
+        d.point((x, y + 1), C('#4e9440')); d.point((x, y), C('#f6d04d')); d.point((x + 1, y), C('#f6d04d'))
+    d.point((14, 2), C('#ffffff')); d.point((30, 9), C('#ffffff'))
+    return im
+def rock(size):  # grey boulders with a lit top face, cracks and a patch of moss
+    w, h = (S, S) if size != 'large' else (2 * S, 2 * S)
+    im = new(w, h); d = ImageDraw.Draw(im); rr = random.Random({'small': 41, 'medium': 42, 'large': 43}[size])
+    pts = {'small': [(10, 29), (9, 25), (12, 21), (18, 20), (22, 23), (23, 28), (20, 30)],
+           'medium': [(4, 30), (3, 23), (7, 15), (14, 11), (22, 12), (28, 18), (29, 26), (26, 30)],
+           'large': [(4, 61), (2, 46), (6, 32), (14, 22), (28, 16), (42, 17), (54, 24), (61, 38), (62, 54), (56, 62)]}[size]
+    d.ellipse([pts[0][0], h - 5, pts[-1][0] + 2, h - 1], (0, 0, 0, 50))
+    shape(im, lambda d: d.polygon(pts), '#8e8a84', '#b4b0a8', '#5f5c58', 2 if size != 'small' else 1)
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]; x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    top = Image.new('L', im.size); ImageDraw.Draw(top).ellipse([x0 + 2, y0 + 1, x1 - (x1 - x0) // 3, y0 + (y1 - y0) // 2], 255)
+    for y in range(h):
+        for x in range(w):
+            if top.getpixel((x, y)) and im.getpixel((x, y))[:3] == C('#8e8a84')[:3]: im.putpixel((x, y), C('#a29e96'))
+    for _ in range((x1 - x0) * (y1 - y0) // 12):  # grain
+        x, y = rr.randrange(x0, x1), rr.randrange(y0, y1)
+        if im.getpixel((x, y))[:3] in (C('#8e8a84')[:3], C('#a29e96')[:3]): im.putpixel((x, y), C(rr.choice(('#7a766f', '#b4b0a8'))))
+    if size != 'small':  # cracks
+        cx = (x0 + x1) // 2; d.line([(cx, y0 + 3), (cx - 2, (y0 + y1) // 2), (cx + 1, y1 - 3)], C('#5f5c58'))
+        if size == 'large': d.line([(x0 + 10, y0 + 18), (x0 + 18, y0 + 24), (x0 + 16, y1 - 6)], C('#5f5c58'))
+    for _ in range({'small': 4, 'medium': 9, 'large': 26}[size]):  # moss on the lower left
+        x, y = rr.randrange(x0, (x0 + x1) // 2), rr.randrange((y0 + y1) // 2, y1)
+        if im.getpixel((x, y))[3] > 200 and im.getpixel((x, y))[:3] != OUT[:3]: d.point((x, y), C(rr.choice(('#6a9a42', '#86b452'))))
+    return outline(im)
+
+def stones(im, box, seed):  # fill a box with irregular courses of fieldstone
+    d = ImageDraw.Draw(im); sr = random.Random(seed); x0, y0, x1, y1 = box
+    d.rectangle(box, C('#6e6a62'))
+    for y in range(y0, y1, 6):
+        x = x0 - sr.randrange(0, 6)
+        while x < x1:
+            w = sr.randrange(6, 13); c = sr.choice(('#a8a294', '#b4ae9e', '#9c968a', '#aca69a'))
+            bx = [max(x + 1, x0), y + 1, min(x + w - 1, x1), min(y + 5, y1)]
+            if bx[0] < bx[2]:
+                d.rounded_rectangle(bx, 1, C(c)); d.line([(bx[0] + 1, bx[1]), (bx[2] - 1, bx[1])], shade(C(c), 22))
+                d.line([(bx[0] + 1, bx[3]), (bx[2] - 1, bx[3])], shade(C(c), -22))
+            x += w
+def stone_house():  # 160x128: fieldstone cottage with two front gables, a side chimney and a wooden lean-to shed
+    im = new(5 * S, 4 * S); d = ImageDraw.Draw(im); R, Rl, Rd = '#55606e', '#6e7a88', '#3a434e'
+    # Shed on the right, behind the house's end wall.
+    shape(im, lambda d: d.rectangle([116, 74, 155, 121]), '#8a5a36', '#a8744a', '#5f3b25')
+    for x in range(121, 155, 6): d.line([(x, 76), (x, 120)], C('#5f3b25'))
+    shape(im, lambda d: d.rectangle([126, 88, 145, 121]), '#a8744a', '#c48e5e', '#6f4426', 1)
+    d.line([(127, 90), (144, 119)], C('#6f4426'), 2); d.line([(127, 104), (144, 104)], C('#6f4426'))
+    shape(im, lambda d: d.polygon([(112, 58), (159, 70), (159, 77), (112, 77)]), R, Rl, Rd, 2)  # shed roof
+    for x in range(118, 158, 6): d.line([(x, 60 + (x - 112) * 12 // 47), (x, 75)], C(Rd))
+    for y in range(108, 121, 4):  # firewood stacked against it
+        for x in range(148 + (y // 4 % 2) * 2, 158, 4): shape(im, lambda d, x=x, y=y: d.ellipse([x, y, x + 3, y + 3]), '#c88a50', '#e0a96a', '#8a5a36', 1)
+    # Main walls and roof.
+    stones(im, (6, 64, 119, 119), 51)
+    shape(im, lambda d: d.polygon([(0, 70), (12, 22), (108, 22), (122, 70)]), R, Rl, Rd, 3)
+    sh = new(5 * S, 4 * S); sd = ImageDraw.Draw(sh)
+    for r, y in enumerate(range(28, 68, 6)):
+        for x in range(4 + (r % 2) * 4, 122, 8): sd.line([(x, y - 3), (x, y)], C(Rd)); sd.line([(x - 4, y), (x + 4, y)], C(Rd))
+    for x, y in [(x, y) for y in range(22, 70) for x in range(124) if sh.getpixel((x, y))[3] and im.getpixel((x, y))[:3] == C(R)[:3]]: im.putpixel((x, y), C(Rd))
+    shape(im, lambda d: d.rectangle([0, 66, 123, 70]), Rd, None, None)
+    # Two front gables: shingled triangles with a round window, trimmed by roof bands.
+    for gx in (16, 70):
+        pk = (gx + 18, 30)
+        shape(im, lambda d, gx=gx, pk=pk: d.polygon([(gx, 72), pk, (gx + 36, 72)]), '#e8dcc0', '#f6ecd4', '#c4b494')
+        for y in range(40, 72, 4): d.line([(gx + 2, y), (gx + 34, y)], C('#c4b494'))
+        shape(im, lambda d, pk=pk: d.ellipse([pk[0] - 5, 46, pk[0] + 5, 56]), '#f6e7c1', '#fff8e0', None)
+        shape(im, lambda d, pk=pk: d.ellipse([pk[0] - 3, 48, pk[0] + 3, 54]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+        d.line([(pk[0], 48), (pk[0], 54)], C('#f6e7c1')); d.line([(pk[0] - 3, 51), (pk[0] + 3, 51)], C('#f6e7c1'))
+        # mask the gable triangle back into shape where the shingle lines spilled, then the roof bands
+        for x in range(gx - 4, gx + 41):
+            for y in range(28, 73):
+                if not inside_poly([(gx, 72), pk, (gx + 36, 72)], x, y) and im.getpixel((x, y))[:3] in (C('#c4b494')[:3],): im.putpixel((x, y), C(R))
+        d.line([(gx - 3, 74), pk, (gx + 39, 74)], C(R), 4); d.line([(gx - 3, 76), (pk[0], 33), (gx + 39, 76)], C(Rd), 1)
+    stones(im, (6, 74, 119, 119), 52)
+    for x in (22, 76):  # windows under the gables, with stone lintels
+        shape(im, lambda d, x=x: d.rectangle([x, 84, x + 23, 103]), '#f6e7c1', '#fff8e0', None)
+        shape(im, lambda d, x=x: d.rectangle([x + 2, 86, x + 21, 101]), '#7fb3d8', '#b9dcf2', '#4f80aa', 1)
+        d.line([(x + 12, 86), (x + 12, 101)], C('#f6e7c1')); d.line([(x + 2, 93), (x + 21, 93)], C('#f6e7c1'))
+        shape(im, lambda d, x=x: d.rectangle([x - 2, 80, x + 25, 83]), '#c8c2b4', '#e0dacc', '#8e887c', 1)
+        shape(im, lambda d, x=x: d.rectangle([x - 1, 104, x + 24, 106]), '#c8c2b4', '#e0dacc', '#8e887c', 1)
+    shape(im, lambda d: d.chord([53, 82, 69, 98], 180, 360), '#7a4a2c', '#9a6440', '#55321e')  # arched door
+    shape(im, lambda d: d.rectangle([53, 90, 69, 119]), '#7a4a2c', '#9a6440', '#55321e')
+    for x in (57, 61, 65): d.line([(x, 88), (x, 118)], C('#55321e'))
+    d.point((66, 104), C('#f6d04d')); d.arc([51, 80, 71, 100], 180, 360, C('#c8c2b4'), 2)
+    shape(im, lambda d: d.rectangle([4, 118, 121, 124]), '#7a766e', '#9a968e', '#55524c', 1)  # footing
+    shape(im, lambda d: d.rectangle([49, 119, 73, 125]), '#a8a49c', '#c4c0b8', '#7a766e', 1)  # step
+    # Chimney up the left end wall.
+    stones(im, (1, 10, 14, 123), 53); shape(im, lambda d: d.rectangle([0, 6, 15, 10]), '#7a766e', '#9a968e', '#55524c', 1)
+    d.rectangle([4, 2, 11, 6], C('#3a3a42'))
+    return outline(im)
+
+def wanderer_robe(im, d, dir_, step, p):  # long robe over the legs: a flared skirt that sways with the step
+    K, Kl, Kd = p['robe']
+    pts = [(11, 16), (21, 16), (24 - step, 28), (8 - step, 28)] if dir_ in (0, 3) else [(12, 16), (20, 16), (22 + step, 28), (10 + step, 28)]
+    shape(im, lambda d: d.polygon(pts), K, Kl, Kd, 1)
+    d = ImageDraw.Draw(im)
+    if dir_ == 0: d.line([(16, 18), (16, 27)], C(Kd))
+    d.line([(pts[3][0] + 1, 27), (pts[2][0] - 1, 27)], C(Kd))
+
 # ---------- vehicles (side view, facing right) ----------
 def wheel(im, cx, cy, r):
     shape(im, lambda d: d.ellipse([cx - r, cy - r, cx + r, cy + r]), '#3a3a42', '#55555e', '#22222a', 1)
@@ -750,6 +924,7 @@ def farmer(p):
                     break
                 shape(im, lambda d: d.rectangle([lx, 23, lx + 2, 28 - max(0, lift)]), p['pants'], None, p['pants_d'], 1)
                 shape(im, lambda d: d.rectangle([lx, 28 - max(0, lift), lx + 2, 30 - max(0, lift)]), '#5f3b25', None, None)
+            if p.get('robe'): wanderer_robe(im, d, dir_, step, p)
             # torso + arms
             tx0, tx1 = (11, 21) if not side else (12, 20)
             arms = [(9, step), (22, -step)] if not side else [(15 if dir_ == 1 else 16, step)]
@@ -798,7 +973,17 @@ def farmer(p):
                     d.line([(ex - 1, 7), (ex + 2, 7)], C(p['stache']))
             # hair
             H, Hl, Hd = p['hair'], p['hair_l'], p['hair_d']
-            if p.get('bald'):  # just a fringe of hair round the back and a shine on top
+            if p.get('robe'):  # deep hood; the face inside stays in shadow but for two glinting eyes
+                K, Kl, Kd = p['robe']
+                shape(im, lambda d: d.polygon([(6, 12), (9, 3), (16, -1), (23, 3), (26, 12), (25, 19), (7, 19)]), K, Kl, Kd, 1)
+                d = ImageDraw.Draw(im)
+                if dir_ != 3:
+                    box = [10, 6, 22, 18] if dir_ == 0 else [6, 7, 13, 17] if dir_ == 1 else [19, 7, 26, 17]
+                    shape(im, lambda d: d.ellipse(box), '#241a2c', None, '#140e1a', 1)
+                    d = ImageDraw.Draw(im)
+                    for ex in ((12, 19) if dir_ == 0 else (8,) if dir_ == 1 else (23,)): d.line([(ex, 11), (ex + 1, 11)], C('#e8e0a0'))
+                else: d.line([(16, 4), (16, 18)], C(Kd))
+            elif p.get('bald'):  # just a fringe of hair round the back and a shine on top
                 if dir_ == 3: shape(im, lambda d: d.chord([8, 2, 24, 17], 10, 170), H, Hl, Hd, 1)
                 elif side: shape(im, lambda d: d.polygon([(20, 8), (24, 8), (24, 13), (21, 14)] if dir_ == 1 else [(12, 8), (8, 8), (8, 13), (11, 14)]), H, Hl, Hd, 1)
                 else: shape(im, lambda d: d.rectangle([8, 9, 9, 12]), H, None, Hd); shape(im, lambda d: d.rectangle([23, 9, 24, 12]), H, None, Hd)
@@ -873,6 +1058,8 @@ SHOPKEEPER = dict(hair='#5a3a28', hair_l='#7a5440', hair_d='#3a2418', shirt='#f4
 STOREKEEPER = dict(hair='#8a3a26', hair_l='#aa5638', hair_d='#5e2418', shirt='#4f9a8a', shirt_l='#6fbaa8', shirt_d='#33706a', accent='#6fbaa8', eye='#5a3a2a', eye_l='#9a6a4a',
                    pants='#6a4a3a', pants_d='#4a3228', long=False, lashes=True, tail=True, tie='#f6d04d', sweater=True, apron=('#f4f2ee', '#ffffff', '#c8c4bc'),
                    fringe=VILLAGER_F['fringe'], side=VILLAGER_F['side'])
+WANDERER = dict(hair='#3a2a3a', hair_l='#4a3a4a', hair_d='#2a1a2a', shirt='#4a3a5a', shirt_l='#6a5a7e', shirt_d='#2e2238', accent='#c8a868', eye='#e8e0a0', eye_l='#e8e0a0',
+                pants='#4a3a5a', pants_d='#2e2238', long=False, sweater=True, robe=('#4a3a5a', '#6a5a7e', '#2e2238'), fringe=[], side=[])
 
 # ---------- assemble ----------
 cells, names = [], {}
@@ -912,6 +1099,12 @@ add('sneakers', sneakers()); add('dig_spot', dig_spot())
 for kind in SEASONAL:
     for st in range(4): add(f'{kind}{st}', crop(kind, st))
     add(f'{kind}_item', seasonal_item(kind)); add(f'{kind}_packet', packet(seasonal_item(kind)))
+add('taxi', taxi()); add('suv', suv())
+WILD = {'wildcool': ('#6a8ae8', '#9a7ae0', '#c8b8f0', '#f4f2ff', '#5ab0d8'), 'wildwarm': ('#f06a4a', '#f6a03a', '#f6d04d', '#e8507a', '#ff9a8a')}
+for name, cols in WILD.items():
+    for i, m in enumerate(BLOB): add(f'{name}{i}', wild_tile(m, cols, 61 if name == 'wildcool' else 62))  # same blooms in every piece; edges only thin them out
+add('dandelions', dandelions()); add('rock_small', rock('small')); add('rock_medium', rock('medium')); add('rock_large', rock('large'))
+add('stone_house', stone_house())
 COLS = 16
 sheet = new(COLS * S, math.ceil(len(cells) / COLS) * S)
 for i, im in enumerate(cells): sheet.alpha_composite(im, ((i % COLS) * S, (i // COLS) * S))
@@ -922,6 +1115,7 @@ farmer(VILLAGER_M).save('assets/characters/villager_male.png'); farmer(VILLAGER_
 farmer(VILLAGER_KID).save('assets/characters/villager_child.png')
 farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
+farmer(WANDERER).save('assets/characters/wanderer.png')  # hooded stranger, kept for a later event
 with open('src/art-index.js', 'w') as f:
     f.write('// Generated by tools/make_art.py: tile names -> index in assets/art/world.png (16 columns of 32x32).\n')
     f.write('export const A = ' + str(names).replace("'", '"') + ';\n')

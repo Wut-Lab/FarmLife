@@ -16,14 +16,15 @@ const SIZES = {
   pine: { w: 1, h: 2, solid: 1 }, oak: { w: 2, h: 2, solid: 1 }, shrub_large: { w: 2, h: 1 },
   house_brown: { w: 3, h: 4, solid: 3 }, house_blue: { w: 3, h: 4, solid: 3 },
   store: { w: 6, h: 4, solid: 3, cols: { 4: 1, 5: 1 }, door: 2 },   pickup: { w: 3, h: 2, solid: 1 }, car_small: { w: 2, h: 2, solid: 1 }, box_truck: { w: 4, h: 3, solid: 2 },
+  taxi: { w: 3, h: 2, solid: 1 }, suv: { w: 3, h: 2, solid: 1 }, rock_large: { w: 2, h: 2, solid: 1 }, stone_house: { w: 5, h: 4, solid: 3 },
 };
-const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips']);
+const WALK_THROUGH = new Set(['mushrooms', 'roses', 'tulips', 'dandelions', 'rock_small']);
 const NOT_PLACEABLE = new Set(['hoe', 'can', 'bag', 'shovel', 'shoes', 'sneakers', 'dig_spot', ...Object.values(CROPS).flatMap(c => [...c.stages, c.item, c.packet])]);
-export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep)\d+$/.test(n);
+export const isGround = n => /^(grass|path|soil|cobbleb?|brickb?|shallow|deep|wildcool|wildwarm)\d+$/.test(n);
 export const isPaved = n => /^(path|cobbleb?|brickb?)\d+$/.test(n);
 // Rows where a road reaches the map's left or right edge: walking off there takes you through that side's exit.
 export const exitRows = (m, side) => [...Array(m.H).keys()].filter(y => isPaved(m.ground[y * m.W + (side === 'left' ? 0 : m.W - 1)]));
-export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep']; // 47-piece autotile sets drawn by tools/make_art.py
+export const BLOB_SETS = ['cobbleb', 'brickb', 'shallow', 'deep', 'wildcool', 'wildwarm']; // 47-piece autotile sets drawn by tools/make_art.py
 
 // Blob autotiles: neighbour bits N, E, S, W, NE, SE, SW, NW. A corner only counts when both sides next to it do,
 // which leaves 47 distinct masks; a set's tile number is the mask's position in this sorted list (same as make_art.py).

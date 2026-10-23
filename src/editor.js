@@ -57,13 +57,15 @@ const AUTO = [
   { id: 'brickb', label: 'Brick (border)', icon: patch('brickb'), ground: true, auto: 'brickb' },
   { id: 'shallow', label: 'Shallow water', icon: patch('shallow'), ground: true, auto: 'shallow' },
   { id: 'deep', label: 'Deep water', icon: patch('deep'), ground: true, auto: 'deep' },
+  { id: 'wildcool', label: 'Wildflowers (cool)', icon: patch('wildcool'), ground: true, auto: 'wildcool' },
+  { id: 'wildwarm', label: 'Wildflowers (warm)', icon: patch('wildwarm'), ground: true, auto: 'wildwarm' },
 ];
 const brushes = [...AUTO,
   ...Object.keys(A).filter(n => isGround(n) && /^(grass|path|soil)\d+$/.test(n)).map(n => ({ id: n, label: n, icon: [[n]], ground: true, tile: n })),
   { id: 'fence', label: 'Fence (auto)', icon: [['fence0', 'fence2'], ['fence3', null]], prefab: 'fence1', auto: 'fence' },
   ...Object.values(PREFABS).map(p => ({ id: p.name, label: p.name.replace(/_/g, ' '), icon: p.tiles, prefab: p.name })),
   ...Object.entries(NPCS).map(([k, label]) => ({ id: k, label, npc: k }))];
-const group = b => b.ground ? 'Ground' : b.npc ? 'Villagers' : /pickup|car|truck/.test(b.id) ? 'Vehicles' : /house|shop|store|bin|sign|fence/.test(b.id) ? 'Buildings & props'
+const group = b => b.ground ? 'Ground' : b.npc ? 'Villagers' : /pickup|car|truck|taxi|suv/.test(b.id) ? 'Vehicles' : /house|shop|store|bin|sign|fence/.test(b.id) ? 'Buildings & props'
   : /tree|pine|oak|shrub|mushroom|flower|bush|rock/.test(b.id) ? 'Nature' : 'Other';
 let brush = brushes.find(b => b.id === 'path');
 
@@ -140,12 +142,13 @@ function setGround(x, y, b) {
   if (b.tile) d.ground[k] = b.tile; // a hand-picked tile stays exactly as painted
 }
 const isGrass = (x, y) => fam(d.ground[y * d.W + x]) === 'grass';
-// Autotiling. Paths and paving join each other (no border between them); shallow water joins deep; off-map counts as joined.
+// Autotiling. Paths and paving join each other (no border between them); shallow water joins deep; wildflowers join wildflowers; off-map counts as joined.
 // Dirt paths and soil use their 9/3-piece sets, everything in BLOB_SETS its 47-piece set.
 const PAVED = /^(path|cobbleb?|brickb?)\d+$/;
 function joins(f, n) {
   if (f === 'path' || f === 'cobbleb' || f === 'brickb') return PAVED.test(n);
   if (f === 'shallow') return /^(shallow|deep)\d+$/.test(n);
+  if (f === 'wildcool' || f === 'wildwarm') return /^wild(cool|warm)\d+$/.test(n); // the two meadows blend into each other
   return fam(n) === f;
 }
 function retileAround(x, y, r = 1) {
