@@ -114,7 +114,9 @@ class Input {
     this.pressed = new Set();
     this.tap = null;
     this.drag = null;
+    this.wheel = 0; // mouse wheel this frame
     const cv = game.canvas;
+    cv.addEventListener('wheel', e => { this.wheel += e.deltaY; e.preventDefault(); }, { passive: false });
     addEventListener('keydown', e => {
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
@@ -162,7 +164,7 @@ class Input {
     return d > 0.5 ? { x: x / d, y: y / d } : { x: 0, y: 0 };
   }
 
-  endFrame() { this.pressed.clear(); this.tap = null; }
+  endFrame() { this.pressed.clear(); this.tap = null; this.wheel = 0; }
 }
 
 // A character sprite sheet: rows down/left/right/up, columns idle/stepA/stepB.

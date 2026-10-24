@@ -25,7 +25,7 @@ Then open the printed address. Works on PC (keyboard), phone and tablet (touch).
 - Villagers: press Use facing one to talk (once a day raises support). Hold a crop to give it as a gift (one a day; each has favourites). They sometimes ask for crops: bring them and talk to hand in for gold. Hearts unlock gifts and a perk at 5 hearts; see Pause → Friends
 - Saving: 4 save files. The game saves automatically each morning after you sleep. Delete a file from the file screen (press twice)
 - Map: M, or tap the globe under ?
-- Pause: Esc / P, or tap **II** (Resume, Controls, Settings, Quit to title). Help: ? key, or tap **?**
+- Pause: Esc / P, or tap **II** (Resume, How to Play, Settings, Save and quit). Help: ? key, or tap **?**
 - Settings: music and sound volume, day speed (Relaxed / Normal / Fast). Saved per device
 
 ## Map editor

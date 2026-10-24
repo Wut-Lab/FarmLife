@@ -21,6 +21,7 @@ import { A } from './art-index.js';
 import { PET_CHANCE, KINDS, SOUNDS, TRUST, MAX_PETS, petLook, paintPet, earnTrust } from './pets.js';
 import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintTraveller } from './traveller.js';
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
+import { Book, GUIDE, GOAL, CREDITS, CONTROLS } from './guide.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
 
 const CHARACTERS = [
@@ -44,20 +45,33 @@ function button(g, label, x, y, w, h, focused) {
 }
 
 export class Menu {
-  enter(g) { this.g = g; this.t = 0; this.walkers = CHARACTERS.map(c => Object.assign(new Walker(c.sheet), { dir: DIRS.right })); }
+  enter(g) { this.g = g; this.t = 0; this.pick = 0; this.book = null; this.walkers = CHARACTERS.map(c => Object.assign(new Walker(c.sheet), { dir: DIRS.right })); }
+  items() {
+    const done = () => { this.book = null; };
+    return [['Play', () => this.g.go(new SaveSelect())], ['How to Play', () => { this.book = new Book(GUIDE, done, GOAL); }], ['Credits', () => { this.book = new Book(CREDITS, done); }]];
+  }
+  rects() { const g = this.g; return this.items().map((_, i) => [g.w / 2 - 45, g.h * 0.2 + 70 + i * 23, 90, 19]); }
   update(dt) {
+    const inp = this.g.input;
     this.t += dt;
     this.walkers.forEach(w => w.update(dt, true));
-    if (this.g.input.hit('Enter', 'Space')) this.g.go(new SaveSelect());
+    if (this.book) return this.book.update(this.g, dt);
+    if (inp.hit('ArrowUp', 'KeyW')) this.pick = (this.pick + 2) % 3;
+    if (inp.hit('ArrowDown', 'KeyS')) this.pick = (this.pick + 1) % 3;
+    const t = this.rects().findIndex(r => inp.tapIn(...r));
+    if (t >= 0 || inp.hit('Enter', 'Space')) { sfx('click'); this.items()[t >= 0 ? t : this.pick][1](); }
   }
   draw() {
     const g = this.g, cx = g.w / 2;
     meadow(g, this.t);
+    if (this.book) return this.book.draw(g);
     g.text('FarmLife', cx, g.h * 0.2, { size: 28, align: 'center', color: '#fff3a8' });
     g.text('A farming & life sim', cx, g.h * 0.2 + 32, { size: 8, align: 'center' });
     this.walkers.forEach((w, i) => w.draw(g, ((this.t * 24 + i * 20) % (g.w + 40)) - 20, g.h * 0.2 + 48));
-    if (button(g, 'Play', cx - 45, g.h * 0.62, 90, 20, true)) g.go(new SaveSelect());
-    g.text('Enter or tap to start', cx, g.h * 0.62 + 26, { size: 6, align: 'center', color: '#e2f0d4' });
+    this.rects().forEach((r, i) => {
+      g.button(...r, i === this.pick ? '#e86a9a' : '#3f2631dd');
+      g.text(this.items()[i][0], r[0] + r[2] / 2, r[1] + 5, { size: 10, align: 'center' });
+    });
   }
 }
 
@@ -140,23 +154,6 @@ export class CharacterSelect {
     if (button(g, 'Back', 4, 4, 36, 14, false)) g.go(new SaveSelect());
   }
 }
-
-const CONTROLS = [
-  ['Move', 'Arrows / WASD, or drag'],
-  ['Use', 'Space / E, or tap Use'],
-  ['Hotbar', '1-8, or tap a slot'],
-  ['Seeds', 'Q, or tap the seed bag again: pick a kind'],
-  ['Bag', 'I, or tap Bag; tap 2 slots to swap'],
-  ['Sleep', 'Use on your front door'],
-  ['Villagers', 'Use to talk; hold a crop to gift it'],
-  ['Forage', 'Walk over it; Use on berry bushes'],
-  ['Tools', "Upgrade at Bella's store (T: Tool upgrades)"],
-  ['Strays', 'Pet or give berries: 3 hearts to adopt'],
-  ['Eat', 'Use while holding berries'],
-  ['Pause', 'Esc / P, or tap II'],
-  ['Help', '? key, or tap ?'],
-  ['Map', 'M, or tap the globe'],
-];
 
 const SPEED = 64; // pixels per second, 4 tiles
 const BANNER = [0.5, 1.5, 0.7]; // location name: seconds fading in, shown, fading out
@@ -284,6 +281,7 @@ export class World {
   update(dt) {
     const inp = this.g.input, d = inp.dir;
     this.fixSeed(); // seeds can come from anywhere (shops, digging, the macaw): keep the bag on a kind you have
+    if (this.menu === 'guide') { this.player.update(0, false); return this.book.update(this.g, dt); }
     if (this.menu) return this.menuUpdate(inp);
     if (this.confirm) return this.confirmUpdate(inp);
     if (this.pouch) return this.pouchUpdate(inp);
@@ -747,7 +745,7 @@ export class World {
       { label: 'Equipment', go: () => this.openMenu('equipment') },
       { label: 'Friends', go: () => this.openMenu('friends') },
       { label: 'Quests', go: () => this.openMenu('quests') },
-      { label: 'Controls', go: () => this.openMenu('controls') },
+      { label: 'How to Play', go: () => { this.menu = 'guide'; this.book = new Book(GUIDE, () => this.openMenu('pause'), GOAL); sfx('click'); } },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Save and quit', go: () => { this.autosave(); stopMusic(); this.g.go(new SaveSelect()); } },
     ];
@@ -1192,7 +1190,7 @@ export class World {
     if (this.fade && !this.fade.walk) dim(); // sleeping: everything goes dark
     if (this.talk) this.drawTalk();
     if (this.mapView) this.drawMap();
-    if (this.menu) this.drawMenu();
+    if (this.menu === 'guide') this.book.draw(this.g); else if (this.menu) this.drawMenu();
     if (this.confirm) this.drawConfirm();
   }
 
