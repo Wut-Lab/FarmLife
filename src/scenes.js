@@ -15,7 +15,7 @@ import { Events, MINSTREL_LINES } from './events.js';
 import { GATES } from './unlocks.js';
 import { Quests } from './quests.js';
 import { UPGRADES, START_LEVELS, MAX_LEVEL, toolIcon, toolName, costText, area } from './upgrades.js';
-import { FORAGE, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
+import { FORAGE, CAST_ENERGY, BITE_WAIT, BITE_TIME, catchFish, SPREAD, scatterForage, bushAt, pickBush, regrowBushes } from './forage.js';
 import { PLANTS, DIG_SPOTS, DIG_ENERGY, scatterDigs, digFind } from './dig.js';
 import { A } from './art-index.js';
 import { PET_CHANCE, KINDS, SOUNDS, TRUST, MAX_PETS, petLook, paintPet, earnTrust } from './pets.js';
@@ -309,6 +309,7 @@ export class World {
       }
     }
     if (!this.open && (inp.hit('Space', 'KeyE', 'Enter') || inp.tapIn(...b.act))) this.act();
+    this.fish(dt);
     this.clock.update(dt * 1000);
     this.schedule();
     this.events.update(this, dt);
@@ -578,10 +579,34 @@ export class World {
     return `${Math.floor((this.x + 8 + dx * 10) / TILE)},${Math.floor((this.y + 13 + dy * 10) / TILE)}`;
   }
 
+  // Fishing: Use facing water casts a line; a while later something bites, and Use again in time lands it. Walking off reels in.
+  waterAt(key) { const [x, y] = key.split(',').map(Number), m = this.map; return x >= 0 && y >= 0 && x < m.W && y < m.H && /^(shallow|deep)/.test(m.ground[y * m.W + x]); }
+  cast(key) {
+    if (!this.clock.useEnergy(CAST_ENERGY)) { sfx('nope'); return this.say('Too tired to fish. Sleep at your front door.'); }
+    this.fishing = { key, t: BITE_WAIT[0] + Math.random() * (BITE_WAIT[1] - BITE_WAIT[0]), bite: false, x: this.x, y: this.y };
+    sfx('water'); this.say(this.clock.season === 3 ? 'You drop a line through the ice... Press Use when it bites!' : 'You cast a line... Press Use when it bites!');
+  }
+  reel() {
+    const f = this.fishing; this.fishing = null;
+    if (!f.bite) return this.say('You pulled too soon.');
+    const id = catchFish(this.clock.season);
+    if (!this.inv.add(id, 1)) return this.say('Your bag is full. The fish got away.');
+    sfx(id === 'fish_carp' ? 'coin' : 'harvest'); this.say(id === 'fish_carp' ? 'A golden carp! What a catch!' : `Caught a ${FORAGE[id].name.toLowerCase()}!`);
+  }
+  fish(dt) {
+    const f = this.fishing;
+    if (!f) return;
+    if (this.x !== f.x || this.y !== f.y) { this.fishing = null; return; }
+    if ((f.t -= dt) > 0) return;
+    if (!f.bite) { f.bite = true; f.t = BITE_TIME; sfx('click'); } else { this.fishing = null; this.say('It got away...'); }
+  }
+
   // Ripe crops are picked by hand; otherwise the held tool decides what happens.
   act() {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
+    if (this.fishing) return this.reel();
     const v = this.villagerAhead();
+    if (!v && this.waterAt(key)) return this.cast(key);
     if (v?.role === 'stranger') { // turns to you, says something cryptic
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
@@ -1184,6 +1209,11 @@ export class World {
       c.globalAlpha = 1;
     }
     this.events.drawAbove(this, cx, cy);
+    if (this.fishing) { // the bobber on the water (it dips at a bite), and a "!" over your head
+      const f = this.fishing, [bx, by] = f.key.split(',').map(n => n * TILE), yy = by - cy + 7 + (f.bite ? 2 : Math.round(Math.sin(performance.now() / 300)));
+      c.fillStyle = '#ffffff'; c.fillRect(bx - cx + 6, yy, 3, 2); c.fillStyle = '#e8343a'; c.fillRect(bx - cx + 6, yy - 2, 3, 2);
+      if (f.bite) g.text('!', this.x - cx + 8, this.y - cy - 10, { size: 10, bold: true, align: 'center', color: '#fff3a8' });
+    }
     if (this.rain) { // rain streaks, or drifting snow in winter; they hold still against the ground as you walk
       const snow = this.clock.season === 3, t = performance.now() / 1000;
       c.fillStyle = snow ? '#ffffffcc' : '#bcd8ff88';

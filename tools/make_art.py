@@ -1353,6 +1353,17 @@ add('berry_bush', berry_bush()); add('berry_bush_bare', berry_bush(False)); add(
 for t in ('copper', 'gold'): add(f'hoe_{t}', tier(hoe(), t)); add(f'can_{t}', tier(can(), t)); add(f'shovel_{t}', tier(shovel(), t))
 add('basket', basket(1)); add('basket_copper', basket(2)); add('basket_gold', basket(3))
 add('beanie', beanie()); add('longsleeve', longsleeve()); add('jeans', jeans()); add('white_sneakers', white_sneakers())
+# Fish (src/forage.js): one shape in each fish's colours (body, light belly, dark back).
+def fish(base, light, dark):
+    im = new()
+    shape(im, lambda d: d.polygon([(22, 16), (29, 9), (29, 23)]), dark, base, dark, 1)  # tail
+    shape(im, lambda d: d.ellipse([3, 9, 25, 23]), base, light, dark, 2)
+    d = ImageDraw.Draw(im); d.polygon([(11, 9), (17, 5), (19, 10)], C(dark)); d.line([(8, 20), (18, 21)], C(light))
+    d.rectangle([7, 13, 8, 14], C('#2a1a2a')); d.point((7, 13), C('#ffffff'))
+    return outline(im)
+for n, cols in dict(minnow=('#a8b8c8', '#dce8f0', '#6a7a8c'), trout=('#7a9a6a', '#e8b0a0', '#4a6a44'), sunfish=('#f0a030', '#ffe080', '#b06a18'), catfish=('#6a6258', '#b8ae9c', '#3e3830'),
+                    perch=('#c8c048', '#f0e8a0', '#5a7a3a'), salmon=('#f08a78', '#ffc8b8', '#a8504a'), smelt=('#b8d0e0', '#f0f8ff', '#7a98b0'), pike=('#5a8a6a', '#d8e8b8', '#345a44'),
+                    carp=('#f6c838', '#fff3a8', '#c08a18')).items(): add('fish_' + n, fish(*cols))
 # Wilds pets: cats and dogs drawn in key colours that the game swaps for a random coat (src/pets.js keeps the same keys).
 # coat (base, light, dark), markings (tabby stripes or patches), white-ish belly/paws, eyes.
 PET_KEY = dict(coat=('#ff1001', '#ff1002', '#ff1003'), mark='#10ff01', belly='#0110ff', belly_d='#0110fe', eye='#ff10ff')

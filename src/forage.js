@@ -7,7 +7,17 @@ export const FORAGE = {
   pinecone: { name: 'Pinecone', icon: 'pinecone', price: 2 },
   stone: { name: 'Stone', icon: 'stone', price: 2 },
   stick: { name: 'Stick', icon: 'stick', price: 2 },
+  // Fish: press Use facing water to cast, and again when it bites.
+  fish_minnow: { name: 'Minnow', icon: 'fish_minnow', price: 12 }, fish_trout: { name: 'Trout', icon: 'fish_trout', price: 45 },
+  fish_sunfish: { name: 'Sunfish', icon: 'fish_sunfish', price: 15 }, fish_catfish: { name: 'Catfish', icon: 'fish_catfish', price: 55 },
+  fish_perch: { name: 'Perch', icon: 'fish_perch', price: 18 }, fish_salmon: { name: 'Salmon', icon: 'fish_salmon', price: 60 },
+  fish_smelt: { name: 'Smelt', icon: 'fish_smelt', price: 14 }, fish_pike: { name: 'Pike', icon: 'fish_pike', price: 70 },
+  fish_carp: { name: 'Golden Carp', icon: 'fish_carp', price: 250 },
 };
+// Fishing: each season has a common fish and a rarer one; the golden carp turns up anywhere, very rarely.
+export const FISH = [['fish_minnow', 'fish_trout'], ['fish_sunfish', 'fish_catfish'], ['fish_perch', 'fish_salmon'], ['fish_smelt', 'fish_pike']];
+export const CAST_ENERGY = 4, BITE_WAIT = [1.5, 4.5], BITE_TIME = 0.8; // energy per cast; seconds until a bite (min, max); seconds you have to reel it in
+export function catchFish(season, rand = Math.random) { const r = rand(); return r < 0.03 ? 'fish_carp' : FISH[season][r < 0.3 ? 1 : 0]; }
 // What falls by each kind of tree (by its top-left tile).
 const DROPS = { pine_0: 'pinecone', oak_0: 'stick', tree_green_0: 'stick', tree_orange_0: 'stick' };
 export const BERRIES_PER_BUSH = [1, 3]; // picked at once (min, max)

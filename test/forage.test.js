@@ -6,7 +6,7 @@ import { findPath } from '../src/villagers.js';
 import { exitRows } from '../src/map-data.js';
 
 test('forage sells for 2 gold each, and berries can be eaten', () => {
-  for (const f of Object.values(FORAGE)) assert.equal(f.price, 2);
+  for (const [id, f] of Object.entries(FORAGE)) if (!id.startsWith('fish_')) assert.equal(f.price, 2);
   assert.ok(FORAGE.berries.energy > 0);
 });
 let sticks = 0;
@@ -37,4 +37,10 @@ test('the farm only gets a few at a time', () => {
   const m = LOCATIONS.farm.build();
   for (let i = 0; i < 10; i++) scatterForage(m, SPREAD.farm);
   assert.ok(m.forage.size <= SPREAD.farm.cap);
+});
+
+test('each season has its own fish, and the golden carp is rare', async () => {
+  const { catchFish, FISH, FORAGE } = await import('../src/forage.js'), { A } = await import('../src/art-index.js');
+  for (let s = 0; s < 4; s++) { assert.equal(catchFish(s, () => 0.9), FISH[s][0]); assert.equal(catchFish(s, () => 0.2), FISH[s][1]); assert.equal(catchFish(s, () => 0.01), 'fish_carp'); }
+  for (const id of [...FISH.flat(), 'fish_carp']) { assert.ok(FORAGE[id].price > 0); assert.ok(A[FORAGE[id].icon] !== undefined); }
 });
