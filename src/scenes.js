@@ -1189,7 +1189,7 @@ export class World {
       c.fillStyle = snow ? '#ffffffcc' : '#bcd8ff88';
       for (let i = 0; i < 140; i++) {
         const x = ((i * 53 + (snow ? Math.sin(t + i) * 6 : -t * 40) - cx) % g.w + g.w) % g.w, y = ((i * 97 + t * (snow ? 18 + i % 9 : 190) - cy) % g.h + g.h) % g.h;
-        if (snow) c.fillRect(x, y, 1, 1); else { c.fillRect(x, y, 1, 3); c.fillRect(x + 1, y - 3, 1, 3); }
+        if (snow) { c.fillRect(x, y, 2, 2); c.fillStyle = '#7f98c4cc'; c.fillRect(x, y + 2, 2, 1); c.fillStyle = '#ffffffcc'; } else { c.fillRect(x, y, 1, 3); c.fillRect(x + 1, y - 3, 1, 3); }
       }
       if (!snow) { c.fillStyle = 'rgba(30,45,80,0.14)'; c.fillRect(0, 0, g.w, g.h); }
     }

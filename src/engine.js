@@ -3,24 +3,35 @@ import { A } from './art-index.js';
 export const TILE = 16; // logical units per tile; art is 32x32, drawn at double density
 const TARGET = 300; // art pixels along the screen's shorter side
 
-// A copy of the art sheet for a season: the greens of grass and plants turn sun-baked in summer, orange in fall, snowy in winter.
+// A copy of the art sheet for a season: the greens of grass and plants turn sun-baked in summer, orange in fall, snowy in winter (with iced water, frosted soil and snow on the roofs).
 const NATURE = /^(grass|path|cobbleb|brickb|soil|shallow|wild|tree|oak|pine|shrub|berry_bush|dandelions|roses|tulips|mushrooms|rock|dig_spot)/;
+const ROOFS = [['house', 3, 3], ['shop', 3, 3], ['barn', 4, 4], ['store', 6, 4], ['house_brown', 3, 4], ['house_blue', 3, 4], ['stone_house', 5, 4]]; // buildings: name, tiles wide, tiles high
 function tint(img, season) {
   const cv = document.createElement('canvas'), c = cv.getContext('2d');
   cv.width = img.width; cv.height = img.height; c.drawImage(img, 0, 0);
   try {
-    for (const [name, i] of Object.entries(A)) {
-      if (!NATURE.test(name)) continue;
-      const x = (i % 16) * 32, y = Math.floor(i / 16) * 32, d = c.getImageData(x, y, 32, 32), p = d.data, plant = /^(tree|oak|pine|shrub|berry)/.test(name);
+    const d = c.getImageData(0, 0, cv.width, cv.height), p = d.data, at = (name, x, y) => (((A[name] >> 4) * 32 + y) * cv.width + (A[name] % 16) * 32 + x) * 4;
+    const mix = (k, to, m) => to.forEach((v, j) => { p[k + j] += (v - p[k + j]) * m; });
+    for (const name of Object.keys(A)) {
+      const nature = NATURE.test(name), water = season === 3 && /^(shallow|deep)/.test(name), soil = season === 3 && /^soil/.test(name), plant = /^(tree|oak|pine|shrub|berry)/.test(name);
+      if (!nature && !water) continue;
       const m = season === 3 ? (plant ? 0.6 : 1) : season === 2 ? (/^pine/.test(name) ? 0.2 : plant ? 1 : 0.55) : 1; // snow only dusts the trees; fall grass half turns, pines barely
-      for (let k = 0; k < p.length; k += 4) {
-        const r = p[k], g = p[k + 1], b = p[k + 2];
-        if (g <= r * 1.05 || g <= b * 1.05) continue; // only the greens
-        const to = season === 1 ? [r * 1.2 + 10, g * 1.02, b * 0.7] : season === 2 ? [g * 1.1 + 20, g * 0.8, b * 0.55] : [g * 0.3 + 172, g * 0.3 + 184, g * 0.3 + 200];
-        to.forEach((v, j) => { p[k + j] = p[k + j] + (v - p[k + j]) * m; });
+      for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+        const k = at(name, x, y), r = p[k], g = p[k + 1], b = p[k + 2];
+        if (nature && g > r * 1.05 && g > b * 1.05) mix(k, season === 1 ? [r * 1.2 + 10, g * 1.02, b * 0.7] : season === 2 ? [g * 1.1 + 20, g * 0.8, b * 0.55] : [g * 0.3 + 172, g * 0.3 + 184, g * 0.3 + 200], m); // the greens
+        else if (water && b > r && b >= g) mix(k, [214, 232, 244], 0.6); // water ices over
+        else if (soil && r > g && g > b) mix(k, [236, 240, 248], 0.22); // frost on the soil
       }
-      c.putImageData(d, x, y);
     }
+    // Winter: snow lies along the top of every roof (the top pixels of each column of a building).
+    if (season === 3) for (const [name, w, h] of ROOFS) for (let x = 0; x < w * 32; x++) {
+      let n = 0; const deep = 9 + (x >> 1) * 5 % 4; // a ragged lower edge
+      for (let y = 0; y < h * 32 && n < deep; y++) {
+        const k = at(`${name}_${(y >> 5) * w + (x >> 5)}`, x % 32, y % 32);
+        if (p[k + 3] > 200) mix(k, n++ < deep - 2 ? [246, 249, 255] : [176, 196, 226], 1);
+      }
+    }
+    c.putImageData(d, 0, 0);
   } catch { return img; } // e.g. opened from a file: the canvas can't be read
   return cv;
 }
