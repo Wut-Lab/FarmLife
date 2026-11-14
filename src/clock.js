@@ -1,6 +1,7 @@
 // Game clock: time of day, calendar, energy, and the end-of-day update.
 export const SEASONS = ['Spring', 'Summer', 'Fall', 'Winter'];
 export const DAYS_PER_SEASON = 28;
+export const RAIN = [0.25, 0.15, 0.25, 0.2]; // chance of a wet day in each season (snow in winter): it waters your crops
 export const DAY_START = 6 * 60;  // 6:00 AM, in minutes
 export const DAY_END = 26 * 60;   // 2:00 AM next morning
 export const TICK_MINUTES = 10;

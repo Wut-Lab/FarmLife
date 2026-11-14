@@ -1,6 +1,6 @@
 // Game scenes: main menu -> character select -> farm.
 import { TILE, DIRS, Walker } from './engine.js';
-import { Clock, MAX_ENERGY, SEASONS, DAYS_PER_SEASON, DAY_START, DAY_END } from './clock.js';
+import { Clock, RAIN, MAX_ENERGY, SEASONS, DAYS_PER_SEASON, DAY_START, DAY_END } from './clock.js';
 import { editorMaps, exitRows, isPaved, OPPOSITE, PREFABS, retile } from './map-data.js';
 import { LOCATIONS } from './locations.js';
 
@@ -211,7 +211,9 @@ export class World {
       this.quests.tick(0, true);
       if (this.upgrading) { const { tool, level } = this.upgrading; this.levels[tool] = level; this.upgradeNews = ` Bella finished your ${toolName(tool, level)}!`; this.upgrading = null; }
       const k = this.clock, next = k.day >= DAYS_PER_SEASON ? (k.season + 1) % SEASONS.length : k.season;
-      this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs();
+      const soak = () => { if (this.rain) for (const p of this.field.plots.values()) if (p) p.wet = true; };
+      soak(); this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs(); // rain also waters what you planted in it
+      this.rain = Math.random() < RAIN[next]; soak();
       this.paid = this.binValue(this.inv.emptyBin()); this.withered = 0;
       this.gold += this.paid;
     });
@@ -222,7 +224,7 @@ export class World {
       this.events.newDay(); this.schedule(true);
       if (this.wilds && !this.wildsStale()) this.visitors(this.maps.wilds); // new faces in the Wilds each day
       const saved = writeSave(this.slot, this.snapshot());
-      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + this.openGates() + (this.upgradeNews ?? '') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : '')); this.upgradeNews = '';
+      this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.rain ? (this.clock.season === 3 ? " It's snowing" : " It's raining") + ': your crops are watered.' : '') + this.openGates() + (this.upgradeNews ?? '') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : '')); this.upgradeNews = '';
     });
     if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
     playMusic(); // one of two tracks, picked at random each time you enter
@@ -234,11 +236,11 @@ export class World {
     return {
       v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(), world: this.worldSave(),
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy }, at: { minutes: k.minutes, map: here, x: this.x, y: this.y },
-      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state,
+      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state, rain: !!this.rain,
     };
   }
   restore(s) {
-    Object.assign(this.clock, s.clock);
+    Object.assign(this.clock, s.clock); this.rain = !!s.rain;
     if (s.layout === FARM_LAYOUT) for (const key of s.tilled ?? []) this.tillTile(key); // new plots first, so their crops have somewhere to go
     for (const [key, p] of s.plots) if (this.field.has(key)) this.field.plots.set(key, p);
     Object.assign(this, { levels: { ...START_LEVELS, ...s.levels }, upgrading: s.upgrading ?? null });
@@ -686,7 +688,7 @@ export class World {
       }
     } else {
       rewards = sup.talk(id);
-      const say = [...who.hello, who.seasons[this.clock.season], ...chatter(this.clock.minutes, this.clock.season)];
+      const say = [...who.hello, who.seasons[this.clock.season], ...chatter(this.clock.minutes, this.clock.season), ...(this.rain ? [this.clock.season === 3 ? 'Snow! Mind the ice.' : 'Lovely weather for ducks.'] : [])];
       lines.push(say[Math.floor(Math.random() * say.length)]);
     }
     const q = sup.people[id].quest;
@@ -1182,6 +1184,15 @@ export class World {
       c.globalAlpha = 1;
     }
     this.events.drawAbove(this, cx, cy);
+    if (this.rain) { // rain streaks, or drifting snow in winter; they hold still against the ground as you walk
+      const snow = this.clock.season === 3, t = performance.now() / 1000;
+      c.fillStyle = snow ? '#ffffffcc' : '#bcd8ff88';
+      for (let i = 0; i < 140; i++) {
+        const x = ((i * 53 + (snow ? Math.sin(t + i) * 6 : -t * 40) - cx) % g.w + g.w) % g.w, y = ((i * 97 + t * (snow ? 18 + i % 9 : 190) - cy) % g.h + g.h) % g.h;
+        if (snow) c.fillRect(x, y, 1, 1); else { c.fillRect(x, y, 1, 3); c.fillRect(x + 1, y - 3, 1, 3); }
+      }
+      if (!snow) { c.fillStyle = 'rgba(30,45,80,0.14)'; c.fillRect(0, 0, g.w, g.h); }
+    }
     // Night falls after 6 PM.
     const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
     if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }

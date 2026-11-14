@@ -34,6 +34,7 @@ export const GUIDE = [
     '# Growing Crops',
     '- Crops grow overnight, but only on days they were watered.',
     '- Each kind of crop takes a set number of days to ripen.',
+    '- On rainy days (and snowy days in Winter), your crops are watered for you.',
     '- Face a ripe crop and press Use to pick it.',
     '# Seeds',
     "- Buy seeds from Fredrick at Fredrick's Seeds.",
