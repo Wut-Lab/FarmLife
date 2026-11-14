@@ -1364,6 +1364,14 @@ def fish(base, light, dark):
 for n, cols in dict(minnow=('#a8b8c8', '#dce8f0', '#6a7a8c'), trout=('#7a9a6a', '#e8b0a0', '#4a6a44'), sunfish=('#f0a030', '#ffe080', '#b06a18'), catfish=('#6a6258', '#b8ae9c', '#3e3830'),
                     perch=('#c8c048', '#f0e8a0', '#5a7a3a'), salmon=('#f08a78', '#ffc8b8', '#a8504a'), smelt=('#b8d0e0', '#f0f8ff', '#7a98b0'), pike=('#5a8a6a', '#d8e8b8', '#345a44'),
                     carp=('#f6c838', '#fff3a8', '#c08a18')).items(): add('fish_' + n, fish(*cols))
+def rod():  # a fishing rod: a long tapering cane, a reel by the grip, and a line down to a red-and-white bobber
+    im = new(); d = ImageDraw.Draw(im)
+    d.line([(5, 28), (26, 4)], C('#a86a3a'), 2); d.line([(5, 28), (10, 22)], C('#5f3b25'), 3)
+    d.line([(26, 4), (26, 20)], C('#e8e8f0'), 1)
+    shape(im, lambda d: d.ellipse([10, 21, 15, 26]), '#9aa7b8', '#d6e0ea', '#6a7688', 1)
+    d.rectangle([24, 20, 28, 22], C('#e8343a')); d.rectangle([24, 23, 28, 25], C('#ffffff'))
+    return outline(im)
+add('rod', rod())
 # Wilds pets: cats and dogs drawn in key colours that the game swaps for a random coat (src/pets.js keeps the same keys).
 # coat (base, light, dark), markings (tabby stripes or patches), white-ish belly/paws, eyes.
 PET_KEY = dict(coat=('#ff1001', '#ff1002', '#ff1003'), mark='#10ff01', belly='#0110ff', belly_d='#0110fe', eye='#ff10ff')

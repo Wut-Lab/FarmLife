@@ -17,5 +17,5 @@ test('each day rolls every event at its chance', () => {
 test('the salesman sells four clothes, each worth +0.5% bonus peas; Bella keeps her goods', () => {
   assert.deepEqual(goodsOf('salesman'), ['beanie', 'longsleeve', 'jeans', 'white_sneakers']);
   assert.ok(goodsOf('salesman').every(id => GOODS[id].extra === 0.005 && GOODS[id].extraCrop === 'peas' && GOODS[id].slot));
-  assert.deepEqual(goodsOf('storekeeper'), ['shoes', 'sneakers', 'shovel']);
+  assert.deepEqual(goodsOf('storekeeper'), ['shoes', 'sneakers', 'shovel', 'rod']);
 });

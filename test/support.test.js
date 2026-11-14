@@ -49,3 +49,9 @@ test('villagers chat about the time of day and season, and only ask for crops in
   for (let i = 0; i < 200; i++) { s.overnight(Math.random, 3); for (const p of Object.values(s.people)) { if (p.quest) seen.add(p.quest.item); p.quest = null; } }
   assert.ok(seen.has('peas')); assert.ok(!seen.has('tomato'));
 });
+
+test('every villager has a line for a gift of fish, and fish count as a neutral gift', async () => {
+  const { PEOPLE } = await import('../src/support.js');
+  for (const who of Object.values(PEOPLE)) assert.match(who.fish, /FISH/);
+  assert.equal(new Support().gift('villager_male', 'fish_trout').taste, 'neutral');
+});

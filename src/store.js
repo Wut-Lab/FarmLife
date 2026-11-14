@@ -6,6 +6,7 @@ export const GOODS = {
   shoes: { name: 'Running Shoes', short: 'Running Shoes', price: 400, icon: 'shoes', about: 'Walk 20% faster while worn.', slot: 'shoes', speed: 1.2, them: true },
   sneakers: { name: 'Lightweight Sneakers', short: 'Light Sneakers', price: 300, icon: 'sneakers', about: '+5 max energy while worn.', slot: 'shoes', energy: 5, them: true },
   shovel: { name: 'Shovel', price: 250, icon: 'shovel', about: 'Dig loose earth, move plants.' },
+  rod: { name: 'Fishing Rod', price: 200, icon: 'rod', about: 'Hold it and Use facing water.' },
   // The wandering clothes salesman's stock (seller): extra is the chance, per piece worn, of an extra extraCrop when you harvest one.
   beanie: { name: 'Green Beanie', price: 150, icon: 'beanie', about: '+0.5% chance of bonus peas.', slot: 'hat', extra: 0.005, extraCrop: 'peas', seller: 'salesman' },
   longsleeve: { name: 'Green Long Sleeve Tee', short: 'Green Long Sleeve', price: 200, icon: 'longsleeve', about: '+0.5% chance of bonus peas.', slot: 'shirt', extra: 0.005, extraCrop: 'peas', seller: 'salesman' },

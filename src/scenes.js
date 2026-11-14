@@ -579,7 +579,7 @@ export class World {
     return `${Math.floor((this.x + 8 + dx * 10) / TILE)},${Math.floor((this.y + 13 + dy * 10) / TILE)}`;
   }
 
-  // Fishing: Use facing water casts a line; a while later something bites, and Use again in time lands it. Walking off reels in.
+  // Fishing: with the rod held (the active hotbar slot), Use facing water casts a line; a while later something bites, and Use again in time lands it. Walking off reels in.
   waterAt(key) { const [x, y] = key.split(',').map(Number), m = this.map; return x >= 0 && y >= 0 && x < m.W && y < m.H && /^(shallow|deep)/.test(m.ground[y * m.W + x]); }
   cast(key) {
     if (!this.clock.useEnergy(CAST_ENERGY)) { sfx('nope'); return this.say('Too tired to fish. Sleep at your front door.'); }
@@ -596,7 +596,7 @@ export class World {
   fish(dt) {
     const f = this.fishing;
     if (!f) return;
-    if (this.x !== f.x || this.y !== f.y) { this.fishing = null; return; }
+    if (this.x !== f.x || this.y !== f.y || this.inv.held?.id !== 'rod') { this.fishing = null; return; } // walked off or put the rod away
     if ((f.t -= dt) > 0) return;
     if (!f.bite) { f.bite = true; f.t = BITE_TIME; sfx('click'); } else { this.fishing = null; this.say('It got away...'); }
   }
@@ -606,7 +606,7 @@ export class World {
     const key = this.facing(), f = this.field, held = this.inv.held?.id;
     if (this.fishing) return this.reel();
     const v = this.villagerAhead();
-    if (!v && this.waterAt(key)) return this.cast(key);
+    if (!v && this.waterAt(key) && (held === 'rod' || !held)) return held === 'rod' ? this.cast(key) : this.say(this.gear.rod ? 'Hold your fishing rod to fish here.' : 'You could fish here with a rod. Bella sells one.');
     if (v?.role === 'stranger') { // turns to you, says something cryptic
       v.walker.dir = [DIRS.up, DIRS.right, DIRS.left, DIRS.down][this.player.dir]; v.wait = 2;
       this.say(`Hooded stranger: ${STRANGER_LINES[Math.floor(Math.random() * STRANGER_LINES.length)]}`);
@@ -703,6 +703,10 @@ export class World {
     if (done) {
       this.gold += done.gold; rewards = done.rewards; sfx('coin');
       lines.push(`You brought them! Thank you so much. (+${done.gold}g)`);
+    } else if (held?.startsWith('fish_')) { // fish: everyone is a little doubtful, but kind about it
+      const r = sup.gift(id, held);
+      if (!r) lines.push(`You already gave me something today. Come back tomorrow!`);
+      else { this.inv.take(held, 1); rewards = r.rewards; sfx('harvest'); lines.push(who.fish.replace('FISH', FORAGE[held].name.toLowerCase())); }
     } else if (CROPS[held]) {
       const r = sup.gift(id, held);
       if (!r) lines.push(`You already gave me something today. Come back tomorrow!`);
@@ -1084,7 +1088,7 @@ export class World {
       const id = row.id, it = GOODS[id];
       if (this.gear[id]) return this.say(`You already have the ${it.name}.`);
       if (this.gold < it.price) return this.say(`Not enough gold for the ${it.name}.`);
-      if (id === 'shovel' && this.inv.carried.indexOf(null, LOCKED) < 0) return this.say('Your bag is full.');
+      if (TOOLS[id] && this.inv.carried.indexOf(null, LOCKED) < 0) return this.say('Your bag is full.');
       this.ask(`Buy the ${it.name} for ${it.price}g?`, () => this.buyGood(id), 'Buy');
     });
     if (inp.hit('Escape', 'KeyE', 'Space') || inp.tapIn(...r.close)) this.shop = false;
@@ -1092,7 +1096,7 @@ export class World {
   // Pay for one of the store's goods (after a yes/no); clothes go straight on if that slot's free.
   buyGood(id) {
     const it = GOODS[id];
-    if (id === 'shovel') this.inv.add('shovel');
+    if (TOOLS[id]) this.inv.add(id); // the shovel and the fishing rod go in your bag
     sfx('coin'); this.gold -= it.price; this.gear[id] = true;
     if (!it.slot) return this.say(`Bought the ${it.name}! It's in your bag.`);
     const on = !this.worn[it.slot]; if (on) this.wear(it.slot, id);
