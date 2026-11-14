@@ -45,7 +45,7 @@ function button(g, label, x, y, w, h, focused) {
 }
 
 export class Menu {
-  enter(g) { this.g = g; this.t = 0; this.pick = 0; this.book = null; this.walkers = CHARACTERS.map(c => Object.assign(new Walker(c.sheet), { dir: DIRS.right })); }
+  enter(g) { this.g = g; g.season = 0; this.t = 0; this.pick = 0; this.book = null; this.walkers = CHARACTERS.map(c => Object.assign(new Walker(c.sheet), { dir: DIRS.right })); }
   items() {
     const done = () => { this.book = null; };
     return [['Play', () => this.g.go(new SaveSelect())], ['How to Play', () => { this.book = new Book(GUIDE, done, GOAL); }], ['Credits', () => { this.book = new Book(CREDITS, done); }]];
@@ -520,7 +520,7 @@ export class World {
   dirVec() { return [[0, 1], [-1, 0], [1, 0], [0, -1]][this.player.dir]; }
   // Pick a berry bush you're facing (it's bare until morning).
   pickBerries(o) {
-    const n = pickBush(o);
+    const b = pickBush(o), n = b && b + this.support.has('forager'); // Wren's perk: one more
     if (!n) return this.say("No berries left. They'll grow back by morning.");
     if (!this.inv.add('berries', n)) { regrowBushes({ objects: [o] }); return this.say('Your bag is full.'); }
     sfx('harvest'); this.say(`Picked ${n} ${n > 1 ? 'berries' : 'berry'}!`);
@@ -686,7 +686,7 @@ export class World {
       }
     } else {
       rewards = sup.talk(id);
-      const say = [...who.hello, ...chatter(this.clock.minutes, this.clock.season)];
+      const say = [...who.hello, who.seasons[this.clock.season], ...chatter(this.clock.minutes, this.clock.season)];
       lines.push(say[Math.floor(Math.random() * say.length)]);
     }
     const q = sup.people[id].quest;
@@ -1138,6 +1138,7 @@ export class World {
   }
 
   draw(c) {
+    this.g.season = this.clock.season; // the art follows the season
     const g = this.g, { W, H, ground, objects } = this.map;
     const clamp = (v, size, view) => (size <= view ? (size - view) / 2 : Math.max(0, Math.min(size - view, v)));
     const cx = Math.round(clamp(this.x + 8 - g.w / 2, W * TILE, g.w));
@@ -1215,7 +1216,7 @@ export class World {
   miniMap() { // redrawn each time the map opens (16px per tile), so it shows the latest crops, buildings and villagers
     const m = this.map;
     if (this.mini) return this.mini;
-    const P = 16, cv = document.createElement('canvas'), c = cv.getContext('2d'), art = this.g.images.art;
+    const P = 16, cv = document.createElement('canvas'), c = cv.getContext('2d'), art = this.g.sheet();
     cv.width = m.W * P; cv.height = m.H * P; c.imageSmoothingEnabled = false;
     const put = (n, x, y) => { const i = A[n]; if (i !== undefined) c.drawImage(art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32, x * P, y * P, P, P); };
     m.ground.forEach((n, i) => {

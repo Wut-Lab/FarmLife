@@ -11,6 +11,7 @@ await Promise.all([
     villager_male: 'assets/characters/villager_male.png',
     villager_female: 'assets/characters/villager_female.png',
     villager_child: 'assets/characters/villager_child.png',
+    villager_wren: 'assets/characters/villager_wren.png',
     shopkeeper: 'assets/characters/shopkeeper.png',
     storekeeper: 'assets/characters/storekeeper.png',
     wanderer: 'assets/characters/wanderer.png',

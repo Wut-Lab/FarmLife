@@ -47,3 +47,12 @@ test('a villager walks a route and settles at the end', () => {
   for (let i = 0; i < 200 && v.legs; i++) v.update(0.05, () => false);
   assert.equal(v.legs, null); assert.deepEqual([v.x, v.y, v.still], [16, 16, false]);
 });
+
+test('Wren is somewhere different each season, and in bed from 8 PM to 6 AM', async () => {
+  const { SCHEDULES, activity } = await import('../src/schedule.js'), { LOCATIONS } = await import('../src/locations.js'), { fits } = await import('../src/villagers.js');
+  const spots = ['Spring', 'Summer', 'Fall', 'Winter'].map(s => activity(SCHEDULES.villager_wren, 12, 'Mon', s));
+  assert.equal(new Set(spots.map(r => `${r.map}:${r.x},${r.y}`)).size, 4);
+  for (const r of spots) assert.ok(fits(LOCATIONS[r.map].build(), r));
+  for (const h of [5, 20, 25]) assert.equal(activity(SCHEDULES.villager_wren, h, 'Mon', 'Fall').act, 'sleep');
+  assert.equal(activity(SCHEDULES.villager_wren, 19, 'Mon', 'Fall').act, 'move');
+});

@@ -8,11 +8,17 @@ const TALK = 10, GIFT = { love: 80, like: 45, neutral: 20, dislike: -30 }, QUEST
 export const PERK_AT = 5;
 export const PEOPLE = {
   villager_male: { name: 'Hank', loves: ['cabbage'], likes: ['turnip'], dislikes: [],
-    perk: { id: 'bargain', text: 'Crops sell for 10% more' }, hello: ['Hi!'] },
+    perk: { id: 'bargain', text: 'Crops sell for 10% more' }, hello: ['Hi!', 'I walk out to the road every noon. Good for the knees.', "Fredrick's seeds never let me down."],
+    seasons: ['Spring! Time to get planting.', 'Too hot to work past noon, if you ask me.', 'Harvest time. Best time of the year.', 'Not much to do in winter but wait.'] },
   villager_female: { name: 'Rosa', loves: ['turnip'], likes: ['carrot'], dislikes: [],
-    perk: { id: 'discount', text: 'Seeds cost 10% less' }, hello: ['What a beautiful day!'] },
+    perk: { id: 'discount', text: 'Seeds cost 10% less' }, hello: ['What a beautiful day!', 'I like to visit your farm before lunch.', 'Have you met Wren? She paints somewhere new every season.'],
+    seasons: ['Everything smells so fresh in spring.', 'I could sit in the shade all summer.', 'The leaves crunch under my shoes!', 'Bella keeps the store warm in winter. Lucky her.'] },
   villager_child: { name: 'Pip', loves: ['carrot'], likes: [], dislikes: ['cabbage'],
-    perk: { id: 'green_thumb', text: 'Watering takes no energy' }, hello: ['How is your farm?'] },
+    perk: { id: 'green_thumb', text: 'Watering takes no energy' }, hello: ['How is your farm?', 'I saw a cat in the Wilds! Can I keep it? Mom said no.', 'Saturdays are for town. Every other day is for your farm!'],
+    seasons: ['I found a frog! It got away.', "Let's go swimming! ...Oh, right. Chores.", 'I jumped in a leaf pile. Twice.', 'Do you want to build a snowman?'] },
+  villager_wren: { name: 'Wren', loves: ['tomato'], likes: ['spinach', 'peas'], dislikes: ['turnip'],
+    perk: { id: 'forager', text: 'Berry bushes give 1 more berry' }, hello: ["I paint what's in front of me.", 'Hold still... no, never mind. Carry on.', 'I pack up at 8. The light is gone by then.'],
+    seasons: ['Spring belongs to your meadow. Look at those greens!', 'Summer light is best out on the road.', 'Fall colors by the town green. I could cry.', 'Snow on the square. So many kinds of white.'] },
 };
 // Things anyone might say, by time of day (minutes since midnight) and season.
 const SEASON_LINES = ['The local flowers are beautiful! You should take a look!', "That sun is blazing! I wish I had a fan...",

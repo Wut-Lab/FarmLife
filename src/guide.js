@@ -47,6 +47,7 @@ export const GUIDE = [
   { title: 'Time and Energy', lines: [
     '# The Calendar',
     '- Each season lasts 28 days, and a year has four seasons.',
+    '- The land changes with the season: fresh green in Spring, sun-baked in Summer, orange in Fall and snowy in Winter.',
     '- Days run from 6 AM to 2 AM. You can change the day speed in Settings.',
     '# Sleeping',
     '- From 4 PM on, press Use on your front door to sleep.',
@@ -58,7 +59,8 @@ export const GUIDE = [
   ] },
   { title: 'Town and Friends', lines: [
     '# Villagers',
-    '- Talk to Hank, Rosa and Pip once a day to earn their friendship.',
+    '- Talk to Hank, Rosa, Pip and Wren once a day to earn their friendship.',
+    '- Wren the painter sets up somewhere new each season: your farm in Spring, the road in Summer, and town in Fall and Winter. She goes home at 8 PM and is back at 6 AM.',
     '- Hold a crop and talk to them to give it as a gift (one a day). Each villager has favorites.',
     '- Sometimes they ask for crops. Bring them in time to earn gold.',
     '- At 5 hearts, each villager gives you a perk. See Pause > Friends.',

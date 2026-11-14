@@ -1147,6 +1147,9 @@ MINSTREL = dict(MALE, hair='#7a5a3a', hair_l='#9a7650', hair_d='#553c24', shirt=
                 pants='#f4f2ee', pants_d='#c8c4bc', shades=('#f6d04d', '#e86a9a'), sequins='#f6d04d', boa=('#f8a8d0', '#ffd0e8', '#d878a8'))
 SALESMAN = dict(VILLAGER_KID, child=False, cap=None, hair='#5a3a28', hair_l='#7a5440', hair_d='#3a2418', shirt='#5aa85a', shirt_l='#7cc87a', shirt_d='#3a7a3e',
                 accent='#7cc87a', pants='#3f68a8', pants_l='#5f88c8', pants_d='#2c4a80', sweater=True, beanie=('#3f8a3a', '#5aa84e', '#2a6a2a'), shoes='#f4f2ee')
+# Wren the painter: follows the seasons around (src/schedule.js).
+WREN = dict(VILLAGER_F, hair='#2e2a3a', hair_l='#4a4458', hair_d='#1c1a26', shirt='#b88ad8', shirt_l='#d8b4f0', shirt_d='#8a5eaa', accent='#d8b4f0', eye='#4a6a9a', eye_l='#8aaad0',
+            pants='#5a5a6a', pants_d='#3e3e4c', lashes=True, tie='#f6d04d', beanie=('#c8343a', '#e86066', '#8a2028'))
 
 # Event bits: music notes (one per primary colour), the macaw, and the salesman's clothes.
 def music_note(col):  # an eighth note: round head, stem, curling flag
@@ -1447,6 +1450,7 @@ farmer(SHOPKEEPER).save('assets/characters/shopkeeper.png')  # Fredrick
 farmer(STOREKEEPER).save('assets/characters/storekeeper.png')  # runs the general store
 farmer(WANDERER).save('assets/characters/wanderer.png')  # hooded stranger, kept for a later event
 farmer(MINSTREL).save('assets/characters/minstrel.png'); farmer(SALESMAN).save('assets/characters/salesman.png')
+farmer(WREN).save('assets/characters/villager_wren.png')
 for k_ in ('cat', 'dog', 'pup'): pet(k_).save(f'assets/characters/pet_{k_}.png')
 for k_, p_ in TRAVELLERS.items(): farmer(p_).save(f'assets/characters/traveller_{k_}.png')
 with open('src/art-index.js', 'w') as f:

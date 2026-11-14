@@ -40,6 +40,13 @@ export const SCHEDULES = {
     { hour: 14, act: 'move', map: 'town', x: 4, y: 23, size: 2 },
     { hour: 21, act: 'sleep' },
   ],
+  villager_wren: [ // Wren the painter follows the seasons, and is in bed from 8 PM to 6 AM
+    { hour: 6, season: 'Spring', act: 'move', map: 'farm', x: 8, y: 22, size: 2 }, // the meadow below your field
+    { hour: 6, season: 'Summer', act: 'move', map: 'road', x: 14, y: 20, size: 2 },
+    { hour: 6, season: 'Fall', act: 'move', map: 'town', x: 8, y: 24, size: 2 }, // the green at the bottom of town
+    { hour: 6, season: 'Winter', act: 'move', map: 'town', x: 20, y: 12, size: 2 }, // the town square
+    { hour: 20, act: 'sleep' },
+  ],
 };
 
 // The rule someone follows at `hour` on `day` (Mon..Sun) of `season`; asleep before their first rule.

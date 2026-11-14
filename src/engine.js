@@ -3,6 +3,28 @@ import { A } from './art-index.js';
 export const TILE = 16; // logical units per tile; art is 32x32, drawn at double density
 const TARGET = 300; // art pixels along the screen's shorter side
 
+// A copy of the art sheet for a season: the greens of grass and plants turn sun-baked in summer, orange in fall, snowy in winter.
+const NATURE = /^(grass|path|cobbleb|brickb|soil|shallow|wild|tree|oak|pine|shrub|berry_bush|dandelions|roses|tulips|mushrooms|rock|dig_spot)/;
+function tint(img, season) {
+  const cv = document.createElement('canvas'), c = cv.getContext('2d');
+  cv.width = img.width; cv.height = img.height; c.drawImage(img, 0, 0);
+  try {
+    for (const [name, i] of Object.entries(A)) {
+      if (!NATURE.test(name)) continue;
+      const x = (i % 16) * 32, y = Math.floor(i / 16) * 32, d = c.getImageData(x, y, 32, 32), p = d.data, plant = /^(tree|oak|pine|shrub|berry)/.test(name);
+      const m = season === 3 ? (plant ? 0.6 : 1) : season === 2 ? (/^pine/.test(name) ? 0.2 : plant ? 1 : 0.55) : 1; // snow only dusts the trees; fall grass half turns, pines barely
+      for (let k = 0; k < p.length; k += 4) {
+        const r = p[k], g = p[k + 1], b = p[k + 2];
+        if (g <= r * 1.05 || g <= b * 1.05) continue; // only the greens
+        const to = season === 1 ? [r * 1.2 + 10, g * 1.02, b * 0.7] : season === 2 ? [g * 1.1 + 20, g * 0.8, b * 0.55] : [g * 0.3 + 172, g * 0.3 + 184, g * 0.3 + 200];
+        to.forEach((v, j) => { p[k + j] = p[k + j] + (v - p[k + j]) * m; });
+      }
+      c.putImageData(d, x, y);
+    }
+  } catch { return img; } // e.g. opened from a file: the canvas can't be read
+  return cv;
+}
+
 export class Game {
   constructor(canvas) {
     this.canvas = canvas;
@@ -66,10 +88,13 @@ export class Game {
     this.scene.draw(c);
   }
 
+  // The art for this.season (0 = Spring ... 3 = Winter): the sheet itself in spring, a recoloured copy otherwise.
+  sheet() { const s = this.season ?? 0; return s ? (this.sheets ??= [])[s] ??= tint(this.images.art, s) : this.images.art; }
+
   // Draw a named 32x32 tile from assets/art/world.png into a 16-unit logical tile (or `size` units).
   tile(name, x, y, size = TILE) {
     const i = A[name];
-    this.ctx.drawImage(this.images.art, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32,
+    this.ctx.drawImage(this.sheet(), (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32,
       Math.round(x * 2) / 2, Math.round(y * 2) / 2, size, size);
   }
 
