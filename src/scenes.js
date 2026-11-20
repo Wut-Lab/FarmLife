@@ -226,7 +226,7 @@ export class World {
       const saved = writeSave(this.slot, this.snapshot());
       this.say((passedOut ? 'You passed out! Half energy today.' : 'Good morning!') + (this.rain ? (this.clock.season === 3 ? " It's snowing" : " It's raining") + ': your crops are watered.' : '') + this.openGates() + (this.upgradeNews ?? '') + (this.paid ? ` Shipping paid ${this.paid}g.` : '') + (this.withered ? ` ${this.withered} out-of-season crop${this.withered > 1 ? 's' : ''} withered.` : '') + (saved ? ' Game saved.' : '')); this.upgradeNews = '';
     });
-    if (this.save) this.restore(this.save); else writeSave(this.slot, this.snapshot());
+    if (this.save) this.restore(this.save); else { writeSave(this.slot, this.snapshot()); this.say('Welcome! New here? Pause, then How to Play.'); }
     playMusic(); // one of two tracks, picked at random each time you enter
   }
 
@@ -773,10 +773,10 @@ export class World {
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     if (this.menu === 'pause') return [
       { label: 'Resume', go: () => { this.menu = null; } },
+      { label: 'How to Play', go: () => { this.menu = 'guide'; this.book = new Book(GUIDE, () => this.openMenu('pause'), GOAL); sfx('click'); } },
       { label: 'Equipment', go: () => this.openMenu('equipment') },
       { label: 'Friends', go: () => this.openMenu('friends') },
       { label: 'Quests', go: () => this.openMenu('quests') },
-      { label: 'How to Play', go: () => { this.menu = 'guide'; this.book = new Book(GUIDE, () => this.openMenu('pause'), GOAL); sfx('click'); } },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Save and quit', go: () => { this.autosave(); stopMusic(); this.g.go(new SaveSelect()); } },
     ];
