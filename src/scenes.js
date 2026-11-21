@@ -1159,6 +1159,18 @@ export class World {
     return [x0 + (j % 8) * 19, y0 + Math.floor(j / 8) * 19, 18, 18];
   }
 
+  // Little puffs of dust (or snow) kicked up behind you as you walk on paths, soil, or anything in winter.
+  drawDust(c, cx, cy) {
+    const now = performance.now() / 1000, m = this.map, tx = Math.floor((this.x + 8) / TILE), ty = Math.floor((this.y + 14) / TILE), n = m.ground[ty * m.W + tx] ?? '';
+    const moved = this.lastAt && (this.lastAt[0] !== this.x || this.lastAt[1] !== this.y), winter = this.clock.season === 3;
+    this.lastAt = [this.x, this.y]; this.dust ??= [];
+    if (moved && now - (this.dustT ?? 0) > 0.16 && (winter || /^(path|soil|cobble|brick|wild)/.test(n))) { this.dustT = now; this.dust.push({ x: this.x + 5 + Math.random() * 6, y: this.y + 15, t: now }); }
+    this.dust = this.dust.filter(p => now - p.t < 0.45);
+    c.fillStyle = winter ? '#ffffff' : '#e8d8b0';
+    for (const p of this.dust) { const a = (now - p.t) / 0.45, r = 1.5 + a * 2.5, x = p.x - cx, y = p.y - cy - a * 4; c.globalAlpha = 0.85 * (1 - a); c.fillRect(x - r, y - r / 2, r * 2, r); c.fillRect(x - r / 2, y - r, r, r * 2); } // a little round puff, rising and fading
+    c.globalAlpha = 1;
+  }
+
   // Something in the air each season: petals in spring, fireflies on summer evenings, falling leaves in fall. Fixed to the ground as you walk.
   drawAir(c, cx, cy) {
     const g = this.g, s = this.clock.season, t = performance.now() / 1000, night = this.clock.dayProgress > 0.6;
@@ -1251,6 +1263,7 @@ export class World {
       }
       if (!snow) { c.fillStyle = 'rgba(30,45,80,0.14)'; c.fillRect(0, 0, g.w, g.h); }
     }
+    this.drawDust(c, cx, cy);
     this.drawAir(c, cx, cy);
     // Light through the day: a pink haze at dawn, gold late in the afternoon, then night falls after 6 PM.
     const d = this.clock.dayProgress, dark = Math.max(0, d - 0.6) * 1.9, dawn = Math.max(0, 1 - d / 0.08) * 0.12, gold = Math.max(0, 1 - Math.abs(d - 0.58) / 0.1) * 0.16;
@@ -1260,6 +1273,12 @@ export class World {
       const px = this.x - cx + 8, py = this.y - cy + 10, l = c.createRadialGradient(px, py, 10, px, py, 70);
       l.addColorStop(0, `rgba(11,20,48,${(dark * 0.35).toFixed(3)})`); l.addColorStop(1, `rgba(11,20,48,${dark.toFixed(3)})`);
       c.fillStyle = l; c.fillRect(0, 0, g.w, g.h);
+      // Windows light up as it gets dark, with a faint glow around them.
+      c.globalAlpha = Math.min(1, dark * 1.8);
+      for (const o of list) if (o.tiles) o.tiles.forEach((row, j) => row.forEach((n, k) => g.litTile(n, o.x + k * TILE - cx, o.y + j * TILE - cy)));
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = Math.min(0.5, dark);
+      for (const o of list) if (o.tiles) o.tiles.forEach((row, j) => row.forEach((n, k) => g.litTile(n, o.x + k * TILE - cx - 1, o.y + j * TILE - cy - 1)));
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
     }
     const dim = () => { c.fillStyle = `rgba(0,0,0,${this.fadeDark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); };
     if (this.fade?.walk) dim(); // changing places: the HUD stays up

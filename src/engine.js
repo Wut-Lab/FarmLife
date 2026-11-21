@@ -5,6 +5,7 @@ const TARGET = 300; // art pixels along the screen's shorter side
 
 // A copy of the art sheet for a season: the greens of grass and plants turn sun-baked in summer, orange in fall, snowy in winter (with iced water, frosted soil and snow on the roofs).
 const NATURE = /^(grass|path|cobbleb|brickb|soil|shallow|wild|tree|oak|pine|shrub|berry_bush|dandelions|roses|tulips|mushrooms|rock|dig_spot)/;
+const BUILDING = /^(house|house_brown|house_blue|shop|barn|store|stone_house)_\d/; // building tiles
 const ROOFS = [['house', 3, 3], ['shop', 3, 3], ['barn', 4, 4], ['store', 6, 4], ['house_brown', 3, 4], ['house_blue', 3, 4], ['stone_house', 5, 4]]; // buildings: name, tiles wide, tiles high
 function tint(img, season) {
   const cv = document.createElement('canvas'), c = cv.getContext('2d');
@@ -101,6 +102,27 @@ export class Game {
 
   // The art for this.season (0 = Spring ... 3 = Winter): the sheet itself in spring, a recoloured copy otherwise.
   sheet() { const s = this.season ?? 0; return s ? (this.sheets ??= [])[s] ??= tint(this.images.art, s) : this.images.art; }
+
+  // Lit windows: a copy of the sheet with only the buildings' window glass, turned warm yellow (drawn over the dark at night).
+  lit() {
+    if (this.litSheet !== undefined) return this.litSheet;
+    const img = this.images.art, cv = document.createElement('canvas'), c = cv.getContext('2d'), GLASS = { '7fb3d8': '#ffe08a', 'b9dcf2': '#fff4c0', '4f80aa': '#f0a848', '7fa3c0': '#ffd27a' };
+    cv.width = img.width; cv.height = img.height;
+    try {
+      const src = document.createElement('canvas').getContext('2d'); src.canvas.width = img.width; src.canvas.height = img.height; src.drawImage(img, 0, 0);
+      const d = src.getImageData(0, 0, img.width, img.height), p = d.data, out = c.createImageData(img.width, img.height), o = out.data;
+      for (const [name, i] of Object.entries(A)) {
+        if (!BUILDING.test(name)) continue;
+        for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+          const k = (((i >> 4) * 32 + y) * img.width + (i % 16) * 32 + x) * 4, hex = [0, 1, 2].map(j => p[k + j].toString(16).padStart(2, '0')).join(''), to = GLASS[hex];
+          if (p[k + 3] > 200 && to) { [1, 3, 5].forEach((s, j) => { o[k + j] = parseInt(to.slice(s, s + 2), 16); }); o[k + 3] = 255; }
+        }
+      }
+      c.putImageData(out, 0, 0);
+    } catch { return (this.litSheet = null); } // the canvas can't be read (opened from a file): no lit windows
+    return (this.litSheet = cv);
+  }
+  litTile(name, x, y) { const s = this.lit(), i = A[name]; if (s && i !== undefined && BUILDING.test(name)) this.ctx.drawImage(s, (i % 16) * 32, Math.floor(i / 16) * 32, 32, 32, Math.round(x * 2) / 2, Math.round(y * 2) / 2, TILE, TILE); }
 
   // Draw a named 32x32 tile from assets/art/world.png into a 16-unit logical tile (or `size` units).
   tile(name, x, y, size = TILE) {
