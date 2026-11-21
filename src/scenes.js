@@ -50,7 +50,9 @@ export class Menu {
     const done = () => { this.book = null; };
     return [['Play', () => this.g.go(new SaveSelect())], ['How to Play', () => { this.book = new Book(GUIDE, done, GOAL); }], ['Credits', () => { this.book = new Book(CREDITS, done); }]];
   }
-  rects() { const g = this.g; return this.items().map((_, i) => [g.w / 2 - 45, g.h * 0.2 + 70 + i * 23, 90, 19]); }
+  // The title at the top; the buttons under it, moved up just enough that the last one fits on a short screen.
+  top() { return Math.round(this.g.h * 0.12); }
+  rects() { const g = this.g, y0 = Math.min(this.top() + 74, g.h - 3 * 20 - 4); return this.items().map((_, i) => [g.w / 2 - 45, y0 + i * 20, 90, 17]); }
   update(dt) {
     const inp = this.g.input;
     this.t += dt;
@@ -65,12 +67,13 @@ export class Menu {
     const g = this.g, cx = g.w / 2;
     meadow(g, this.t);
     if (this.book) return this.book.draw(g);
-    g.text('FarmLife', cx, g.h * 0.2, { size: 28, align: 'center', color: '#fff3a8' });
-    g.text('A farming & life sim', cx, g.h * 0.2 + 32, { size: 8, align: 'center' });
-    this.walkers.forEach((w, i) => w.draw(g, ((this.t * 24 + i * 20) % (g.w + 40)) - 20, g.h * 0.2 + 48));
+    const ty = this.top();
+    g.text('FarmLife', cx, ty, { size: 28, align: 'center', color: '#fff3a8' });
+    g.text('A farming & life sim', cx, ty + 32, { size: 8, align: 'center' });
+    this.walkers.forEach((w, i) => w.draw(g, ((this.t * 24 + i * 20) % (g.w + 40)) - 20, ty + 46));
     this.rects().forEach((r, i) => {
       g.button(...r, i === this.pick ? '#e86a9a' : '#3f2631dd');
-      g.text(this.items()[i][0], r[0] + r[2] / 2, r[1] + 5, { size: 10, align: 'center' });
+      g.text(this.items()[i][0], r[0] + r[2] / 2, r[1] + 3, { size: 10, align: 'center' });
     });
   }
 }
@@ -1158,7 +1161,7 @@ export class World {
 
   drawSlot(i) {
     const g = this.g, s = this.inv.slots[i], [x, y] = this.slotRect(i);
-    g.button(x, y, 18, 18, i === this.pick ? '#e86a9add' : i < LOCKED ? '#2f5560dd' : undefined); // the fixed can and seed bag are teal
+    g.button(x, y, 18, 18, i === this.pick ? '#e86a9a' : i < LOCKED ? '#2f5560f2' : '#3f2631f2'); // solid, so the map doesn't show through; the fixed can and seed bag are teal
     if (i === this.inv.sel) { g.ctx.strokeStyle = '#fff3a8'; g.ctx.lineWidth = 1; g.ctx.strokeRect(x + 0.5, y + 0.5, 17, 17); }
     if (!s) return;
     const icon = s.id === 'seeds' ? CROPS[SEEDS[this.seed]].packet : (UPGRADES[s.id] && toolIcon(s.id, this.levels[s.id])) ?? TOOLS[s.id]?.icon ?? PLANTS[s.id]?.icon ?? FORAGE[s.id]?.icon ?? CROPS[s.id].item;
@@ -1294,12 +1297,14 @@ export class World {
   hud() {
     const g = this.g, k = this.clock, w = 78, x = g.w - w - 18;
     const y = g.w < HOTBAR * 19 + w + 29 ? 26 : 4; // Drop below the hotbar on narrow screens.
-    g.panel(x, y, w, 34);
+    if (!this.open) { // hidden while the bag is open (it would peek out from behind it)
+    g.button(x, y, w, 34, '#3f2631f2');
     g.text(`${k.seasonName} ${k.day}, Y${k.year}`, x + 4, y + 3, { size: 7 });
     g.text(k.timeString, x + 4, y + 12, { size: 7, color: '#fff3a8' });
     g.text(`${this.gold}g`, x + w - 4, y + 12, { size: 7, align: 'right', color: '#fff3a8' });
     g.panel(x + 4, y + 24, w - 8, 5, '#24361a');
-    g.panel(x + 4, y + 24, (w - 8) * Math.min(1, k.energy / k.max), 5, '#86cf5e');
+    g.panel(x + 4, y + 24, (w - 8) * Math.min(1, k.energy / k.max), 5, k.energy < k.max / 5 ? '#e8a23a' : '#86cf5e'); // orange when you're nearly worn out
+    }
     // Hotbar, top left, with the held item's name under it.
     for (let i = 0; i < HOTBAR; i++) this.drawSlot(i);
     const h = this.inv.held;
@@ -1307,7 +1312,7 @@ export class World {
     // Bag grid.
     if (this.open) {
       const [bx, by] = this.slotRect(HOTBAR);
-      g.panel(bx - 4, by - 14, 8 * 19 + 7, 2 * 19 + 17, '#3f2631ee');
+      g.button(bx - 4, by - 14, 8 * 19 + 7, 2 * 19 + 17, '#3f2631f8');
       const worth = this.binValue(this.inv.slots.slice(HOTBAR + BAG).filter(Boolean));
       g.text(this.pick >= 0 ? 'Now tap where it goes' : this.binOpen ? `Shipping bin above · ${worth}g tonight` : 'Bag: tap two slots to swap', g.w / 2, by - 11, { size: 6, align: 'center' });
       for (let i = HOTBAR; i < HOTBAR + BAG; i++) this.drawSlot(i);
