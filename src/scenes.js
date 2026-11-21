@@ -1159,6 +1159,23 @@ export class World {
     return [x0 + (j % 8) * 19, y0 + Math.floor(j / 8) * 19, 18, 18];
   }
 
+  // Something in the air each season: petals in spring, fireflies on summer evenings, falling leaves in fall. Fixed to the ground as you walk.
+  drawAir(c, cx, cy) {
+    const g = this.g, s = this.clock.season, t = performance.now() / 1000, night = this.clock.dayProgress > 0.6;
+    if (this.rain || s === 3 || (s === 1 && !night)) return;
+    const cols = s === 0 ? ['#f8b8d0', '#ffffff'] : s === 1 ? ['#f6f08a'] : ['#e8823a', '#c8502a', '#f2c230'];
+    for (let i = 0; i < 18; i++) {
+      const sx = i * 137, sy = i * 89;
+      let x, y;
+      if (s === 1) { x = sx + Math.sin(t * 0.7 + i) * 10; y = sy + Math.cos(t * 0.5 + i * 2) * 8; } // fireflies hover
+      else { x = sx + t * 9 + Math.sin(t * 1.5 + i) * 8; y = sy + t * (s === 0 ? 6 : 12); } // petals and leaves drift down and across
+      x = ((x - cx) % (g.w + 20) + g.w + 20) % (g.w + 20) - 10; y = ((y - cy) % (g.h + 20) + g.h + 20) % (g.h + 20) - 10;
+      c.fillStyle = cols[i % cols.length];
+      if (s === 1) { c.globalAlpha = 0.5 + 0.5 * Math.sin(t * 3 + i); c.fillRect(x, y, 2, 2); c.globalAlpha *= 0.35; c.fillRect(x - 1, y - 1, 4, 4); c.globalAlpha = 1; }
+      else if (Math.sin(t * 2 + i) > 0) c.fillRect(x, y, 2, 1); else c.fillRect(x, y, 1, 2); // turning as they fall
+    }
+  }
+
   drawSlot(i) {
     const g = this.g, s = this.inv.slots[i], [x, y] = this.slotRect(i);
     g.button(x, y, 18, 18, i === this.pick ? '#e86a9a' : i < LOCKED ? '#2f5560f2' : '#3f2631f2'); // solid, so the map doesn't show through; the fixed can and seed bag are teal
@@ -1186,6 +1203,10 @@ export class World {
         if (this.map.digs?.has(`${x},${y}`)) g.tile('dig_spot', x * TILE - cx, y * TILE - cy);
         const fo = this.map.forage?.get(`${x},${y}`);
         if (fo) g.tile(FORAGE[fo].icon, x * TILE - cx + 3, y * TILE - cy + 4, 10); // forage lies small on the ground
+        if (/^(shallow|deep)/.test(n)) { // water glints: each tile twinkles now and then, at its own moment
+          const h = (x * 73 + y * 151) % 97, t = (performance.now() / 1000 + h / 13) % 4;
+          if (t < 0.6) { c.fillStyle = `rgba(255,255,255,${(0.8 * Math.sin(t / 0.6 * Math.PI)).toFixed(2)})`; c.fillRect(x * TILE - cx + 3 + h % 9, y * TILE - cy + 4 + h % 7, h % 2 ? 3 : 2, 1); }
+        }
       }
     this.events.drawGround(this, cx, cy);
     // Highlight the tile the player is facing.
@@ -1230,9 +1251,16 @@ export class World {
       }
       if (!snow) { c.fillStyle = 'rgba(30,45,80,0.14)'; c.fillRect(0, 0, g.w, g.h); }
     }
-    // Night falls after 6 PM.
-    const dark = Math.max(0, this.clock.dayProgress - 0.6) * 1.6;
-    if (dark > 0) { c.fillStyle = `rgba(11,20,48,${dark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
+    this.drawAir(c, cx, cy);
+    // Light through the day: a pink haze at dawn, gold late in the afternoon, then night falls after 6 PM.
+    const d = this.clock.dayProgress, dark = Math.max(0, d - 0.6) * 1.9, dawn = Math.max(0, 1 - d / 0.08) * 0.12, gold = Math.max(0, 1 - Math.abs(d - 0.58) / 0.1) * 0.16;
+    if (dawn > 0) { c.fillStyle = `rgba(255,170,190,${dawn.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
+    if (gold > 0) { c.fillStyle = `rgba(255,150,40,${gold.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); }
+    if (dark > 0) { // darkness everywhere but a soft glow around you
+      const px = this.x - cx + 8, py = this.y - cy + 10, l = c.createRadialGradient(px, py, 10, px, py, 70);
+      l.addColorStop(0, `rgba(11,20,48,${(dark * 0.35).toFixed(3)})`); l.addColorStop(1, `rgba(11,20,48,${dark.toFixed(3)})`);
+      c.fillStyle = l; c.fillRect(0, 0, g.w, g.h);
+    }
     const dim = () => { c.fillStyle = `rgba(0,0,0,${this.fadeDark.toFixed(3)})`; c.fillRect(0, 0, g.w, g.h); };
     if (this.fade?.walk) dim(); // changing places: the HUD stays up
     this.hud();
