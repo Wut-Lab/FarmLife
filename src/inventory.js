@@ -4,6 +4,7 @@ export const TOOLS = {
   can:   { name: 'Watering Can', icon: 'can' },
   seeds: { name: 'Seeds' },
   shovel: { name: 'Shovel',      icon: 'shovel' }, // bought from Bella; carried in the bag like an item
+  sprinkler: { name: 'Sprinkler', icon: 'sprinkler' }, // crafted (crafting.js); stacks, and goes on your farm
   rod:    { name: 'Fishing Rod', icon: 'rod' }, // also from Bella; fishing needs it in the active hotbar slot
 };
 export const HOTBAR = 8, LOCKED = 2, BAG = 16, BIN = 5; // bin slots come after the bag

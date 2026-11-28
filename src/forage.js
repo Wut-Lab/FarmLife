@@ -1,12 +1,13 @@
 // Forage: things to pick up, mostly in the Wilds, with a few turning up on the farm each morning.
 //   Berries come from berry bushes (press Use facing one; it grows back by morning). Eat them for a little energy.
 //   Pinecones lie around pine trees, sticks around the other trees, and stones in the open; walk over them to pick them up.
-//   (Pinecones, sticks and stones are for crafting, later.)
+//   Stones, sticks and berries are for crafting (Pause > Crafting); pinecones, later.
 export const FORAGE = {
   berries: { name: 'Berries', icon: 'berries', price: 2, energy: 5 }, // energy: eaten with Use while held
   pinecone: { name: 'Pinecone', icon: 'pinecone', price: 2 },
   stone: { name: 'Stone', icon: 'stone', price: 2 },
   stick: { name: 'Stick', icon: 'stick', price: 2 },
+  jam: { name: 'Berry Jam', icon: 'jam', price: 30, energy: 25 }, // crafted from berries (crafting.js)
   // Fish: press Use facing water to cast, and again when it bites.
   fish_minnow: { name: 'Minnow', icon: 'fish_minnow', price: 12 }, fish_trout: { name: 'Trout', icon: 'fish_trout', price: 45 },
   fish_sunfish: { name: 'Sunfish', icon: 'fish_sunfish', price: 15 }, fish_catfish: { name: 'Catfish', icon: 'fish_catfish', price: 55 },

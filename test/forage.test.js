@@ -6,7 +6,7 @@ import { findPath } from '../src/villagers.js';
 import { exitRows } from '../src/map-data.js';
 
 test('forage sells for 2 gold each, and berries can be eaten', () => {
-  for (const [id, f] of Object.entries(FORAGE)) if (!id.startsWith('fish_')) assert.equal(f.price, 2);
+  for (const [id, f] of Object.entries(FORAGE)) if (!id.startsWith('fish_') && id !== 'jam') assert.equal(f.price, 2);
   assert.ok(FORAGE.berries.energy > 0);
 });
 let sticks = 0;

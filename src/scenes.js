@@ -23,6 +23,7 @@ import { TRAVELLER_CHANCE, STRANGER_CHANCE, HELLOS, LINES, travellerLook, paintT
 import { Support, PEOPLE, PERK_AT, MAX_HEARTS, chatter } from './support.js';
 import { Book, GUIDE, GOAL, CREDITS, CONTROLS } from './guide.js';
 import { Inventory, TOOLS, HOTBAR, LOCKED, BAG, BIN } from './inventory.js';
+import { RECIPES, missing, sprinkled } from './crafting.js';
 
 const CHARACTERS = [
   { sheet: 'male', label: 'Male' },
@@ -209,14 +210,14 @@ export class World {
     this.events = new Events(); // today's random events
     this.quests = new Quests();
     this.levels = { ...START_LEVELS }; this.upgrading = null; // tool levels, and the one Bella has overnight: { tool, level }
-    this.tilled = []; this.wilds = null; this.confirm = null; this.pouch = false; this.qty = {}; this.shopSel = 0; this.storeTab = 'goods'; this.pets = []; // pets: adopted cats and dogs (their looks, from pets.js) // farm tiles the hoe has turned into new plots
+    this.tilled = []; this.wilds = null; this.confirm = null; this.pouch = false; this.qty = {}; this.sprinklers = []; this.craftMsg = ''; this.shopSel = 0; this.storeTab = 'goods'; this.pets = []; // pets: adopted cats and dogs (their looks, from pets.js) // farm tiles the hoe has turned into new plots
     this.clock.on('overnight', () => {
       this.quests.tick(0, true);
       if (this.upgrading) { const { tool, level } = this.upgrading; this.levels[tool] = level; this.upgradeNews = ` Bella finished your ${toolName(tool, level)}!`; this.upgrading = null; }
       const k = this.clock, next = k.day >= DAYS_PER_SEASON ? (k.season + 1) % SEASONS.length : k.season;
       const soak = () => { if (this.rain) for (const p of this.field.plots.values()) if (p) p.wet = true; };
       soak(); this.field.overnight(); this.support.overnight(Math.random, next); this.scatterDigs(); // rain also waters what you planted in it
-      this.rain = Math.random() < RAIN[next]; soak();
+      this.rain = Math.random() < RAIN[next]; soak(); this.sprinkle();
       this.paid = this.binValue(this.inv.emptyBin()); this.withered = 0;
       this.gold += this.paid;
     });
@@ -239,7 +240,7 @@ export class World {
     return {
       v: 1, layout: FARM_LAYOUT, sheet: this.sheet, gold: this.gold, seeds: this.seeds, seed: this.seed, gear: this.gear, worn: this.worn, moved: this.moved, quests: this.quests.state, levels: this.levels, upgrading: this.upgrading, tilled: this.tilled, pets: this.pets, wilds: this.wildsSave(), world: this.worldSave(),
       clock: { day: k.day, season: k.season, year: k.year, energy: k.energy }, at: { minutes: k.minutes, map: here, x: this.x, y: this.y },
-      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state, rain: !!this.rain,
+      plots: [...this.field.plots].filter(([, p]) => p), slots: this.inv.slots, sel: this.inv.sel, support: this.support.state, rain: !!this.rain, sprinklers: this.sprinklers,
     };
   }
   restore(s) {
@@ -252,6 +253,7 @@ export class World {
     this.moved = s.layout === FARM_LAYOUT && s.moved || { gone: [], put: [] }; // plants moved on an older farm layout don't carry over
     for (const key of this.moved.gone) this.unplant(key);
     for (const [key, id] of this.moved.put) this.plant(key, id);
+    for (const key of s.sprinklers ?? []) this.setSprinkler(key);
     this.quests = new Quests(s.quests);
     this.pets = s.pets ?? []; this.homePets();
     if (s.wilds) this.freshen('wilds', s.wilds);
@@ -651,6 +653,16 @@ export class World {
     if (held === 'hoe' && this.levels.hoe >= 2 && this.till(key)) return;
     if (held === 'can' && this.levels.can >= 2 && this.onFarm && this.water(key)) return;
     if (held === 'shovel') return this.dig(key);
+    if (this.onFarm && this.sprinklers.includes(key)) {
+      if (!this.inv.add('sprinkler')) return this.say('Your bag is full.');
+      this.setSprinkler(key, false); sfx('dig'); return this.say('Picked up the sprinkler.');
+    }
+    if (held === 'sprinkler') {
+      if (!this.onFarm) return this.say('Sprinklers go on your farm.');
+      if (!this.openGrass(key)) return this.say('It needs an open patch of grass, next to your crops.');
+      this.inv.take('sprinkler', 1); this.setSprinkler(key); sfx('plant');
+      return this.say('Placed the sprinkler. It waters the 8 plots around it each morning.');
+    }
     if (PLANTS[held]) return this.replant(key, held);
     if (FORAGE[held]?.energy) return this.eat(held);
     if (!this.onFarm || !f.has(key)) return CROPS[held] && this.say(`That's ${aCrop(held)}.`);
@@ -777,11 +789,16 @@ export class World {
     if (this.menu === 'pause') return [
       { label: 'Resume', go: () => { this.menu = null; } },
       { label: 'How to Play', go: () => { this.menu = 'guide'; this.book = new Book(GUIDE, () => this.openMenu('pause'), GOAL); sfx('click'); } },
+      { label: 'Crafting', go: () => { this.openMenu('craft'); this.craftMsg = ''; } },
       { label: 'Equipment', go: () => this.openMenu('equipment') },
       { label: 'Friends', go: () => this.openMenu('friends') },
       { label: 'Quests', go: () => this.openMenu('quests') },
       { label: 'Settings', go: () => this.openMenu('settings') },
       { label: 'Save and quit', go: () => { this.autosave(); stopMusic(); this.g.go(new SaveSelect()); } },
+    ];
+    if (this.menu === 'craft') return [
+      ...Object.entries(RECIPES).map(([id, r]) => ({ label: `${r.name} · ${Object.entries(r.needs).map(([k, n]) => this.nOf(k, n)).join(', ')}`, go: () => this.craft(id) })),
+      { label: 'Back', go: () => this.openMenu('pause') },
     ];
     if (this.menu === 'equipment') return [
       ...Object.entries(WEAR_SLOTS).map(([slot, label]) => {
@@ -805,8 +822,8 @@ export class World {
     return [{ label: 'Back', go: () => (this.back ? this.openMenu(this.back) : (this.menu = null)) }];
   }
   menuLayout() {
-    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : this.menu === 'equipment' ? 2 : this.menu === 'quests' ? 2 * Math.max(1, this.quests.log(() => 0).length) : 0;
-    const w = this.menu === 'friends' || this.menu === 'quests' ? 170 : this.menu === 'equipment' ? 180 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
+    const g = this.g, items = this.menuItems(), lines = this.menu === 'controls' ? CONTROLS.length : this.menu === 'friends' ? Object.keys(PEOPLE).length * 3 : this.menu === 'equipment' ? 2 : this.menu === 'craft' ? 4 : this.menu === 'quests' ? 2 * Math.max(1, this.quests.log(() => 0).length) : 0;
+    const w = this.menu === 'friends' || this.menu === 'quests' ? 170 : this.menu === 'equipment' || this.menu === 'craft' ? 180 : 150, h = 22 + lines * 9 + items.length * 18, x = Math.round(g.w / 2 - w / 2), y = Math.round(g.h / 2 - h / 2);
     const rows = items.map((it, i) => ({ ...it, r: [x + 6, y + 18 + lines * 9 + i * 18, w - 12, 16] }));
     return { x, y, w, h, rows, top: y + 18 };
   }
@@ -832,7 +849,7 @@ export class World {
     const g = this.g, { x, y, w, h, rows, top } = this.menuLayout();
     g.ctx.fillStyle = '#0b142888'; g.ctx.fillRect(0, 0, g.w, g.h);
     g.panel(x, y, w, h, '#3f2631f2');
-    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends', equipment: 'Equipment', quests: 'Quests' }[this.menu];
+    const title = { pause: 'Paused', settings: 'Settings', controls: 'Controls', friends: 'Friends', equipment: 'Equipment', quests: 'Quests', craft: 'Crafting' }[this.menu];
     g.text(title, x + w / 2, y + 5, { size: 8, align: 'center', color: '#fff3a8' });
     if (this.menu === 'pause') g.text(`Saved this morning · ♪ ${musicName()}`, x + w / 2, y + h + 3, { size: 5, align: 'center', color: '#e2f0d4' });
     if (this.menu === 'friends') Object.entries(PEOPLE).forEach(([id, who], i) => {
@@ -847,6 +864,12 @@ export class World {
       const on = Object.values(this.worn).map(id => GOODS[id].about);
       this.wrap(on.length ? on.join(' ') : 'Buy clothes at the General Store, then wear them here.', w - 16, 5).slice(0, 2)
         .forEach((l, i) => g.text(l, x + 8, top + i * 9, { size: 5, color: on.length ? '#86cf5e' : '#dcebc6' }));
+    }
+    if (this.menu === 'craft') { // what the picked recipe does, what you have, and how the last try went
+      const r = this.menuItems()[this.mi], id = Object.keys(RECIPES)[this.mi], have = ['stone', 'stick', 'berries'].map(k => this.nOf(k, this.inv.count(k))).join(' · ');
+      g.text(`You have: ${have}`, x + 8, top, { size: 5, color: '#dcebc6' });
+      this.wrap(RECIPES[id]?.about ?? 'Gather stones, sticks and berries out in the Wilds.', w - 16, 5).slice(0, 2).forEach((l, i) => g.text(l, x + 8, top + 9 + i * 8, { size: 5, color: r && id && !missing(id, k => this.inv.count(k)).length ? '#86cf5e' : '#e2f0d4' }));
+      if (this.craftMsg) g.text(this.craftMsg, x + 8, top + 27, { size: 5, color: '#fff3a8' });
     }
     if (this.menu === 'quests') {
       const log = this.quests.log(id => this.inv.count(id));
@@ -884,6 +907,24 @@ export class World {
     for (const m of Object.values(this.maps)) regrowBushes(m);
     scatterForage(this.maps.farm, SPREAD.farm);
   }
+  // Sprinklers: Use while holding one to set it on open grass on your farm; Use on one to pick it back up.
+  setSprinkler(key, on = true) {
+    const m = this.maps.farm, [x, y] = key.split(',').map(Number);
+    if (on) { m.objects.push({ x: x * TILE, y: y * TILE, base: (y + 1) * TILE, tiles: [['sprinkler']] }); this.sprinklers.push(key); }
+    else { m.objects.splice(m.objects.findIndex(o => o.tiles[0][0] === 'sprinkler' && o.x === x * TILE && o.y === y * TILE), 1); this.sprinklers.splice(this.sprinklers.indexOf(key), 1); }
+    m.solid[y * m.W + x] = on ? 1 : 0;
+  }
+  sprinkle() { for (const k of sprinkled(this.sprinklers)) if (this.field.get(k)) this.field.get(k).wet = true; }
+  // "3 sticks", "1 stone", "2 more berries".
+  nOf(k, n, more = '') { const w = FORAGE[k].name.toLowerCase(); return `${n} ${more}${n === 1 || w.endsWith('s') ? w : w + 's'}`; }
+  // Crafting: make one of a recipe from what you carry.
+  craft(id) {
+    const r = RECIPES[id], short = missing(id, k => this.inv.count(k));
+    if (short.length) { sfx('nope'); return (this.craftMsg = `Need ${short.map(([k, n]) => this.nOf(k, n, 'more ')).join(' and ')}.`); }
+    if (!this.inv.add(id)) return (this.craftMsg = 'Your bag is full.');
+    for (const [k, n] of Object.entries(r.needs)) this.inv.take(k, n);
+    sfx('harvest'); this.craftMsg = `Made ${id === 'jam' ? 'a jar of Berry Jam' : `a ${r.name}`}! It's in your bag.`;
+  }
   plantAt(key, map = this.map) {
     return map.objects.find(o => `${o.x / TILE},${o.y / TILE}` === key && o.tiles.length === 1 && o.tiles[0].length === 1 && PLANTS[o.tiles[0][0]]);
   }
@@ -920,11 +961,15 @@ export class World {
     if (put >= 0) this.moved.put.splice(put, 1); else this.moved.gone.push(key);
     this.say(`Dug up the ${PLANTS[id].name}. Plant it anywhere on your farm.`);
   }
-  replant(key, id) {
+  // An open patch of grass on the map you're on: nothing built, planted or tilled there.
+  openGrass(key) {
     const m = this.map, [x, y] = key.split(',').map(Number);
-    if (!this.onFarm) return this.say('Plant it on your farm.');
     const taken = this.field.has(key) || [m.door, ...m.bin].includes(key) || m.objects.some(o => o.tiles.some((row, j) => row.some((_, i) => `${o.x / TILE + i},${o.y / TILE + j}` === key)));
-    if (x < 0 || y < 0 || x >= m.W || y >= m.H || taken || m.solid[y * m.W + x] || !m.ground[y * m.W + x].startsWith('grass')) return this.say('It needs an open patch of grass.');
+    return !(x < 0 || y < 0 || x >= m.W || y >= m.H || taken || m.solid[y * m.W + x] || !m.ground[y * m.W + x].startsWith('grass'));
+  }
+  replant(key, id) {
+    if (!this.onFarm) return this.say('Plant it on your farm.');
+    if (!this.openGrass(key)) return this.say('It needs an open patch of grass.');
     this.inv.take(id, 1); this.plant(key, id); sfx('plant');
     this.moved.put.push([key, id]);
     this.say(`Planted the ${PLANTS[id].name}.`);

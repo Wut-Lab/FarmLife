@@ -235,6 +235,25 @@ def backpack():  # light blue pack with brown straps, flap and buckle
     d.rectangle([14, 13, 18, 16], C('#e8c25a')); d.point((16, 14), C('#7a4a26'))  # buckle
     d.line([(12, 22), (20, 22)], C('#4d93bf'))  # pocket seam
     return outline(im)
+def sprinkler():  # a stone base, a stick riser and a brass head spraying water both ways
+    im = new()
+    shape(im, lambda d: d.ellipse([8, 22, 24, 30]), '#9a9a92', '#c4c4ba', '#6a6a64', 1)  # stone base
+    d = ImageDraw.Draw(im); d.line([(16, 24), (16, 13)], C('#8a5a2e'), 3); d.line([(15, 23), (15, 14)], C('#b07a44'), 1)  # stick riser
+    shape(im, lambda d: d.rounded_rectangle([12, 9, 20, 14], 2), '#d8a838', '#f2d070', '#9a7020', 1)  # brass head
+    for side in (-1, 1):
+        for k, (dx, dy) in enumerate([(5, -3), (9, -2), (12, 1)]):
+            d.point((16 + side * dx, 9 + dy), C('#9cd4ee' if k % 2 else '#5cb0e0')); d.point((16 + side * dx, 10 + dy), C('#b9dcf2'))
+    return outline(im)
+def jam():  # a jar of berry jam with a gingham lid and a label
+    im = new()
+    shape(im, lambda d: d.rounded_rectangle([9, 11, 23, 28], 4), '#b0283a', '#e0506a', '#701828')  # jam in glass
+    d = ImageDraw.Draw(im); d.line([(11, 14), (11, 24)], C('#f8c0c8'), 1)  # shine
+    shape(im, lambda d: d.rounded_rectangle([8, 6, 24, 11], 2), '#f4f1ea', '#ffffff', '#b8b4aa', 1)  # lid cloth
+    for x in range(9, 24, 3): d.line([(x, 7), (x, 10)], C('#e0485a'))
+    d.line([(9, 11), (23, 11)], C('#8a5a2e'))  # string
+    shape(im, lambda d: d.rectangle([12, 17, 20, 22]), '#f0e0b0', '#fff4d0', '#c0a870', 1)  # label
+    d.point((15, 19), C('#b0283a')); d.point((17, 20), C('#b0283a'))
+    return outline(im)
 def shovel():  # long handle with a D grip at the top, rounded pointed blade at the bottom
     im = new(); d = ImageDraw.Draw(im)
     d.line([(11, 21), (24, 7)], C('#a86a3a'), 3); d.line([(12, 20), (23, 8)], C('#c88a50'), 1)
@@ -1312,7 +1331,7 @@ for j in range(3):
 for kind in ('carrot', 'turnip', 'cabbage'):
     for s in range(4): add(f'{kind}{s}', crop(kind, s))
     add(f'{kind}_item', ITEMS[kind]); add(f'{kind}_packet', packet(ITEMS[kind]))
-add('hoe', hoe()); add('can', can()); add('bag', backpack())
+add('hoe', hoe()); add('can', can()); add('bag', backpack()); add('sprinkler', sprinkler()); add('jam', jam())
 add('tree_green', tall_tree(('#4f9e3a', '#6fc04f', '#357a2a'))); add('tree_orange', tall_tree(('#e0892f', '#f5ad4f', '#b0601f')))
 add('tree', small_tree()); add('mushrooms', mushrooms())
 add('pine', pine()); add('oak', oak()); add('shrub_large', shrub(2 * S)); add('shrub_flower', shrub(S, True))
